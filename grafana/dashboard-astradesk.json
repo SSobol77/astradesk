@@ -1,0 +1,8 @@
+{
+  "title": "AstraDesk Overview",
+  "panels": [
+    { "type": "graph", "title": "API p95 latency", "targets": [{"expr":"histogram_quantile(0.95, sum(rate(http_server_duration_seconds_bucket{job=\"astradesk\"}[5m])) by (le))"}] },
+    { "type": "graph", "title": "DB calls/s", "targets": [{"expr":"rate(astradesk_pg_calls_total[5m])"}] }
+  ],
+  "schemaVersion": 39
+}

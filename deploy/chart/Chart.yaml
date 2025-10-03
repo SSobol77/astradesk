@@ -1,0 +1,5 @@
+# deploy/chart/Chart.yaml
+apiVersion: v2
+name: astradesk
+version: 0.2.0
+type: application

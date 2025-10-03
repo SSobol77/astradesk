@@ -1,0 +1,24 @@
+# Opcjonalnie zaostrzamy ruch wewnątrz namespace'u.
+# Poniższa polityka zezwala *tylko* na ruch przychodzący
+# z tego samego namespace'u i z Istio IngressGateway (label istio: ingressgateway).
+# Dostosuj do swoich trust rules (np. zezwolenie na Prometheus).
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: astradesk-allow-from-namespace-and-ingress
+  namespace: astradesk
+spec:
+  rules:
+    - from:
+        - source:
+            namespaces: ["astradesk"]
+      to:
+        - operation: {}  # cały ruch od wewnętrznych usług w namespace
+    - from:
+        - source:
+            principals:
+              # Principal IngressGateway (service account) – dopasuj do swojej instalacji Istio!
+              # Najczęściej: cluster-local SA w 'istio-system' -> 'istio-ingressgateway-service-account'
+              - "cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account"
+      to:
+        - operation: {}  # ruch z gateway'a

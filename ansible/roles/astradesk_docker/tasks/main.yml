@@ -1,0 +1,12 @@
+---
+- name: Install Docker
+  apt: { name: [docker.io], state: present, update_cache: yes }
+- name: Ensure Docker service
+  service: { name: docker, state: started, enabled: yes }
+- name: Copy compose file
+  copy:
+    src: "{{ playbook_dir }}/../../docker-compose.yml"
+    dest: /opt/astradesk/docker-compose.yml
+- name: Bring up stack
+  command: docker compose up -d
+  args: { chdir: /opt/astradesk }

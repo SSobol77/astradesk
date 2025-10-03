@@ -1,0 +1,28 @@
+# deploy/chart/values.yaml
+image:
+  repository: your-registry/astradesk-api
+  tag: "0.2.1"
+
+replicaCount: 2
+
+service:
+  type: ClusterIP
+  port: 8080
+
+env:
+  DATABASE_URL: postgresql://astradesk:astrapass@postgres:5432/astradesk
+  REDIS_URL: redis://redis-master:6379/0
+  TICKETS_BASE_URL: http://ticket-adapter:8081
+  OIDC_ISSUER: https://your-issuer.example.com/
+  OIDC_AUDIENCE: astradesk-api
+  OIDC_JWKS_URL: https://your-issuer.example.com/.well-known/jwks.json
+
+resources:
+  requests: { cpu: "200m", memory: "256Mi" }
+  limits:   { cpu: "1",    memory: "1Gi"  }
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 60

@@ -1,0 +1,20 @@
+# Mapuje hosta publicznego na serwis w klastrze.
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: astradesk-api
+  namespace: astradesk
+spec:
+  hosts:
+    - api.astradesk.example.com   # <- ZMIEŃ na swój FQDN
+  gateways:
+    - astradesk/astradesk-gw
+  http:
+    - match:
+        - uri:
+            prefix: /              # cały ruch HTTP(S) idzie do backendu
+      route:
+        - destination:
+            host: astradesk-api.astradesk.svc.cluster.local
+            port:
+              number: 8080         # port kontenera API

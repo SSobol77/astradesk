@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-api
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-api
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-api
+    spec:
+      containers:
+      - name: api
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        ports:
+        - containerPort: 8080
+        env:
+        - name: DATABASE_URL
+          value: {{ .Values.env.DATABASE_URL | quote }}
+        - name: REDIS_URL
+          value: {{ .Values.env.REDIS_URL | quote }}
+        - name: TICKETS_BASE_URL
+          value: {{ .Values.env.TICKETS_BASE_URL | quote }}
+        - name: OIDC_ISSUER
+          value: {{ .Values.env.OIDC_ISSUER | quote }}
+        - name: OIDC_AUDIENCE
+          value: {{ .Values.env.OIDC_AUDIENCE | quote }}
+        - name: OIDC_JWKS_URL
+          value: {{ .Values.env.OIDC_JWKS_URL | quote }}
+        resources:
+{{ toYaml .Values.resources | indent 10 }}

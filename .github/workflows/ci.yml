@@ -1,0 +1,21 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: Sync deps
+        run: uv sync --frozen
+      - name: Lint & Types
+        run: |
+          uv run ruff check src
+          uv run ruff format --check src
+          uv run mypy src
+      - name: Tests
+        run: uv run pytest -q
+      - name: Build image
+        run: docker build -t astradesk:ci .

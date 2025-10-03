@@ -1,0 +1,20 @@
+# Publiczny punkt wejścia do klastra (Warstwa 7).
+# Działa na porcie 443, wykorzystuje sekret TLS (dostarczany przez cert-manager).
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: astradesk-gw
+  namespace: astradesk
+spec:
+  selector:
+    istio: ingressgateway  # używa domyślnego IngressGateway z istio-system
+  servers:
+    - port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      tls:
+        mode: SIMPLE                # TLS do klienta zewnętrznego
+        credentialName: astradesk-tls  # nazwa Secret z certem (zarządzany przez cert-manager)
+      hosts:
+        - api.astradesk.example.com   # <- ZMIEŃ na swój FQDN
