@@ -1,0 +1,32 @@
+stages: [build, test, docker, deploy]
+variables:
+  DOCKER_DRIVER: overlay2
+build_python:
+  stage: build
+  image: python:3.12
+  script:
+    - pip install uv && uv sync --frozen
+test_python:
+  stage: test
+  image: python:3.12
+  script:
+    - uv run ruff check src
+    - uv run mypy src
+    - uv run pytest -q
+docker_images:
+  stage: docker
+  image: docker:25
+  services: [docker:25-dind]
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE/api:$CI_COMMIT_SHA .
+    - docker build -t $CI_REGISTRY_IMAGE/ticket:$CI_COMMIT_SHA services/ticket-adapter-java
+    - docker build -t $CI_REGISTRY_IMAGE/admin:$CI_COMMIT_SHA services/admin-portal
+    - docker push $CI_REGISTRY_IMAGE/api:$CI_COMMIT_SHA
+    - docker push $CI_REGISTRY_IMAGE/ticket:$CI_COMMIT_SHA
+    - docker push $CI_REGISTRY_IMAGE/admin:$CI_COMMIT_SHA
+deploy:
+  stage: deploy
+  image: alpine/helm:3.15.3
+  script:
+    - helm upgrade --install astradesk deploy/chart --set image.repository=$CI_REGISTRY_IMAGE/api --set image.tag=$CI_COMMIT_SHA
+  when: manual

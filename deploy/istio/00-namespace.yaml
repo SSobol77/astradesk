@@ -1,0 +1,7 @@
+# Tworzymy dedykowany namespace z labelami wymaganymi przez Istio do sidecar injection.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: astradesk
+  labels:
+    istio-injection: enabled  # automatyczna injekcja Envoy sidecar

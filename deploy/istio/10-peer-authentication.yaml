@@ -1,0 +1,11 @@
+# Włącza *obowiązkowe* mTLS (STRICT) dla całego namespace'u.
+# Dzięki temu *każdy* ruch pomiędzy Podami w tej przestrzeni nazw
+# musi odbywać się z wzajemną autentykacją TLS (mTLS).
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: astradesk-peer-auth
+  namespace: astradesk
+spec:
+  mtls:
+    mode: STRICT

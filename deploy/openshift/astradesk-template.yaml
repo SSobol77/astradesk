@@ -1,0 +1,40 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata: { name: astradesk }
+objects:
+- kind: DeploymentConfig
+  apiVersion: v1
+  metadata: { name: astradesk-api }
+  spec:
+    replicas: 2
+    selector: { app: astradesk-api }
+    template:
+      metadata: { labels: { app: astradesk-api } }
+      spec:
+        containers:
+        - name: api
+          image: ${API_IMAGE}:${TAG}
+          ports: [{containerPort: 8080}]
+          env:
+          - {name: DATABASE_URL, value: "${DATABASE_URL}"}
+          - {name: REDIS_URL, value: "${REDIS_URL}"}
+- kind: Service
+  apiVersion: v1
+  metadata: { name: astradesk-api }
+  spec:
+    selector: { app: astradesk-api }
+    ports: [{ port: 80, targetPort: 8080 }]
+- kind: Route
+  apiVersion: route.openshift.io/v1
+  metadata: { name: astradesk }
+  spec:
+    to: { kind: Service, name: astradesk-api }
+parameters:
+- name: API_IMAGE
+  value: docker.io/youruser/astradesk-api
+- name: TAG
+  value: "latest"
+- name: DATABASE_URL
+  value: postgresql://astradesk:astrapass@postgres:5432/astradesk
+- name: REDIS_URL
+  value: redis://redis:6379/0

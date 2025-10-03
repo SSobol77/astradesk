@@ -1,0 +1,13 @@
+# Jeśli używasz cert-managera do wystawienia certu TLS dla hosta z Gateway:
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: astradesk-tls
+  namespace: astradesk
+spec:
+  secretName: astradesk-tls
+  dnsNames:
+    - api.astradesk.example.com     # <- ZMIEŃ
+  issuerRef:
+    name: letsencrypt-prod          # <- Twój ClusterIssuer
+    kind: ClusterIssuer

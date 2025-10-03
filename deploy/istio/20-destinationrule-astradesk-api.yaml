@@ -1,0 +1,13 @@
+# Ustawiamy politykę połączeń dla serwisu 'astradesk-api'
+# tak, aby klienci w siatce zawsze używali ISTIO_MUTUAL (mTLS)
+# przy komunikacji z tym hostem.
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: astradesk-api
+  namespace: astradesk
+spec:
+  host: astradesk-api.astradesk.svc.cluster.local  # FQDN usługi w klastrze
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL  # użyj certów Istio między sidecarami (mTLS)

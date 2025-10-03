@@ -1,0 +1,27 @@
+# Git
+.git/
+.github/
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.uv/
+.mypy_cache/
+.pytest_cache/
+
+# Build artifacts
+build/
+dist/
+releases/
+*.egg-info/
+
+# IDE / OS
+.vscode/
+.idea/
+*.log
+.DS_Store
+
+# Frontend (если есть)
+node_modules/
