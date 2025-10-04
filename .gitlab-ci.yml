@@ -1,32 +1,60 @@
-stages: [build, test, docker, deploy]
+stages:
+  - build
+  - test
+  - docker
+  - deploy
+
 variables:
   DOCKER_DRIVER: overlay2
+  PYTHON_VERSION: "3.11.8"
+  UV_VERSION: "0.4.22"
+
 build_python:
   stage: build
-  image: python:3.12
+  image: ghcr.io/astral-sh/uv:${UV_VERSION}-py${PYTHON_VERSION}
   script:
-    - pip install uv && uv sync --frozen
+    - uv sync --all-extras --frozen
+  artifacts:
+    paths:
+      - .venv/
+    expire_in: 1 day
+
 test_python:
   stage: test
-  image: python:3.12
+  image: ghcr.io/astral-sh/uv:${UV_VERSION}-py${PYTHON_VERSION}
   script:
     - uv run ruff check src
+    - uv run ruff format --check src
     - uv run mypy src
-    - uv run pytest -q
+    - uv run pytest --cov=src --cov-report=xml --cov-report=term-missing -q
+  artifacts:
+    paths:
+      - coverage.xml
+    expire_in: 1 week
+
 docker_images:
   stage: docker
   image: docker:25
-  services: [docker:25-dind]
+  services:
+    - docker:25-dind
+  variables:
+    DOCKER_HOST: tcp://docker:2375
   script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker build -t $CI_REGISTRY_IMAGE/api:$CI_COMMIT_SHA .
     - docker build -t $CI_REGISTRY_IMAGE/ticket:$CI_COMMIT_SHA services/ticket-adapter-java
     - docker build -t $CI_REGISTRY_IMAGE/admin:$CI_COMMIT_SHA services/admin-portal
     - docker push $CI_REGISTRY_IMAGE/api:$CI_COMMIT_SHA
     - docker push $CI_REGISTRY_IMAGE/ticket:$CI_COMMIT_SHA
     - docker push $CI_REGISTRY_IMAGE/admin:$CI_COMMIT_SHA
+
 deploy:
   stage: deploy
   image: alpine/helm:3.15.3
   script:
-    - helm upgrade --install astradesk deploy/chart --set image.repository=$CI_REGISTRY_IMAGE/api --set image.tag=$CI_COMMIT_SHA
+    - helm upgrade --install astradesk deploy/chart \
+        --set image.repository=$CI_REGISTRY_IMAGE/api \
+        --set image.tag=$CI_COMMIT_SHA \
+        --namespace astradesk \
+        --create-namespace
   when: manual
