@@ -1,27 +1,114 @@
-# Git
+# Git and version control
 .git/
 .github/
 .gitignore
+.gitmodules
 
 # Python
 __pycache__/
+*.py[cod]
 *.pyc
+*.pyo
+*.pyd
 .venv/
 .uv/
+.uv-cache/
 .mypy_cache/
 .pytest_cache/
+coverage/
+.coverage
+*.cover
+*.lcov
+junit.xml
+test-results/
+test-output/
 
-# Build artifacts
+# Python build artifacts
 build/
 dist/
 releases/
 *.egg-info/
+*.egg
+*.whl
 
-# IDE / OS
+# Java / Gradle / Maven
+**/build/
+**/.gradle/
+*.class
+*.jar
+*.war
+*.ear
+target/
+.gradle/
+
+# Node.js / Next.js
+**/node_modules/
+**/.next/
+**/out/
+**/.env.local
+**/.env.development.local
+**/.env.test.local
+**/.env.production.local
+
+# Terraform
+infra/.terraform/
+infra/.terraform.lock.hcl
+infra/*.tfstate
+infra/*.tfstate.backup
+infra/terraform.tfstate
+infra/terraform.tfstate.backup
+
+# Helm / Kubernetes
+deploy/chart/Chart.lock
+deploy/chart/charts/
+deploy/chart/tmpcharts/
+deploy/istio/*.bak
+deploy/istio/*.tmp
+
+# Configuration Management
+ansible/inventories/*/*.retry
+ansible/inventories/*/group_vars/*.bak
+ansible/inventories/*/host_vars/*.bak
+puppet/.tmp/
+puppet/.bundle/
+puppet/vendor/
+salt/.cache/
+salt/.srv/
+
+# Docker and environment
+docker-compose.override.yml
+.dockerignore
+.env
+.env.*
+!.env.example
+
+# Logs and temporary files
+logs/
+*.log
+*.log.*
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+
+# IDE and OS
 .vscode/
 .idea/
-*.log
+*.swp
+*.swo
+*~
 .DS_Store
+Thumbs.db
 
-# Frontend (если есть)
-node_modules/
+# Monitoring and Grafana
+grafana/provisioning/
+grafana/data/
+grafana/*.db
+
+# Security and secrets
+secrets/
+*.key
+*.pem
+*.crt
+*.p12
