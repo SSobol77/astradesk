@@ -286,5 +286,5 @@ MIT License. See [LICENSE](LICENSE) for details.
 ## Contact
 
 Autor: Siergej Sobolewski (s.sobolewski@hotmail.com).  
-Issues: [GitHub Issues](https://github.com/your-org/astradesk/issues).  
+Issues: [GitHub Issues](https://github.com/SSobol77/astradesk/issues).  
 Data: October 04, 2025.
