@@ -39,6 +39,9 @@ dev = [
   "pip-audit>=2.7,<3.0"  # For dependency security audit
 ]
 
+[tool.uv]
+extra-index-url = ["https://download.pytorch.org/whl/cu121"]  # Use PyTorch index for torch to avoid NVIDIA conflicts
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
