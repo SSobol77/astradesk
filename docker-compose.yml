@@ -3,26 +3,52 @@ services:
   api:
     build: .
     env_file: .env
-    ports: [ "8080:8080" ]
-    depends_on: [ db, redis, nats, ticket-adapter ]
+    environment:
+      UV_EXTRA_INDEX_URL: "https://download.pytorch.org/whl/cu121"
+      UV_INDEX_STRATEGY: "unsafe-best-match"
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      ticket-adapter:
+        condition: service_started
   ticket-adapter:
     build: services/ticket-adapter-java
     env_file: .env
-    ports: [ "8081:8081" ]
-    depends_on: [ mysql ]
+    ports:
+      - "8081:8081"
+    depends_on:
+      mysql:
+        condition: service_healthy
   admin:
     build: services/admin-portal
     environment:
       NEXT_PUBLIC_API_URL: http://api:8080
-    ports: [ "3000:3000" ]
-    depends_on: [ api ]
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_started
   db:
     image: postgres:16
     environment:
       POSTGRES_DB: astradesk
       POSTGRES_USER: astradesk
       POSTGRES_PASSWORD: astrapass
-    ports: [ "5432:5432" ]
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U astradesk"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
   mysql:
     image: mysql:8
     environment:
@@ -30,11 +56,42 @@ services:
       MYSQL_USER: tickets
       MYSQL_PASSWORD: tickets
       MYSQL_ROOT_PASSWORD: root
-    ports: [ "3306:3306" ]
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "tickets", "-ptickets"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
   redis:
     image: redis:7
-    ports: [ "6379:6379" ]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
   nats:
     image: nats:2
     command: ["-js"]
-    ports: [ "4222:4222","8222:8222" ]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats_data:/datastore
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres_data:
+  mysql_data:
+  redis_data:
+  nats_data:
