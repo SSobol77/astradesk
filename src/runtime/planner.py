@@ -1,158 +1,144 @@
 # src/runtime/planner.py
 # -*- coding: utf-8 -*-
 # Program jest objęty licencją Apache-2.0.
-# Copyright 2024
+# Copyright 2025
 # Autor: Siergej Sobolewski
-#
-# Cel modułu
-# ----------
-# Minimalny planer (MVP) dla AstraDesk:
-#  - Na podstawie zapytania użytkownika wybiera, które narzędzia (tools) wywołać.
-#  - Jeżeli żadne narzędzie nie pasuje, pozostawia decyzję warstwie RAG (pusty plan).
-#
-# Główne założenia:
-#  - Prosty, heurystyczny dobór po słowach-kluczach (bez LLM).
-#  - Preferencja narzędzi (np. ticketing, metryki) nad RAG.
-#  - Łatwość rozszerzenia (dodawanie nowych reguł/kluczy).
-#
-# Uwaga:
-#  - Ten moduł nie wykonuje narzędzi i nie łączy się z RAG — zwraca tylko plan.
-#  - Finalizacja (scalenie wyników tooli / kontekstu RAG) odbywa się w metodzie `finalize`.
-#
-# Zależności: brak zewnętrznych (czysty Python).
+"""Implementacja konfigurowalnego, heurystycznego planera opartego na słowach kluczowych.
 
+Ten moduł dostarcza implementację planera, który pełni rolę "fallbacku"
+lub podstawowego mechanizmu decyzyjnego w sytuacji, gdy zaawansowany planer
+oparty na LLM jest niedostępny lub nie jest wymagany.
+
+Główne cechy:
+- **Architektura oparta na regułach**: Logika planowania jest zdefiniowana jako
+  lista konfigurowalnych reguł (`KeywordRule`), co ułatwia rozszerzanie
+  i utrzymanie planera.
+- **Brak zależności od LLM**: Działa w pełni deterministycznie na podstawie
+  zdefiniowanych słów kluczowych i heurystyk.
+- **Spójność z modelami danych**: Wykorzystuje model `ToolCall` z `runtime.models`,
+  zapewniając spójny kontrakt z resztą systemu.
+- **Ustrukturyzowane odpowiedzi**: Metoda `finalize` tworzy czytelne,
+  sformatowane odpowiedzi dla użytkownika na podstawie wyników narzędzi i RAG.
+"""
 from __future__ import annotations
 
-from typing import Any, Iterable
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Set
+
+from runtime.models import ToolCall
+
+# Typ dla funkcji, która generuje argumenty dla narzędzia na podstawie zapytania.
+ArgFactory = Callable[[str], Dict[str, Any]]
 
 
-# -------------------------
-# Stałe „tuningowe” planera
-# -------------------------
+@dataclass(frozen=True)
+class KeywordRule:
+    """Definiuje regułę dopasowania słów kluczowych do wywołania narzędzia.
 
-# Heurystyki dla rozpoznawania intencji „ticket”.
-KEYWORDS_TICKET: tuple[str, ...] = (
-    "ticket", "bilet", "zgłosz", "zgłoszenie", "incident", "incydent", "otwórz zgłoszenie"
-)
-
-# Heurystyki dla rozpoznawania intencji „metryki/observability”.
-KEYWORDS_METRICS: tuple[str, ...] = (
-    "metric", "metryk", "cpu", "latency", "uptime", "availability", "p95", "p99"
-)
-
-# Domyślne parametry do narzędzia metryk — proste, ale wystarczające w MVP.
-DEFAULT_SERVICE: str = "webapp"
-DEFAULT_WINDOW: str = "15m"
-
-# Limit tytułu zgłoszenia (zabezpieczenie przycinające wejście użytkownika).
-TITLE_MAX: int = 60
-
-
-class PlanStep:
-    """
-    Pojedynczy krok planu — wywołanie konkretnego narzędzia z argumentami.
-
-    Atrybuty:
-        tool_name: nazwa narzędzia (identyfikator w ToolRegistry),
-        args:      słownik argumentów przekazywanych do narzędzia.
+    Attributes:
+        keywords: Zbiór słów kluczowych, które aktywują regułę.
+        tool_name: Nazwa narzędzia do wywołania (zgodna z ToolRegistry).
+        arg_factory: Funkcja, która tworzy słownik argumentów dla narzędzia.
     """
 
-    def __init__(self, tool_name: str, args: dict[str, Any]) -> None:
-        if not tool_name:
-            raise ValueError("tool_name must not be empty")
-        self.tool_name = tool_name
-        self.args = args
+    keywords: Set[str]
+    tool_name: str
+    arg_factory: ArgFactory
 
 
-class Plan:
-    """
-    Plan wykonania złożony z listy kroków (może być pusty).
+class KeywordPlanner:
+    """Deterministyczny planer oparty na predefiniowanych regułach słów kluczowych.
 
-    Atrybuty:
-        steps: lista kroków (PlanStep) do wykonania przez warstwę agenta.
-    """
-
-    def __init__(self, steps: list[PlanStep]) -> None:
-        self.steps = steps
-
-
-class Planner:
-    """
-    Minimalny planer heurystyczny.
-
-    Zasada działania:
-      1) Jeżeli zapytanie sugeruje utworzenie zgłoszenia → `create_ticket`.
-      2) Jeżeli zapytanie dotyczy metryk/observability → `get_metrics`.
-      3) W przeciwnym razie zwróć pusty plan (agent użyje RAG).
-
-    Przykład:
-        planner = Planner()
-        plan = await planner.make("Utwórz ticket dla awarii VPN")
-        # -> Plan([PlanStep("create_ticket", {...})])
+    Jego zadaniem jest analiza zapytania użytkownika i, na podstawie
+    prostych heurystyk, stworzenie planu składającego się z jednego
+    wywołania narzędzia (`ToolCall`). Jeśli żadna reguła nie pasuje,
+    zwraca pusty plan, sygnalizując potrzebę użycia RAG.
     """
 
-    @staticmethod
-    def _contains_any(haystack: str, needles: Iterable[str]) -> bool:
-        """
-        Zwraca True, jeśli którakolwiek fraza z `needles` występuje w `haystack`.
+    __slots__ = ("_rules",)
 
-        Uwaga:
-          - Zakłada, że `haystack` jest już znormalizowany (np. lower()).
-        """
-        return any(w in haystack for w in needles)
+    def __init__(self) -> None:
+        """Inicjalizuje planer z predefiniowanym zestawem reguł."""
+        self._rules: List[KeywordRule] = [
+            # Reguła 1: Tworzenie zgłoszeń (ticketów)
+            KeywordRule(
+                keywords={"ticket", "bilet", "zgłoś", "zgłoszenie", "incident", "incydent"},
+                tool_name="create_ticket",
+                arg_factory=lambda query: {
+                    "title": query.strip()[:80],  # Bezpieczne obcięcie tytułu
+                    "body": query.strip(),
+                },
+            ),
+            # Reguła 2: Pobieranie metryk
+            KeywordRule(
+                keywords={"metryki", "metryk", "cpu", "pamięć", "latency", "p95", "p99"},
+                tool_name="get_metrics",
+                arg_factory=lambda _: {
+                    "service": "webapp",  # Domyślna usługa
+                    "window": "15m",      # Domyślne okno czasowe
+                },
+            ),
+            # Dodaj kolejne reguły tutaj, np. dla restartu usług.
+            # KeywordRule(
+            #     keywords={"restart", "zrestartuj", "uruchom ponownie"},
+            #     tool_name="ops.restart_service",
+            #     arg_factory=...
+            # ),
+        ]
 
-    async def make(self, query: str) -> Plan:
-        """
-        Buduje plan dla zapytania użytkownika.
+    def make_plan(self, query: str) -> List[ToolCall]:
+        """Tworzy plan wykonania na podstawie zapytania użytkownika.
 
-        Krok po kroku:
-          - normalizuje wejście (lowercase),
-          - dopasowuje słowa-klucze do zestawów (ticket / metrics),
-          - zwraca plan z jednym krokiem (MVP) lub pusty (RAG fallback).
+        Iteruje przez zdefiniowane reguły i zwraca plan dla pierwszej
+        pasującej reguły.
 
-        :param query: treść zapytania użytkownika
-        :return: Plan z listą kroków (może być pusta)
+        Args:
+            query: Zapytanie użytkownika.
+
+        Returns:
+            Lista zawierająca jeden `ToolCall` lub pusta lista, jeśli
+            żadna reguła nie została dopasowana.
         """
         if not query or not query.strip():
-            # Pusty input → nic nie planujemy (warstwa wyżej zwróci błąd albo fallback).
-            return Plan([])
+            return []
 
-        ql = query.lower()
+        normalized_query = query.lower()
 
-        # (1) Intencja „ticket”: utworzenie zgłoszenia w systemie
-        if self._contains_any(ql, KEYWORDS_TICKET):
-            title = query.strip()[:TITLE_MAX]
-            return Plan([PlanStep("create_ticket", {"title": title, "body": query.strip()})])
+        for rule in self._rules:
+            if any(keyword in normalized_query for keyword in rule.keywords):
+                arguments = rule.arg_factory(query)
+                return [ToolCall(name=rule.tool_name, arguments=arguments)]
 
-        # (2) Intencja „metryki”: pobranie metryk dla domyślnej usługi w domyślnym oknie
-        if self._contains_any(ql, KEYWORDS_METRICS):
-            return Plan([PlanStep("get_metrics", {"service": DEFAULT_SERVICE, "window": DEFAULT_WINDOW})])
+        # Jeśli żadna reguła nie pasuje, zwróć pusty plan.
+        return []
 
-        # (3) Brak dopasowania → zostaw RAG/inna logika po stronie agenta
-        return Plan([])
+    def finalize(
+        self, query: str, tool_results: List[str], rag_context: List[str]
+    ) -> str:
+        """Tworzy finalną, sformatowaną odpowiedź dla użytkownika.
 
-    async def finalize(self, query: str, tool_results: list[str], rag_ctx: list[str]) -> str:
+        Priorytetyzuje wyniki narzędzi. Jeśli ich nie ma, używa kontekstu z RAG.
+        Jeśli brak jakichkolwiek danych, zwraca grzeczną informację.
+
+        Args:
+            query: Oryginalne zapytanie użytkownika.
+            tool_results: Lista wyników (jako stringi) zwróconych przez narzędzia.
+            rag_context: Lista fragmentów tekstu (kontekst) z systemu RAG.
+
+        Returns:
+            Sformatowana, czytelna odpowiedź tekstowa dla użytkownika.
         """
-        Składa finalną odpowiedź dla użytkownika na podstawie wyników narzędzi
-        i/lub kontekstu RAG.
-
-        Heurystyka:
-          - Jeśli są wyniki narzędzi → priorytet dla nich (zwracamy listę wyników).
-          - W przeciwnym razie, jeśli jest kontekst RAG → złącz i zwróć.
-          - Jeśli brak obu → zwróć prosty komunikat MVP.
-
-        :param query: oryginalne zapytanie (pomocne w treści odpowiedzi)
-        :param tool_results: lista stringów zwróconych przez narzędzia
-        :param rag_ctx: lista stringów (fragmenty dokumentów/odpowiedzi z RAG)
-        :return: finalny string do zwrócenia użytkownikowi
-        """
-        # Wyniki narzędzi (np. nr ticketa / odczyty metryk) — pokazujemy najpierw.
         if tool_results:
-            return "Wyniki narzędzi:\n" + "\n".join(tool_results)
+            header = "✅ **Wyniki Działania Narzędzi**"
+            body = "\n".join(f"- {res}" for res in tool_results)
+            return f"{header}\n{body}"
 
-        # Fallback na RAG — wyświetlamy złączony kontekst (MVP).
-        if rag_ctx:
-            return f"Odpowiedź na '{query}'\n\n" + "\n---\n".join(rag_ctx)
+        if rag_context:
+            header = f"ℹ️ **Informacje z Bazy Wiedzy na temat:** *{query.strip()}*"
+            body = "\n\n---\n\n".join(rag_context)
+            return f"{header}\n\n{body}"
 
-        # Ostateczny fallback — brak jakiegokolwiek kontekstu.
-        return f"Brak kontekstu; odpowiedź na '{query}': (MVP)"
+        return (
+            "Przepraszam, nie udało mi się znaleźć konkretnej odpowiedzi ani "
+            "wykonać odpowiedniej akcji na podstawie Twojego zapytania."
+        )

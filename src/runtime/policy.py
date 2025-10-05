@@ -1,7 +1,8 @@
 # src/runtime/policy.py
 # -*- coding: utf-8 -*-
 # Program jest objęty licencją Apache-2.0.
-# Author: Siergej Sobolewski
+# Copyright 2025
+# Autor: Siergej Sobolewski
 #
 # Cel modułu
 # ----------

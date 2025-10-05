@@ -252,9 +252,10 @@ class ToolRegistry:
             kwargs = dict(kwargs)  # kopia
             kwargs.pop("claims", None)
 
-        # 3) Uruchomienie narzędzia: async → await; sync → to_thread
-        result = info.fn(**kwargs)
-        if inspect.iscoroutine(result):
-            return await result  # typ: Coroutine
-        # sync funkcja — offload do wątku, by nie blokować event loop
-        return await asyncio.to_thread(info.fn, **kwargs)
+        # 3) Uruchomienie narzędzia: poprawna obsługa sync/async
+        if inspect.iscoroutinefunction(info.fn):
+            # Funkcja jest asynchroniczna, można ją 'await'
+            return await info.fn(**kwargs)
+        else:
+            # Funkcja jest synchroniczna, uruchom w osobnym wątku
+            return await asyncio.to_thread(info.fn, **kwargs)

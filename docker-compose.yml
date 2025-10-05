@@ -77,18 +77,47 @@ services:
       timeout: 3s
       retries: 5
   nats:
-    image: nats:2
-    command: ["-js"]
+    image: nats:2-alpine
+    command: 
+      - "--jetstream"
+      - "--store_dir=/datastore"
+      - "-m"
+      - "8222"
     ports:
       - "4222:4222"
       - "8222:8222"
     volumes:
       - nats_data:/datastore
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8222/healthz"]
-      interval: 5s
-      timeout: 3s
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
       retries: 5
+      start_period: 10s
+      
+  # nats:
+  #     image: nats:2
+  #     command: 
+  #       - "--jetstream"
+  #       - "--store_dir=/datastore"
+  #     ports:
+  #       - "4222:4222"
+  #       - "8222:8222"
+  #     volumes:
+  #       - nats_data:/datastore
+  #     healthcheck:
+  #       test: ["CMD", "nc", "-z", "localhost", "4222"]
+  #       interval: 10s
+  #       timeout: 5s
+  #       retries: 5
+  #       start_period: 5s
+  auditor:
+      build: ./services/auditor
+      env_file: .env
+      depends_on:
+        nats:
+          condition: service_healthy
+      restart: unless-stopped
 
 volumes:
   postgres_data:

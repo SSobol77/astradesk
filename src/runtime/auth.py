@@ -1,7 +1,7 @@
 # src/runtime/auth.py
 # -*- coding: utf-8 -*-
 # Program jest objęty licencją Apache-2.0.
-# Copyright 2024
+# Copyright 2025
 # Autor: Siergej Sobolewski
 #
 # Cel modułu:

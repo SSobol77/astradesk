@@ -1,0 +1,116 @@
+/* services/admin-portal/app/page.module.css */
+
+/*
+ * Definiujemy tutaj centralną paletę kolorów, typografię i inne
+ * globalne wartości. Umożliwia to łatwą zmianę motywu (np. na tryb ciemny)
+ * i zapewnia spójność w całej aplikacji.
+ */
+
+/* ==========================================================================
+   1. Style Głównego Kontenera
+   ========================================================================== */
+.main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: calc(var(--spacing) * 2);
+  min-height: 100vh;
+  background-color: var(--color-background);
+  font-family: var(--font-family-sans);
+  color: var(--color-text-primary);
+}
+
+.container {
+  width: 100%;
+  max-width: 800px;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--spacing) * 2);
+}
+
+/* ==========================================================================
+   2. Typografia
+   ========================================================================== */
+.title {
+  /* Użycie clamp() dla płynnego skalowania czcionki */
+  font-size: clamp(1.75rem, 5vw, 2.5rem);
+  font-weight: 700;
+  text-align: center;
+  color: var(--color-primary);
+  margin-bottom: var(--spacing);
+}
+
+/* ==========================================================================
+   3. Komponent "Karta"
+   ========================================================================== */
+/*
+ * `card` to reużywalny kontener dla sekcji, takich jak status
+ * czy przykłady kodu.
+ */
+.card {
+  background-color: var(--color-surface);
+  border-radius: var(--border-radius);
+  border: 1px solid var(--color-border);
+  padding: calc(var(--spacing) * 1.5);
+  box-shadow: var(--box-shadow);
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+.card h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-top: 0;
+  margin-bottom: var(--spacing);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: calc(var(--spacing) / 2);
+}
+
+.card p {
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
+
+.card p strong {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   4. Blok Kodu
+   ========================================================================== */
+.codeBlock {
+  background-color: var(--color-code-background);
+  color: var(--color-code-text);
+  font-family: var(--font-family-mono);
+  padding: var(--spacing);
+  border-radius: calc(var(--border-radius) / 2);
+  overflow-x: auto; /* Umożliwia przewijanie w poziomie */
+  white-space: pre-wrap; /* Zawija długie linie */
+  font-size: 0.9rem;
+  border: 1px solid #444;
+}
+
+.codeBlock code {
+  font-family: inherit;
+}
+
+/* ==========================================================================
+   5. Responsywność
+   ========================================================================== */
+/*
+ * Proste media query, aby na mniejszych ekranach padding był mniejszy.
+ */
+@media (max-width: 768px) {
+  .main {
+    padding: var(--spacing);
+  }
+
+  .container {
+    gap: var(--spacing);
+  }
+}
