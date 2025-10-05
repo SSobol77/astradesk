@@ -2,59 +2,100 @@
 # -*- coding: utf-8 -*-
 # Program jest objęty licencją Apache-2.0.
 # Autor: Siergej Sobolewski
-#
-# Fasada pakietu `runtime` dla AstraDesk:
-# ---------------------------------------
-#  - Centralizuje importy najczęściej używanych bytów (Memory, RAG, Planner, ToolRegistry,
-#    modele Pydantic, RBAC/policy, OIDC cfg, publisher NATS),
-#  - Zapewnia pomocnicze funkcje lifecycle: `create_default_components()` i
-#    `shutdown_components()` do startu/stopu warstwy runtime w aplikacji,
-#  - Umożliwia opcjonalną (best-effort) rejestrację narzędzi z `tools/*`
-#    wraz z RBAC (allowed_roles) na poziomie registry.
-#
-# Uwaga:
-#  - Pakiet nie wymusza obecności wszystkich modułów narzędziowych — jeśli któregoś brakuje,
-#    rejestracja pominie go bez przerywania procesu (logiczna tolerancja na brak dependencji).
-#  - Helpery lifecycle NIE konfigurują mTLS ani Istio; to domena warstwy deploy/mesh.
-#  - Do FastAPI wpinamy te komponenty zwykle w on_startup/on_shutdown.
-#
-# Przykład użycia (FastAPI):
-# --------------------------
-# from runtime import create_default_components, shutdown_components, AgentRequest, AgentResponse
-#
-# app = FastAPI()
-# state = {}
-#
-# @app.on_event("startup")
-# async def _startup():
-#     state.update(await create_default_components(
-#         db_url=os.getenv("DATABASE_URL"),
-#         redis_url=os.getenv("REDIS_URL"),
-#         register_tools=True
-#     ))
-#
-# @app.on_event("shutdown")
-# async def _shutdown():
-#     await shutdown_components(state)
-#
-# # dalej w endpointach: state["pg_pool"], state["redis"], state["rag"], state["registry"], ...
-#
-# Bezpieczeństwo:
-#  - RBAC egzekwujemy na poziomie narzędzi (via runtime.policy.authorize lub allowed_roles w registry),
-#  - Autoryzację OIDC realizuje `runtime.auth.cfg` (JWT→claims) – wpinamy w middleware/Depends.
+"""Fasada publicznego API pakietu `runtime` dla aplikacji AstraDesk.
 
+Ten moduł pełni rolę centralnego punktu eksportu dla najważniejszych,
+stabilnych komponentów zdefiniowanych w pakiecie `runtime`. Jego celem
+jest uproszczenie importów w innych częściach aplikacji, np.:
+`from runtime import ToolRegistry, RAG, AgentRequest`
+
+Zgodnie z zasadą pojedynczej odpowiedzialności, ten plik **nie zawiera
+logiki biznesowej ani funkcji do zarządzania cyklem życia aplikacji**.
+Odpowiedzialność za tworzenie, konfigurowanie i zamykanie zasobów (takich
+jak pule połączeń czy rejestry) spoczywa na głównej warstwie aplikacji,
+np. w menedżerze `lifespan` w `src/gateway/main.py`.
+
+Przykład użycia:
+----------------
+# W dowolnym module aplikacji, np. w `gateway/orchestrator.py`:
+
+from runtime import (
+    ToolRegistry,
+    Memory,
+    AgentRequest,
+    AuthorizationError
+)
+
+class MyService:
+    def __init__(self, registry: ToolRegistry, memory: Memory):
+        ...
+
+    def handle_request(self, request: AgentRequest):
+        ...
+"""
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, TYPE_CHECKING
+# --- Wersjonowanie ---
+# Utrzymuj tę wersję zgodnie z ogólną wersją aplikacji/API.
+__version__ = "0.2.1"
 
-# Publiczne API – klasy i narzędzia najczęściej używane
+
+# --- Reeksport kluczowych komponentów ---
+# Eksportujemy tylko te elementy, które stanowią stabilne, publiczne API
+# naszego pakietu `runtime`.
+
+# Modele danych Pydantic (kontrakt API)
 from .models import AgentRequest, AgentResponse, ToolCall
-from .registry import ToolRegistry
-from .planner import Planner
+
+# Główne komponenty wykonawcze
+from .registry import ToolInfo, ToolRegistry
+from .planner import KeywordPlanner
 from .memory import Memory
 from .rag import RAG
 from .events import events
+
+# Komponenty związane z bezpieczeństwem
 from .auth import cfg as oidc_cfg
+from .policy import (
+    AuthorizationError,
+    PolicyError,
+    authorize,
+    get_roles,
+    policy,
+    require_all_roles,
+    require_any_role,
+    require_role,
+)
+
+
+# --- Definicja publicznego API pakietu (`__all__`) ---
+# Jawne zdefiniowanie `__all__` jest kluczową praktyką, która jasno
+# komunikuje, które elementy są przeznaczone do użytku na zewnątrz
+# tego pakietu, a które są wewnętrznymi detalami implementacyjnymi.
+__all__ = [
+    "__version__",
+    # Modele
+    "AgentRequest",
+    "AgentResponse",
+    "ToolCall",
+    # Główne komponenty
+    "ToolRegistry",
+    "ToolInfo",
+    "KeywordPlanner",
+    "Memory",
+    "RAG",
+    "events",
+    # Bezpieczeństwo
+    "oidc_cfg",
+    "get_roles",
+    "require_role",
+    "require_any_role",
+    "require_all_roles",
+    "authorize",
+    "policy",
+    "AuthorizationError",
+    "PolicyError",
+]
 
 # RBAC/ABAC – zrozumiałe wyjątki i API autoryzacji
 try:
@@ -101,38 +142,6 @@ except Exception:  # pragma: no cover - fallback: gdy policy.py nie jest dostęp
         def refresh_now(self) -> None: ...
         def current(self) -> dict[str, Any]: return {}
     policy = _DummyPolicyFacade()
-
-
-__all__ = [
-    # Wersja/fasada
-    "__version__",
-    # Modele
-    "AgentRequest",
-    "AgentResponse",
-    "ToolCall",
-    # Główne runtime
-    "ToolRegistry",
-    "Planner",
-    "Memory",
-    "RAG",
-    "events",
-    "oidc_cfg",
-    # RBAC/ABAC
-    "get_roles",
-    "require_role",
-    "require_any_role",
-    "require_all_roles",
-    "authorize",
-    "policy",
-    "AuthorizationError",
-    "PolicyError",
-    # Helpery lifecycle
-    "create_default_components",
-    "shutdown_components",
-]
-
-# Wersjonowanie pakietu runtime – utrzymuj zgodnie z wersją API.
-__version__ = "0.2.1"
 
 
 # ------------------------------

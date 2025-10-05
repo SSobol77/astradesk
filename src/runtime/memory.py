@@ -1,194 +1,179 @@
 # src/runtime/memory.py
-# -*- coding: utf-8 -*-
 # Program jest objęty licencją Apache-2.0.
-# Copyright 2024
+# Copyright 2025
 # Autor: Siergej Sobolewski
-#
-# Cel modułu
-# ----------
-# Warstwa pamięci i audytu dla AstraDesk:
-#  - Postgres (asyncpg): trwałe przechowywanie dialogów i wpisów audytowych,
-#  - Redis (redis.asyncio): pamięć robocza (listy, krótkotrwałe bufory, TTL),
-#  - NATS (publish-only): emisja zdarzeń audytowych (best-effort) do dalszej obróbki
-#    przez subskrybentów (np. mikroserwis Auditor → S3/Elasticsearch).
-#
-# Projektowe założenia:
-#  - Operacje na Postgres realizowane są przez współdzieloną pulę połączeń (asyncpg.Pool),
-#  - Operacje Redis wykonywane są przez pipeliny, aby zapewnić atomowość i wydajność,
-#  - Emisja eventu audytowego nie blokuje ścieżki krytycznej (błędy są ignorowane),
-#  - Do baz zapisujemy *minimalnie potrzebny* kontekst (zasada minimalizacji danych).
-#
-# Zależności:
-#  - Tabela `dialogues(agent, query, answer, meta, created_at)`,
-#  - Tabela `audits(actor, action, payload, created_at)`.
-#
-# Uwaga:
-#  - Logika RBAC nie jest częścią tego modułu; RBAC egzekwują narzędzia (tools/*)
-#    lub warstwa wyżej (gateway/agents) na podstawie claims z OIDC.
-#
+"""Moduł zarządzania pamięcią i audytem dla agentów AstraDesk.
 
+Ta warstwa odpowiada za interakcje z systemami przechowywania danych,
+zapewniając spójny interfejs do:
+- **Trwałej persystencji**: Zapisywanie historii dialogów i logów audytowych
+  w bazie danych PostgreSQL. Operacje te są traktowane jako krytyczne.
+- **Pamięci roboczej**: Wykorzystanie Redis do krótkotrwałego przechowywania
+  danych, takich jak bufory robocze agentów, z mechanizmem TTL.
+- **Emisji zdarzeń**: Publikowanie zdarzeń audytowych do systemu NATS w trybie
+  "best-effort", aby telemetria nie blokowała krytycznych operacji.
+
+Projekt opiera się na zasadzie separacji odpowiedzialności i "fail fast"
+dla operacji krytycznych, zapewniając integralność i obserwowalność systemu.
+"""
 from __future__ import annotations
 
 import json
-from typing import Any, Optional
+import logging
+from typing import Any
 
 import asyncpg
 import redis.asyncio as redis
 
 from runtime.events import events
 
+logger = logging.getLogger(__name__)
 
-# Stała z tematem NATS do publikacji wpisów audytowych.
+# Stała definiująca temat NATS dla zdarzeń audytowych.
 AUDIT_SUBJECT: str = "astradesk.audit"
 
 
 class Memory:
-    """
-    Klasa odpowiedzialna za persystencję dialogów, buforowanie pracy oraz audyt.
+    """Zarządza persystencją dialogów, pamięcią roboczą i audytem.
 
-    Atrybuty:
-        pg_pool (asyncpg.Pool): współdzielona pula połączeń do Postgresa,
-        redis (redis.asyncio.Redis): asynchroniczny klient Redis.
+    Enkapsuluje logikę interakcji z PostgreSQL, Redis i NATS,
+    udostępniając wysokopoziomowe metody dla warstwy agentów.
 
-    Przykład użycia (FastAPI dependency):
-        memory = Memory(pg_pool, redis_cli)
-        await memory.store_dialogue("support", "Jak zrestartować?", "Instrukcja...", {"user":"alice"})
-        await memory.audit("support", "create_ticket", {"ticket_id":"TCK-123"})
+    Attributes:
+        pg_pool: Współdzielona, asynchroniczna pula połączeń do PostgreSQL.
+        redis: Asynchroniczny klient do serwera Redis.
     """
 
-    def __init__(self, pg_pool: asyncpg.Pool, redis_cli: redis.Redis):
-        """
-        Inicjalizuje warstwę pamięci.
+    __slots__ = ("pg_pool", "redis")
 
-        :param pg_pool: pula połączeń asyncpg do bazy Postgres
-        :param redis_cli: klient Redis (asynchroniczny)
+    def __init__(self, pg_pool: asyncpg.Pool, redis_cli: redis.Redis) -> None:
+        """Inicjalizuje warstwę pamięci.
+
+        Args:
+            pg_pool: Skonfigurowana pula połączeń `asyncpg` do bazy Postgres.
+            redis_cli: Skonfigurowany, asynchroniczny klient Redis.
+
+        Raises:
+            ValueError: Jeśli `pg_pool` lub `redis_cli` nie zostaną dostarczone.
         """
         if pg_pool is None:
-            raise ValueError("pg_pool must not be None")
+            raise ValueError("Pula połączeń PostgreSQL (pg_pool) jest wymagana.")
         if redis_cli is None:
-            raise ValueError("redis_cli must not be None")
+            raise ValueError("Klient Redis (redis_cli) jest wymagany.")
 
         self.pg_pool = pg_pool
         self.redis = redis_cli
 
-    # -------------------
-    # Dialogi (Postgres)
-    # -------------------
     async def store_dialogue(
-        self,
-        agent: str,
-        query: str,
-        answer: str,
-        meta: dict[str, Any],
+        self, agent: str, query: str, answer: str, meta: dict[str, Any]
     ) -> None:
-        """
-        Zapisuje pełny dialog (zapytanie + odpowiedź) w bazie Postgres.
+        """Zapisuje pełny dialog (zapytanie + odpowiedź) w bazie Postgres.
 
-        :param agent: nazwa agenta (np. 'support' / 'ops')
-        :param query: pytanie użytkownika (tekst wejściowy)
-        :param answer: odpowiedź wygenerowana przez agenta
-        :param meta: metadane kontekstu (np. claims z OIDC, identyfikatory sesji)
-        """
-        if not agent:
-            raise ValueError("agent must not be empty")
-        if not query:
-            raise ValueError("query must not be empty")
-        if answer is None:
-            raise ValueError("answer must not be None")
+        Jest to operacja "best-effort" - w razie błędu problem jest logowany,
+        ale aplikacja nie jest przerywana.
 
-        # Wstawiamy rekord — meta serializowane do JSON (ensure_ascii=False, by zachować polskie znaki).
-        async with self.pg_pool.acquire() as con:
-            await con.execute(
-                "INSERT INTO dialogues(agent, query, answer, meta) VALUES($1, $2, $3, $4)",
-                agent,
-                query,
-                answer,
-                json.dumps(meta, ensure_ascii=False),
+        Args:
+            agent: Nazwa agenta (np. 'support', 'ops').
+            query: Pytanie użytkownika.
+            answer: Odpowiedź wygenerowana przez agenta.
+            meta: Metadane kontekstowe (np. claims z OIDC, ID sesji).
+        """
+        if not all((agent, query, answer is not None)):
+            raise ValueError("Argumenty agent, query i answer nie mogą być puste.")
+
+        try:
+            async with self.pg_pool.acquire() as con:
+                await con.execute(
+                    "INSERT INTO dialogues(agent, query, answer, meta) VALUES($1, $2, $3, $4)",
+                    agent,
+                    query,
+                    answer,
+                    json.dumps(meta, ensure_ascii=False),
+                )
+        except (asyncpg.PostgresError, OSError) as e:
+            logger.error(
+                f"Nie udało się zapisać dialogu dla agenta '{agent}'. Błąd: {e}",
+                exc_info=True,
             )
 
-    # -------------------
-    # Pamięć robocza (Redis)
-    # -------------------
     async def append_work(self, key: str, value: str, ttl_sec: int = 3600) -> None:
+        """Dopisuje element do listy w Redis i ustawia na niej TTL.
+
+        Używa pipeliny Redis, aby zapewnić atomowość operacji `RPUSH` i `EXPIRE`.
+        Operacja "best-effort".
+
+        Args:
+            key: Klucz listy w Redis (np. 'work:support:session123').
+            value: Wartość tekstowa do dopisania na koniec listy.
+            ttl_sec: Czas życia klucza w sekundach.
         """
-        Dopisuje element do listy roboczej i ustawia TTL na klucz.
+        if not key or ttl_sec <= 0:
+            raise ValueError("Klucz nie może być pusty, a ttl_sec musi być dodatnie.")
 
-        Typowe zastosowania:
-          - bufor kroków/rezultatów pracy agenta dla debugowania,
-          - krótkotrwałe kolejki zadań (lekki FIFO per klucz).
-
-        :param key: nazwa klucza listy w Redis (np. 'work:support:alice')
-        :param value: element tekstowy do dopisania na koniec listy
-        :param ttl_sec: czas życia klucza (sekundy), domyślnie 3600
-        """
-        if not key:
-            raise ValueError("key must not be empty")
-        if ttl_sec <= 0:
-            raise ValueError("ttl_sec must be > 0")
-
-        # Pipelina zapewnia atomowość (rpush + expire).
-        pipe = self.redis.pipeline()
-        pipe.rpush(key, value.encode("utf-8"))
-        pipe.expire(key, ttl_sec)
-        await pipe.execute()
+        try:
+            pipe = self.redis.pipeline()
+            pipe.rpush(key, value.encode("utf-8"))
+            pipe.expire(key, ttl_sec)
+            await pipe.execute()
+        except (redis.RedisError, OSError) as e:
+            logger.error(f"Nie udało się zapisać danych roboczych w Redis dla klucza '{key}'. Błąd: {e}", exc_info=True)
 
     async def get_work(self, key: str, count: int = 10) -> list[str]:
+        """Pobiera ostatnie `count` elementów z listy w Redis (bez ich usuwania).
+
+        Args:
+            key: Klucz listy w Redis.
+            count: Liczba elementów do pobrania z końca listy.
+
+        Returns:
+            Lista wartości (str), od najstarszej do najnowszej, lub pusta lista w razie błędu.
         """
-        Pobiera ostatnie `count` elementów z listy roboczej (bez konsumowania).
+        if not key or count <= 0:
+            raise ValueError("Klucz nie może być pusty, a count musi być dodatnie.")
 
-        :param key: nazwa klucza listy
-        :param count: ile elementów pobrać (od końca listy); musi być > 0
-        :return: lista wartości (str)
-        """
-        if not key:
-            raise ValueError("key must not be empty")
-        if count <= 0:
-            raise ValueError("count must be > 0")
-
-        # lrange(-count, -1) → zwraca 'count' ostatnich elementów.
-        vals = await self.redis.lrange(key, -count, -1)
-        return [v.decode("utf-8") for v in vals]
-
-    # -------------
-    # Audyt
-    # -------------
-    async def audit(self, actor: str, action: str, payload: dict[str, Any]) -> None:
-        """
-        Zapisuje wpis audytu w Postgres i publikuje event do NATS (best-effort).
-
-        :param actor: wykonawca (np. 'support', 'ops' lub identyfikator użytkownika)
-        :param action: nazwa akcji (np. 'create_ticket', 'restart_service')
-        :param payload: szczegóły akcji (serializowalne do JSON)
-
-        Gwarancje:
-          - zapis do bazy jest *trwały* (transakcja INSERT),
-          - publikacja eventu jest *best-effort* (błędy emisji ignorowane),
-            dzięki czemu audyt nie blokuje ścieżki użytkownika przy awarii NATS.
-        """
-        if not actor:
-            raise ValueError("actor must not be empty")
-        if not action:
-            raise ValueError("action must not be empty")
-        if payload is None:
-            raise ValueError("payload must not be None")
-
-        # 1) Trwały zapis w bazie (Postgres)
-        async with self.pg_pool.acquire() as con:
-            await con.execute(
-                "INSERT INTO audits(actor, action, payload) VALUES($1, $2, $3)",
-                actor,
-                action,
-                json.dumps(payload, ensure_ascii=False),
-            )
-
-        # 2) Asynchroniczna publikacja zdarzenia (best-effort).
-        #    Nie podnosimy wyjątku – to jest ścieżka telemetryjna, nie krytyczna.
         try:
-            await events.publish(
-                subject=AUDIT_SUBJECT,
-                payload={"actor": actor, "action": action, "payload": payload},
+            vals = await self.redis.lrange(key, -count, -1)
+            return [v.decode("utf-8") for v in vals]
+        except (redis.RedisError, OSError) as e:
+            logger.error(f"Nie udało się pobrać danych roboczych z Redis dla klucza '{key}'. Błąd: {e}", exc_info=True)
+            return []
+
+    async def audit(self, actor: str, action: str, payload: dict[str, Any]) -> None:
+        """Zapisuje wpis audytowy w Postgres i emituje zdarzenie do NATS.
+
+        Zapis do bazy danych jest **operacją krytyczną**. Jej niepowodzenie
+        spowoduje rzucenie wyjątku i przerwanie operacji. Publikacja do NATS
+        jest realizowana w trybie "best-effort".
+
+        Args:
+            actor: Identyfikator wykonawcy akcji (np. nazwa agenta, ID użytkownika).
+            action: Nazwa wykonanej akcji (np. 'create_ticket').
+            payload: Szczegóły akcji w formacie serializowalnym do JSON.
+
+        Raises:
+            asyncpg.PostgresError: W przypadku błędu zapisu do bazy danych.
+        """
+        if not all((actor, action, payload is not None)):
+            raise ValueError("Argumenty actor, action i payload nie mogą być puste.")
+
+        # 1. Trwały zapis w bazie danych (operacja krytyczna)
+        try:
+            async with self.pg_pool.acquire() as con:
+                await con.execute(
+                    "INSERT INTO audits(actor, action, payload) VALUES($1, $2, $3)",
+                    actor,
+                    action,
+                    json.dumps(payload, ensure_ascii=False),
+                )
+        except (asyncpg.PostgresError, OSError) as e:
+            logger.critical(
+                f"KRYTYCZNY BŁĄD: Nie udało się zapisać wpisu audytowego dla aktora '{actor}' "
+                f"i akcji '{action}'. Operacja zostanie przerwana. Błąd: {e}",
+                exc_info=True,
             )
-        except Exception:
-            # Tu celowo brak re-raise; w realnym systemie dodałbyś log.warning(...)
-            # by mieć widoczność problemu z telemetrią.
-            pass
+            raise  # Rzuć wyjątek dalej, aby zatrzymać operację.
+
+        # 2. Publikacja zdarzenia do NATS (operacja "best-effort")
+        event_payload = {"actor": actor, "action": action, "payload": payload}
+        # Moduł `events` ma już wbudowaną logikę "best-effort" i logowanie.
+        await events.publish(AUDIT_SUBJECT, event_payload)

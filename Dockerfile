@@ -1,25 +1,35 @@
-FROM ghcr.io/astral-sh/uv:0.4.22-py3.11.8 AS base
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
-ENV UV_EXTRA_INDEX_URL="https://download.pytorch.org/whl/cu121" UV_INDEX_STRATEGY="unsafe-best-match"
+FROM python:3.11-slim AS base
+
+# Zmienne środowiskowe dla Pythona
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# Zmienne środowiskowe dla `uv` (będą użyte później)
+ENV UV_EXTRA_INDEX_URL="https://download.pytorch.org/whl/cu121" \
+    UV_INDEX_STRATEGY="unsafe-best-match"
 
 WORKDIR /app
 
-# Install system dependencies (only what's needed for torch and pgvector)
+# Instalujemy `uv` wewnątrz obrazu za pomocą `pip`
+# To jest najbardziej niezawodny sposób.
+RUN pip install --no-cache-dir uv
+
+# Instalujemy minimalne zależności systemowe (bez zmian)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
+    gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy pyproject.toml and lockfile
+# Kopiujemy pliki konfiguracyjne zależności
 COPY pyproject.toml uv.lock ./
 
-# Sync dependencies (including dev for consistency with CI)
+# Instalujemy  zależności projektu za pomocą `uv`
+# Używamy `uv sync` zamiast `uv pip install`, co jest szybsze i bardziej powtarzalne.
 RUN uv sync --all-extras --frozen
 
-# Copy application code
+# Kopiujemy resztę kodu aplikacji
 COPY src ./src
-COPY gateway ./gateway
-COPY migrations ./migrations
-COPY scripts ./scripts
 
+# Ustawimy domyślną komendę
 EXPOSE 8080
-CMD [".venv/bin/uv", "run", "python", "-m", "gateway.main"]
+CMD ["uv", "run", "uvicorn", "src.gateway.main:app", "--host", "0.0.0.0", "--port", "8080"]

@@ -1,3 +1,4 @@
+// services/admin-portal/app/page.test.ts
 import { describe, it, expect } from 'vitest';
 
 describe('admin portal smoke', () => {
