@@ -8,7 +8,7 @@
 #  ----------
 # make help: Wyświetli Ci pięknie sformatowaną listę wszystkich dostępnych komend z ich opisami.
 # make test-all: Uruchomi wszystkie testy w projekcie za jednym razem.
-# make run-local: Automatycznie uruchomi najpierw zależności (make up-deps), a potem serwer Uvicorn. To jest teraz Twoja główna komenda do lokalnego developmentu.
+# make run-local: Automatycznie uruchomi najpierw zależności (make up-deps), a potem serwer Uvicorn.
 # make clean: Przydatne, gdy chcesz mieć pewność, że zaczynasz od "czystego stołu".
 # ==============================================================================
 
