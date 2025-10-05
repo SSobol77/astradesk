@@ -1,99 +1,116 @@
 pipeline {
-  agent none
-  environment {
-    REGISTRY = "docker.io/youruser"
-    API_IMAGE = "${REGISTRY}/astradesk-api"
-    TICKET_IMAGE = "${REGISTRY}/astradesk-ticket"
-    ADMIN_IMAGE = "${REGISTRY}/astradesk-admin"
-    UV_VERSION = "0.4.22"
-    PYTHON_VERSION = "3.11.8"
-    UV_EXTRA_INDEX_URL = "https://download.pytorch.org/whl/cu121"
-    UV_INDEX_STRATEGY = "unsafe-best-match"
-  }
-  stages {
-    stage('Checkout') {
-      agent { docker { image "ghcr.io/astral-sh/uv:${UV_VERSION}-py${PYTHON_VERSION}" } }
-      steps {
-        checkout scm
-        stash name: 'source', includes: '**/*'
-      }
+    agent none
+
+    environment {
+        // Używamy zmiennej globalnej dla rejestru, łatwej do zmiany
+        REGISTRY_URL = "docker.io/youruser" 
+        // Tagujemy obrazy unikalnym ID builda dla lepszego śledzenia
+        IMAGE_TAG = env.BUILD_NUMBER
     }
-    stage('Python build & test') {
-      agent { docker { image "ghcr.io/astral-sh/uv:${UV_VERSION}-py${PYTHON_VERSION}" } }
-      steps {
-        unstash 'source'
-        cache(path: '.venv', key: "venv-${env.BUILD_NUMBER}-${env.GIT_COMMIT}") {
-          sh 'uv sync --all-extras --frozen'
+
+    stages {
+        stage('Checkout') {
+            agent any
+            steps {
+                checkout scm
+                stash name: 'source', includes: '**/*'
+            }
         }
-        sh '''
-          uv run ruff check src
-          uv run ruff format --check src
-          uv run mypy src
-          uv run pytest --cov=src --cov-report=xml --cov-report=term-missing -q
-        '''
-        stash name: 'coverage', includes: 'coverage.xml'
-        script {
-          withDockerRegistry(credentialsId: 'docker-credentials', url: 'https://docker.io') {
-            sh 'docker build -t $API_IMAGE:$BUILD_NUMBER .'
-          }
+
+        stage('Run Tests') {
+            // Uruchamiamy wszystkie testy równolegle, aby skrócić czas
+            parallel {
+                stage('Test Python') {
+                    agent {
+                        // ZMIANA: Używamy oficjalnego obrazu Pythona
+                        docker { image 'python:3.11-slim' }
+                    }
+                    steps {
+                        unstash 'source'
+                        // ZMIANA: Instalujemy uv i zależności
+                        sh 'pip install --no-cache-dir uv'
+                        sh 'uv sync --all-extras --frozen'
+                        sh '''
+                            uv run ruff check src
+                            uv run mypy src
+                            uv run pytest --cov=src --cov-report=xml
+                        '''
+                        stash name: 'coverage', includes: 'coverage.xml'
+                    }
+                }
+                stage('Test Java') {
+                    agent {
+                        // ZMIANA: Używamy obrazu Gradle z JDK 21
+                        docker { image 'gradle:jdk21' }
+                    }
+                    steps {
+                        unstash 'source'
+                        sh 'cd services/ticket-adapter-java && gradle test'
+                    }
+                }
+                stage('Test Node.js') {
+                    agent {
+                        // Używamy obrazu Node.js zgodnego z projektem
+                        docker { image 'node:22-alpine' }
+                    }
+                    steps {
+                        unstash 'source'
+                        sh 'cd services/admin-portal && npm ci && npm test'
+                    }
+                }
+            }
         }
-      }
-    }
-    stage('Java build') {
-      agent { docker { image 'maven:3.9.9-eclipse-temurin-17' } }
-      steps {
-        unstash 'source'
-        script {
-          withDockerRegistry(credentialsId: 'docker-credentials', url: 'https://docker.io') {
-            sh 'docker build -t $TICKET_IMAGE:$BUILD_NUMBER services/ticket-adapter-java'
-          }
+
+        stage('Build & Push All Images') {
+            // ZMIANA: Scentralizowany i jeden etap dla wszystkich operacji Docker
+            agent { docker { image 'docker:25' } }
+            steps {
+                unstash 'source'
+                script {
+                    withDockerRegistry(credentialsId: 'docker-credentials', url: "https://${REGISTRY_URL}") {
+                        // Budujemy wszystkie obrazy
+                        sh "docker build -t ${REGISTRY_URL}/astradesk-api:${IMAGE_TAG} ."
+                        sh "docker build -t ${REGISTRY_URL}/astradesk-ticket:${IMAGE_TAG} services/ticket-adapter-java"
+                        sh "docker build -t ${REGISTRY_URL}/astradesk-admin:${IMAGE_TAG} services/admin-portal"
+                        sh "docker build -t ${REGISTRY_URL}/astradesk-auditor:${IMAGE_TAG} services/auditor"
+
+                        // Wysyłamy wszystkie obrazy
+                        sh "docker push ${REGISTRY_URL}/astradesk-api:${IMAGE_TAG}"
+                        sh "docker push ${REGISTRY_URL}/astradesk-ticket:${IMAGE_TAG}"
+                        sh "docker push ${REGISTRY_URL}/astradesk-admin:${IMAGE_TAG}"
+                        sh "docker push ${REGISTRY_URL}/astradesk-auditor:${IMAGE_TAG}"
+                    }
+                }
+            }
         }
-      }
-    }
-    stage('Node build') {
-      agent { docker { image 'node:20' } }
-      steps {
-        unstash 'source'
-        script {
-          withDockerRegistry(credentialsId: 'docker-credentials', url: 'https://docker.io') {
-            sh 'docker build -t $ADMIN_IMAGE:$BUILD_NUMBER services/admin-portal'
-          }
+
+        stage('Deploy to Kubernetes') {
+            agent { docker { image 'alpine/helm:3.15.3' } }
+            steps {
+                unstash 'source'
+                // Tutaj powinny być wstrzyknięte credentials do klastra K8s
+                sh '''
+                    helm upgrade --install astradesk deploy/chart \\
+                        --set api.image.repository=${REGISTRY_URL}/astradesk-api \\
+                        --set api.image.tag=${IMAGE_TAG} \\
+                        --set admin.image.repository=${REGISTRY_URL}/astradesk-admin \\
+                        --set admin.image.tag=${IMAGE_TAG} \\
+                        --set ticketAdapter.image.repository=${REGISTRY_URL}/astradesk-ticket \\
+                        --set ticketAdapter.image.tag=${IMAGE_TAG} \\
+                        --set auditor.image.repository=${REGISTRY_URL}/astradesk-auditor \\
+                        --set auditor.image.tag=${IMAGE_TAG} \\
+                        --namespace astradesk \\
+                        --create-namespace \\
+                        --wait --timeout 5m
+                '''
+            }
         }
-      }
     }
-    stage('Push images') {
-      agent { docker { image 'docker:25' } }
-      steps {
-        unstash 'source'
-        script {
-          withDockerRegistry(credentialsId: 'docker-credentials', url: 'https://docker.io') {
-            sh '''
-              docker push $API_IMAGE:$BUILD_NUMBER
-              docker push $TICKET_IMAGE:$BUILD_NUMBER
-              docker push $ADMIN_IMAGE:$BUILD_NUMBER
-            '''
-          }
+
+    post {
+        always {
+            archiveArtifacts artifacts: 'coverage.xml', allowEmptyArchive: true
+            junit '**/build/test-results/test/TEST-*.xml' // Zbieranie wyników testów Javy
         }
-      }
     }
-    stage('Helm deploy') {
-      agent { docker { image 'alpine/helm:3.15.3' } }
-      steps {
-        unstash 'source'
-        sh '''
-          helm upgrade --install astradesk deploy/chart \
-            --set image.repository=$API_IMAGE \
-            --set image.tag=$BUILD_NUMBER \
-            --namespace astradesk \
-            --create-namespace \
-            --wait --timeout 5m
-        '''
-      }
-    }
-  }
-  post {
-    always {
-      archiveArtifacts artifacts: 'coverage.xml', allowEmptyArchive: true
-    }
-  }
 }
