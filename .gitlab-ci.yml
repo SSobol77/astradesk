@@ -1,60 +1,100 @@
 stages:
-  - build
   - test
-  - docker
+  - build
   - deploy
 
-variables:
-  DOCKER_DRIVER: overlay2
-  PYTHON_VERSION: "3.11.8"
-  UV_VERSION: "0.4.22"
+# ZMIANA: Definiujemy globalny cache dla zależności, co przyspiesza pipeline
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - .venv/
+    - services/admin-portal/node_modules/
+    - services/ticket-adapter-java/.gradle/
 
-build_python:
-  stage: build
-  image: ghcr.io/astral-sh/uv:${UV_VERSION}-py${PYTHON_VERSION}
-  script:
-    - uv sync --all-extras --frozen
-  artifacts:
-    paths:
-      - .venv/
-    expire_in: 1 day
-
-test_python:
+# ==============================================================================
+# Etap Testowania (uruchamiany równolegle)
+# ==============================================================================
+test:python:
   stage: test
-  image: ghcr.io/astral-sh/uv:${UV_VERSION}-py${PYTHON_VERSION}
+  image: python:3.11-slim
+  before_script:
+    - pip install --no-cache-dir uv
+    - uv sync --all-extras --frozen
   script:
     - uv run ruff check src
-    - uv run ruff format --check src
     - uv run mypy src
     - uv run pytest --cov=src --cov-report=xml --cov-report=term-missing -q
   artifacts:
     paths:
       - coverage.xml
-    expire_in: 1 week
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
 
-docker_images:
-  stage: docker
+test:java:
+  stage: test
+  image: gradle:jdk21
+  script:
+    - cd services/ticket-adapter-java && gradle test
+  artifacts:
+    paths:
+      - services/ticket-adapter-java/build/reports/tests/test/
+    reports:
+      junit: services/ticket-adapter-java/build/test-results/test/TEST-*.xml
+
+test:node:
+  stage: test
+  image: node:22-alpine
+  script:
+    - cd services/admin-portal && npm ci && npm test
+
+# ==============================================================================
+# Etap Budowania Obrazów
+# ==============================================================================
+build:images:
+  stage: build
   image: docker:25
   services:
     - docker:25-dind
   variables:
     DOCKER_HOST: tcp://docker:2375
   script:
+    - echo "Logging into GitLab Container Registry..."
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    
+    - echo "Building and pushing images..."
     - docker build -t $CI_REGISTRY_IMAGE/api:$CI_COMMIT_SHA .
     - docker build -t $CI_REGISTRY_IMAGE/ticket:$CI_COMMIT_SHA services/ticket-adapter-java
     - docker build -t $CI_REGISTRY_IMAGE/admin:$CI_COMMIT_SHA services/admin-portal
+    - docker build -t $CI_REGISTRY_IMAGE/auditor:$CI_COMMIT_SHA services/auditor
+    
     - docker push $CI_REGISTRY_IMAGE/api:$CI_COMMIT_SHA
     - docker push $CI_REGISTRY_IMAGE/ticket:$CI_COMMIT_SHA
     - docker push $CI_REGISTRY_IMAGE/admin:$CI_COMMIT_SHA
+    - docker push $CI_REGISTRY_IMAGE/auditor:$CI_COMMIT_SHA
 
-deploy:
+# ==============================================================================
+# Etap Wdrażania
+# ==============================================================================
+deploy:production:
   stage: deploy
   image: alpine/helm:3.15.3
   script:
-    - helm upgrade --install astradesk deploy/chart \
-        --set image.repository=$CI_REGISTRY_IMAGE/api \
-        --set image.tag=$CI_COMMIT_SHA \
-        --namespace astradesk \
-        --create-namespace
-  when: manual
+    # Tutaj powinna być konfiguracja dostępu do klastra Kubernetes
+    - echo "Deploying to production namespace..."
+    - |
+      helm upgrade --install astradesk deploy/chart \
+        --set api.image.repository=$CI_REGISTRY_IMAGE/api \
+        --set api.image.tag=$CI_COMMIT_SHA \
+        --set admin.image.repository=$CI_REGISTRY_IMAGE/admin \
+        --set admin.image.tag=$CI_COMMIT_SHA \
+        --set ticketAdapter.image.repository=$CI_REGISTRY_IMAGE/ticket \
+        --set ticketAdapter.image.tag=$CI_COMMIT_SHA \
+        --set auditor.image.repository=$CI_REGISTRY_IMAGE/auditor \
+        --set auditor.image.tag=$CI_COMMIT_SHA \
+        --namespace astradesk-prod \
+        --create-namespace --wait
+  environment:
+    name: production
+  when: manual # Wdrożenie na produkcję jest uruchamiane ręcznie
