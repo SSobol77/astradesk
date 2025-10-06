@@ -128,3 +128,9 @@ grafana/data/
 *.cache
 *.db
 *.sqlite3
+# --- Java/Gradle build outputs ---
+**/.gradle/
+**/build/
+**/bin/
+**/out/
+target/
