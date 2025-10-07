@@ -19,8 +19,6 @@ dependencies {
   testImplementation("org.springframework.security:spring-security-test")
 }
 
-// Konfiguruje zadanie `bootRun`, uruchamia aplikację
-// z  odpowiednimi właściwościami systemowymi.
 tasks.withType<org.springframework.boot.gradle.tasks.run.BootRun> {
     systemProperties = mapOf(
         "spring.profiles.active" to "dev",

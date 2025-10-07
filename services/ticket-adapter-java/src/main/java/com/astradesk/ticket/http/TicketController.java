@@ -1,10 +1,19 @@
-// src/main/java/com/astradesk/ticket/http/TicketController.java
-// Kontroler REST do zarządzania zgłoszeniami w aplikacji Ticket Adapter.
-// Udostępnia endpointy do tworzenia, pobierania i listowania zgłoszeń z 
-// odpowiednimi zabezpieczeniami.
-// Plik ten jest częścią usługi Ticket Adapter w projekcie AstraDesk.
-// Autor: Siergej Sobolewski
-// Data: 2025-10-07
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ * File: services/ticket-adapter-java/src/main/java/com/astradesk/ticket/http/TicketController.java
+ * Project: AstraDesk Framework — Ticket Adapter
+ * Description: REST controller for managing support tickets (create, fetch single, list).
+ *              Secured via Spring Security (JWT/OAuth2); selected actuator routes are public.
+ * Author: Siergej Sobolewski
+ * Since: 2025-10-07
+ *
+ * Notes (PL):
+ *  - Konwencja ścieżek: /api/v1/tickets (POST, GET list, GET by id).
+ *  - Walidacja wejścia: DTO z Jakarta Bean Validation (@NotBlank, @Size).
+ *  - Błędy: zwracaj RFC 7807 (Problem Details) lub spójny format JSON dla wyjątków.
+ *  - Unikaj blokowania: kontroler pod WebFlux — operacje w oparciu o Publisher (Mono/Flux).
+ */
+
 
 package com.astradesk.ticket.http;
 

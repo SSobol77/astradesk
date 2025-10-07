@@ -1,4 +1,17 @@
-// src/main/java/com/astradesk/ticket/model/Ticket.java
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ * File: services/ticket-adapter-java/src/main/java/com/astradesk/ticket/model/Ticket.java
+ * Project: AstraDesk Framework — Ticket Adapter
+ * Description: Immutable domain model for a support ticket implemented as a Java record.
+ * Author: Siergej Sobolewski
+ * Since: 2025-10-07
+ *
+ * Notes (PL):
+ *  - Mapowanie Spring Data Relational (@Table, @Id); współpracuje z R2DBC/JDBC.
+ *  - Nowe encje zapisuj z id == null — klucz główny generuje baza danych.
+ *  - Rozważ walidację (np. @NotBlank) oraz @Version dla optymistycznego blokowania.
+ */
+
 package com.astradesk.ticket.model;
 
 import org.springframework.data.annotation.Id;
