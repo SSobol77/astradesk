@@ -1,23 +1,30 @@
+// src/main/java/com/astradesk/ticket/model/Ticket.java
 package com.astradesk.ticket.model;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Table;
 
+/**
+ * Niemutowalny model danych reprezentujący zgłoszenie (ticket).
+ * Użycie `record` (Java 17+) automatycznie generuje konstruktor,
+ * gettery, `equals()`, `hashCode()` i `toString()`, co znacząco
+ * upraszcza kod i czyni go bezpieczniejszym.
+ *
+ * @param id      Unikalny identyfikator zgłoszenia (generowany przez bazę danych).
+ * @param title   Tytuł zgłoszenia.
+ * @param body    Treść zgłoszenia.
+ */
 @Table("tickets")
-public class Ticket {
-  @Id
-  private Long id;
-  private String title;
-  private String body;
-
-  public Ticket() {}
-  public Ticket(String title, String body) { this.title = title; this.body = body; }
-
-  public Long getId() { return id; }
-  public String getTitle() { return title; }
-  public String getBody() { return body; }
-
-  public void setId(Long id) { this.id = id; }
-  public void setTitle(String t) { this.title = t; }
-  public void setBody(String b) { this.body = b; }
+public record Ticket(
+    @Id Long id,
+    String title,
+    String body
+) {
+    /**
+     * Dodatkowy konstruktor używany do tworzenia nowych zgłoszeń,
+     * gdzie `id` nie jest jeszcze znane (zostanie nadane przez bazę danych).
+     */
+    public Ticket(String title, String body) {
+        this(null, title, body);
+    }
 }

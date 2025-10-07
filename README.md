@@ -39,6 +39,8 @@ AstraDesk to wewnętrzny framework do budowy agentów AI, zaprojektowany dla dzi
 - [Monitoring and Observability](#monitoring-and-observability)
   - [OpenTelemetry](#opentelemetry)
   - [Grafana Dashboards and Alerts](#grafana-dashboards-and-alerts)
+
+- [Developer's Guide](#developers-guide)
 - [Testing](#testing)
 - [Security](#security)
 - [Roadmap](#roadmap)
@@ -163,7 +165,8 @@ Pełna lista w `.env.example`.
 ### Running Agents
 
 Wywołaj API:
-```
+
+```sh
 curl -X POST http://localhost:8080/v1/agents/run \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <your-jwt-token>" \
@@ -180,7 +183,7 @@ curl -X POST http://localhost:8080/v1/agents/run \
 
 ### Admin Portal
 
-- Dostępny na http://localhost:3000.
+- Dostępny na `http://localhost:3000`.
 - Funkcje: Health check API, przykładowe curl do agentów.
 - Rozszerz o fetch audytów: Dodaj endpoint `/v1/audits` w API.
 
@@ -195,28 +198,33 @@ curl -X POST http://localhost:8080/v1/agents/run \
 
 1. Zbuduj i push obrazy (użyj CI).
 2. Zainstaluj chart:
-   ```
+
+   ```sh
    helm upgrade --install astradesk deploy/chart -f deploy/chart/values.yaml \
      --set image.tag=0.2.1 \
      --set autoscaling.enabled=true
    ```
+
    - HPA: Skaluje na CPU >60%.
 
 ### OpenShift
 
 1. Procesuj template:
-   ```
+
+   ```sh
    oc process -f deploy/openshift/astradesk-template.yaml -p TAG=0.2.1 | oc apply -f -
    ```
 
 ### AWS with Terraform
 
 1. Inicjuj:
-   ```
+
+   ```sh
    cd infra
    terraform init
    terraform apply -var="region=us-east-1" -var="project=astradesk"
    ```
+
    - Tworzy: VPC, EKS, RDS (Postgres/MySQL), S3.
 
 ### Configuration Management Tools
@@ -253,6 +261,164 @@ curl -X POST http://localhost:8080/v1/agents/run \
 - Dashboard: `grafana/dashboard-astradesk.json` (latency, DB calls).
 - Alerty: `grafana/alerts.yaml` (high latency, errors) – załaduj do Prometheus.
 
+## Developer's Guide
+
+Ta sekcja zawiera praktyczne instrukcje i odpowiedzi na najczęstsze pytania, które pomogą Ci szybko rozpocząć pracę z projektem.
+
+### 1. Podstawowa Konfiguracja Środowiska
+
+Zanim zaczniesz, upewnij się, że masz:
+- **Docker** i **Docker Compose** (rekomendowany Docker Desktop).
+- **Git**, **make** oraz **Node.js** (v22+) zainstalowane lokalnie.
+
+Kroki przygotowawcze (wykonaj je tylko raz):
+
+1.  **Sklonuj repozytorium**:
+    ```bash
+    git clone https://github.com/your-org/astradesk.git
+    cd astradesk
+    ```
+2.  **Skopiuj plik konfiguracyjny**:
+    ```bash
+    cp .env.example .env
+    ```
+3.  **Wygeneruj `package-lock.json`**: Jest to wymagane do budowy obrazu Docker dla portalu admina.
+    ```bash
+    cd services/admin-portal && npm install && cd ../..
+    ```
+
+### 2. Jak Uruchomić Aplikację?
+
+Masz do wyboru dwa tryby pracy, w zależności od Twoich potrzeb.
+
+#### **Tryb A: Pełne Środowisko Docker (Zalecane)**
+
+Uruchamia **całą aplikację** (wszystkie mikroserwisy) w kontenerach Docker. Idealne do testów integracyjnych i symulacji środowiska produkcyjnego.
+
+- **Jak uruchomić?**
+  ```bash
+  make up
+  ```
+  *(Alternatywnie: `docker compose up --build -d`)*
+
+- **Jak zatrzymać i wyczyścić?**
+  ```bash
+  make down
+  ```
+  *(Alternatywnie: `docker compose down -v`)*
+
+- **Dostępne serwisy**:
+  - **API Gateway**: `http://localhost:8080`
+  - **Admin Portal**: `http://localhost:3000`
+  - **Ticket Adapter**: `http://localhost:8081`
+
+<br>
+
+#### **Tryb B: Development Hybrydowy (do pracy nad Pythonem)**
+
+Uruchamia **tylko zewnętrzne zależności** (bazy danych, NATS, etc.) w Dockerze, a główny **serwer API w Pythonie działa lokalnie**. Idealne do szybkiego developmentu i debugowania kodu Pythona z natychmiastowym przeładowaniem.
+
+1.  **Krok 1: Uruchom zależności w Dockerze** (w jednym terminalu):
+    ```bash
+    make up-deps
+    ```
+    *(Alternatywnie: `docker compose up -d db mysql redis nats ticket-adapter`)*
+
+2.  **Krok 2: Uruchom serwer API lokalnie** (w drugim terminalu):
+    ```bash
+    make run-local
+    ```
+    *(Alternatywnie: `python -m uvicorn src.gateway.main:app --host 0.0.0.0 --port 8080 --reload --app-dir src`)*
+
+### 3. Jak Testować?
+
+`Makefile` dostarcza proste komendy do uruchamiania testów.
+
+- **Jak uruchomić wszystkie testy?**
+  ```bash
+  make test-all
+  ```
+- **Jak uruchomić tylko testy dla Pythona?**
+  ```bash
+  make test
+  ```
+- **Jak uruchomić tylko testy dla Javy?**
+  ```bash
+  make test-java
+  ```
+- **Jak uruchomić tylko testy dla Admin Portalu?**
+  ```bash
+  make test-admin
+  ```
+
+### 4. Jak Pracować z Bazą Danych i RAG?
+
+- **Jak zainicjować bazę danych (stworzyć rozszerzenie `pgvector`)?**
+  *Uwaga: Jeśli używasz `docker-compose.deps.yml`, ten krok nie jest potrzebny.*
+  ```bash
+  make migrate
+  ```
+
+- **Jak zasilić bazę wiedzy RAG?**
+
+  1.  Dodaj swoje pliki `.md` lub `.txt` do katalogu `docs/`.
+
+  2.  Uruchom komendę:
+      ```bash
+      make ingest
+      ```
+
+### 5. Jak Sprawdzić Działanie Agentów?
+
+Po uruchomieniu aplikacji (w dowolnym trybie), możesz wysyłać zapytania do API za pomocą `curl`.
+
+*Uwaga: Poniższe przykłady zakładają, że autoryzacja (`auth_guard` w `main.py`) jest tymczasowo wyłączona na potrzeby testów.*
+
+- **Test narzędzia `create_ticket`**:
+  ```bash
+  curl -X POST http://localhost:8080/v1/agents/run \
+    -H "Content-Type: application/json" \
+    -d '{"agent": "support", "input": "Mój internet nie działa, proszę utworzyć zgłoszenie."}'
+  ```
+- **Test narzędzia `get_metrics`**:
+  ```bash
+  curl -X POST http://localhost:8080/v1/agents/run \
+    -H "Content-Type: application/json" \
+    -d '{"agent": "ops", "input": "Pokaż mi metryki dla usługi webapp"}'
+  ```
+- **Test RAG (baza wiedzy)**:
+  ```bash
+  curl -X POST http://localhost:8080/v1/agents/run \
+    -H "Content-Type: application/json" \
+    -d '{"agent": "support", "input": "Jak mogę zresetować hasło?"}'
+  ```
+
+### 6. FAQ - Typowe Problemy i Pytania
+
+- **P: Dostaję błąd `Connection refused` podczas startu aplikacji.**
+  - **O:** Najprawdopodobniej próbujesz uruchomić serwer API (`make run-local`) zanim kontenery z zależnościami (`make up-deps`) w pełni wystartowały. Upewnij się, że komenda `docker ps` pokazuje status `(healthy)` dla kontenerów `db`, `mysql` i `redis` zanim uruchomisz Pythona.
+
+- **P: Dostaję błąd `{"detail":"Brak nagłówka autoryzacyjnego Bearer."}`.**
+  - **O:** To znaczy, że `auth_guard` w `src/gateway/main.py` jest włączony. Do testów lokalnych, zakomentuj linię `claims: dict[str, Any] = Depends(auth_guard),` w definicji endpointu `run_agent` i przekaż pusty słownik `{}` jako `claims` do `orchestrator.run`.
+
+- **P: Jak mogę zobaczyć logi konkretnego serwisu?**
+  - **O:** Użyj komendy `docker logs`. Na przykład, aby zobaczyć logi `Auditora` na żywo:
+    ```bash
+    docker logs -f astradesk-auditor-1
+    ```
+    *(Nazwa kontenera może się nieznacznie różnić - sprawdź ją za pomocą `docker ps`)*.
+
+- **P: Jak mogę przebudować tylko jeden obraz Docker?**
+  - **O:** Użyj flagi `--build` z nazwą serwisu:
+    ```bash
+    docker compose up -d --build api
+    ```
+
+- **P: Gdzie mogę zmienić słowa kluczowe dla `KeywordPlanner`?**
+  - **O:** W pliku `src/runtime/planner.py`, wewnątrz konstruktora `__init__` klasy `KeywordPlanner`.
+
+
+
 ## Testing
 
 - Uruchom: `make test` (Python), `make test-java`, `make test-admin`.
@@ -281,7 +447,7 @@ curl -X POST http://localhost:8080/v1/agents/run \
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 ## Contact
 

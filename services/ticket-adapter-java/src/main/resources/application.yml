@@ -1,13 +1,45 @@
+# services/ticket-adapter-java/src/main/resources/application.yml
+# Konfiguracja aplikacji Ticket Adapter w środowisku deweloperskim
+# Projekt: AstraDesk
+# Autor: Siergej Sobolewski
+# Data: 2025-10-07
 server:
   port: 8081
+
+# spring:
+#   profiles:
+#     active: dev
+#   security:
+#     oauth2:
+#       resourceserver:
+#         jwt:
+#           # Adres URL twojego dostawcy tożsamości (IdP), np. Keycloak, Auth0.
+#           # Spring automatycznie znajdzie JWKS URI na podstawie tego adresu.
+#           issuer-uri: ${OIDC_ISSUER}
+#           # Opcjonalnie, jeśli chcesz walidować pole 'audience' w tokenie.
+#           # audiences: ${OIDC_AUDIENCE}
+
+#   r2dbc:
+#     # Upewnij się, że te zmienne są w pliku .env!
+#     url: r2dbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:tickets}
+#     username: ${MYSQL_USER:tickets}
+#     password: ${MYSQL_PASSWORD:tickets}
+#   sql:
+#     init:
+#       mode: ALWAYS
+
+# management:
+#   endpoints:
+#     web:
+#       exposure:
+#         include: health,info,prometheus
+
+# Konfiguracja DO Testow - prosta
 spring:
-  r2dbc:
-    url: ${MYSQL_URL}
-    username: ${MYSQL_USER}
-    password: ${MYSQL_PASS}
   sql:
     init:
-      mode: always
+      mode: ALWAYS
+
 management:
   endpoints:
     web:
