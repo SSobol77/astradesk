@@ -1,9 +1,12 @@
-// src/test/java/com/astradesk/ticket/TicketControllerTest.java
-// Testy jednostkowe dla TicketController w aplikacji Ticket Adapter.
-// Sprawdzają poprawność działania endpointów REST z uwzględnieniem zabezpieczeń.
-// Plik ten jest częścią usługi Ticket Adapter w projekcie AstraDesk.
-// Autor: Siergej Sobolewski
-// Data: 2025-10-07
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ * File: services/ticket-adapter-java/src/test/java/com/astradesk/ticket/TicketControllerTest.java
+ * Project: AstraDesk Framework — Ticket Adapter
+ * Description: Unit/integration tests for TicketController REST endpoints, including basic security checks.
+ * Author: Siergej Sobolewski
+ * Since: 2025-10-07
+ */
+
 package com.astradesk.ticket;
 
 import static org.assertj.core.api.Assertions.assertThat;

@@ -1,4 +1,11 @@
-// src/main/java/com/astradesk/ticket/http/TicketReq.java
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ * File: services/ticket-adapter-java/src/main/java/com/astradesk/ticket/http/TicketReq.java
+ * Project: AstraDesk Framework — Ticket Adapter
+ * Description: DTO for creating a new ticket with validation annotations.
+ * Author: Siergej Sobolewski
+ * Since: 2025-10-07
+ */
 package com.astradesk.ticket.http;
 
 import jakarta.validation.constraints.NotBlank;

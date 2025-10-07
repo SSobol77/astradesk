@@ -1,11 +1,21 @@
 
-// services/ticket-adapter-java/src/main/java/com/astradesk/ticket/SecurityConfig.java
-// Konfiguracja Spring Security dla aplikacji WebFlux z obsługą OAuth2 i JWT.
-// Umożliwia dostęp do endpointów monitorujących bez uwierzytelniania,
-// podczas gdy wszystkie inne żądania wymagają uwierzytelnienia.
-// Plik ten jest częścią usługi Ticket Adapter w projekcie AstraDesk.
-// Autor: Siergej Sobolewski
-// Data: 2025-10-07
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ * File: services/ticket-adapter-java/src/main/java/com/astradesk/ticket/SecurityConfig.java
+ * Project: AstraDesk Framework — Ticket Adapter
+ * Description: Spring Security configuration for WebFlux (OAuth2 Resource Server with JWT).
+ *              Exposes actuator/monitoring endpoints without authentication; all other
+ *              requests require a valid access token.
+ * Author: Siergej Sobolewski
+ * Since: 2025-10-07
+ *
+ * Notes (PL):
+ *  - Tech stack: Spring Boot 3.x, Spring Security (WebFlux), OAuth2 Resource Server (JWT).
+ *  - Dostęp publiczny: /actuator/health, /actuator/info (dostosuj wg potrzeb).
+ *  - Reszta endpointów: wymaga uwierzytelnienia (Bearer JWT).
+ *  - Rozważ CORS i CSRF (dla REST zwykle CSRF wyłączone).
+ */
+
 package com.astradesk.ticket;
 
 import org.springframework.context.annotation.Bean;

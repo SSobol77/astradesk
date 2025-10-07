@@ -1,9 +1,12 @@
-// service/tikket-adapter-java/src/main/java/com/astradesk/ticket/TicketApp.java
-// Opis aplikacji głównej dla modułu Ticket
-// Projekt: AstraDesk
-// Autor: Siergej Sobolewski
-// Data: 2025-10-07
-// src/main/java/com/astradesk/ticket/TicketApp.java
+/* 
+ * SPDX-License-Identifier: Apache-2.0
+ * File: services/ticket-adapter-java/src/main/java/com/astradesk/ticket/TicketApp.java
+ * Project: AstraDesk Framework
+ * Description: Spring Boot entrypoint for the Ticket Adapter microservice (dev demo with Project Reactor).
+ * Author: Siergej Sobolewski
+ * Since: 2025-10-07
+ */
+
 package com.astradesk.ticket;
 
 import java.time.Duration;

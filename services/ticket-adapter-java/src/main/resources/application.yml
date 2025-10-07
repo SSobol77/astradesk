@@ -1,6 +1,7 @@
-# services/ticket-adapter-java/src/main/resources/application.yml
-# Konfiguracja aplikacji Ticket Adapter w środowisku deweloperskim
-# Projekt: AstraDesk
+# File: services/ticket-adapter-java/src/main/resources/application.yml
+# SPDX-License-Identifier: Apache-2.0
+# Opis: Konfiguracja aplikacji Ticket Adapter w środowisku deweloperskim
+# Project: AstraDesk Framework
 # Autor: Siergej Sobolewski
 # Data: 2025-10-07
 server:
