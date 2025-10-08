@@ -1,5 +1,67 @@
-# src/model_gateway/llm_planner.py
-"""Implementacja planera opartego na modelu językowym (LLM).
+# SPDX-License-Identifier: Apache-2.0
+"""File: services/gateway-python/src/model_gateway/llm_planner.py
+Project: AstraDesk Framework — API Gateway
+Description:
+    Language-Model–driven planner that converts a user query and a set of
+    available tools into a structured execution plan (strict JSON), and
+    synthesizes a final user-facing answer from tool results. Integrates
+    with Model Gateway providers via `provider_router`, applies guardrails
+    before/after LLM calls, and enforces predictable, schema-validated I/O.
+
+Author: Siergej Sobolewski
+Since: 2025-10-07
+
+Responsibilities
+----------------
+- Plan creation:
+  * Prompt LLM with system instructions + available tools → JSON `PlanModel`.
+  * Reject unsafe inputs up-front using `guardrails.is_safe_input`.
+  * Validate LLM output with `guardrails.validate_plan_json` (Pydantic schema).
+- Summarization:
+  * Prompt LLM to compose a concise, user-friendly summary from tool results.
+  * Clip overly long outputs with `guardrails.clip_output`.
+- Provider access:
+  * Use `provider_router.get_provider()` to obtain the active `LLMProvider`.
+  * Pass normalized `ChatParams` (max_tokens, temperature, etc.).
+
+Design principles
+-----------------
+- Fail-closed: return empty `PlanModel(steps=[])` on any validation or provider error.
+- Determinism for plans: temperature defaults to 0.0; no extra prose outside JSON.
+- Separation of concerns: orchestration executes the plan; this module only plans
+  and summarizes.
+- Observability: log warnings/errors with minimal, non-sensitive context.
+
+Security & safety
+-----------------
+- Guard inputs: normalize and screen user queries for dangerous patterns.
+- Strict outputs: accept only schema-conforming JSON; discard free-form text.
+- Do not log secrets or raw LLM payloads in production; prefer structured events.
+
+Performance
+-----------
+- Single provider call per phase (plan/summarize); keep prompts compact.
+- Use bounded `max_tokens` to protect latency and cost budgets.
+
+Usage (sketch)
+--------------
+>>> planner = LLMPlanner()
+>>> plan = await planner.make_plan(query="Restart payments-api", available_tools=["service.restart","metrics.fetch"])
+>>> if plan.steps:
+...     results = await run_steps(plan)  # external orchestration
+...     answer = await planner.summarize(query="Restart payments-api", tool_results=results)
+
+Notes
+-----
+- System prompts (`SYSTEM_PROMPT_PLAN`, `SYSTEM_PROMPT_SUMMARIZE`) are curated for
+  strict JSON planning and concise summarization. Update carefully and version them
+  if downstream schemas or policies change.
+- Planner does not implement retries/backoff; handle them in the provider layer
+  or above (or return empty plan on error).
+
+Notes (PL):
+-----------
+Implementacja planera opartego na modelu językowym (LLM).
 
 Moduł ten dostarcza klasę `LLMPlanner`, która wykorzystuje model LLM do
 analizy zapytania użytkownika i tworzenia planu działania w postaci
@@ -18,7 +80,9 @@ Główne funkcjonalności:
 
 Ten planer stanowi zaawansowaną alternatywę dla prostego planera
 opartego na słowach kluczowych.
-"""
+
+"""  # noqa: D205
+
 from __future__ import annotations
 
 import logging

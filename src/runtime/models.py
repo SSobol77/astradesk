@@ -1,9 +1,53 @@
-# src/runtime/models.py
-# -*- coding: utf-8 -*-
-# Program jest objęty licencją Apache-2.0.
-# Copyright 2025
-# Autor: Siergej Sobolewski
-"""Definicje modeli danych Pydantic dla aplikacji AstraDesk.
+# SPDX-License-Identifier: Apache-2.0
+"""File: services/gateway-python/src/runtime/models.py
+Project: AstraDesk Framework — API Gateway
+Description:
+    Centralized Pydantic v2 data models for API contracts and internal flows:
+    strongly-validated request/response schemas, tool invocation specs, and
+    shared base configuration for consistent JSON (de)serialization.
+
+Author: Siergej Sobolewski
+Since: 2025-10-07
+
+Overview
+--------
+- Base:
+  * `AstraDeskBaseModel` — opinionated Pydantic config (forbid extras, strip strings,
+    populate_by_name) applied to all models in this module.
+- Planning & tools:
+  * `ToolCall` — planned tool invocation (`name` + JSON `arguments`) with strict
+    name format validation (`[a-zA-Z0-9._-]+`).
+- Agents:
+  * `AgentName` — enum of supported agent kinds (`support`, `ops`).
+  * `AgentRequest` — user input + agent selector + contextual `meta`.
+  * `AgentResponse` — final agent output with trace id, invoked tools, and errors.
+
+Design principles
+-----------------
+- Validation-first: reject unknown fields; provide clear bounds (min/max) and examples.
+- OpenAPI friendly: rich `Field(...)` descriptions aid generated API docs.
+- Predictable JSON: UTF-8 safe, alias-aware, and whitespace-trimmed strings.
+
+Security & safety
+-----------------
+- Do not embed secrets/PII unredacted in `meta`, `arguments`, or `errors`.
+- Constrain free-text sizes (`max_length`) to protect memory and storage.
+- Validate `ToolCall.name` to avoid path/command injections in downstream adapters.
+
+Performance
+-----------
+- Regexes compiled at module load once.
+- Lean models; avoid heavy validators in hot paths.
+
+Usage (example)
+---------------
+>>> req = AgentRequest(agent=AgentName.SUPPORT, input="Create a VPN ticket", meta={"user_id":"alice"})
+>>> call = ToolCall(name="create_ticket", arguments={"title":"VPN outage","body":"Cannot connect"})
+>>> resp = AgentResponse(output="Ticket created: #123", reasoning_trace_id="trace-abc123", invoked_tools=[call])
+
+Notes (PL):
+------------
+Definicje modeli danych Pydantic dla aplikacji AstraDesk.
 
 Moduł ten centralizuje wszystkie modele danych używane w kontraktach API
 i wewnętrznej logice aplikacji. Zapewnia to spójność, walidację typów
@@ -12,12 +56,14 @@ oraz automatyczną serializację/deserializację JSON.
 Modele te są zaprojektowane zgodnie z najlepszymi praktykami Pydantic v2,
 włączając w to restrykcyjną walidację, opisy dla OpenAPI oraz bezpieczne
 wartości domyślne.
-"""
+
+"""  # noqa: D205
+
 from __future__ import annotations
 
 import re
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -38,9 +84,11 @@ class AstraDeskBaseModel(BaseModel):
 class ToolCall(AstraDeskBaseModel):
     """Reprezentuje pojedyncze, planowane wywołanie narzędzia.
 
-    Attributes:
+    Attributes
+    ----------
         name: Unikalny identyfikator narzędzia z rejestru (ToolRegistry).
         arguments: Słownik argumentów przekazywanych do narzędzia.
+
     """
 
     name: str = Field(
@@ -50,7 +98,7 @@ class ToolCall(AstraDeskBaseModel):
         description="Identyfikator narzędzia (np. 'create_ticket', 'ops.restart_service').",
         examples=["create_ticket", "get_metrics"],
     )
-    arguments: Dict[str, Any] = Field(
+    arguments: dict[str, Any] = Field(
         default_factory=dict,
         description="Argumenty wywołania narzędzia w formacie JSON.",
         examples=[{"title": "VPN outage", "body": "Users cannot connect."}],
@@ -89,7 +137,7 @@ class AgentRequest(AstraDeskBaseModel):
         description="Zapytanie lub polecenie użytkownika dla agenta.",
         examples=["Utwórz ticket dla incydentu sieciowego.", "Sprawdź metryki CPU dla usługi 'webapp'."],
     )
-    meta: Dict[str, Any] = Field(
+    meta: dict[str, Any] = Field(
         default_factory=dict,
         description="Dowolne metadane kontekstowe (np. ID sesji, claims z OIDC).",
         examples=[{"user_id": "alice", "session_id": "xyz-123"}],
@@ -116,12 +164,12 @@ class AgentResponse(AstraDeskBaseModel):
         description="Identyfikator śledzenia (trace ID) dla celów obserwowalności i debugowania.",
         examples=["trace-b7a3c1e9-f8d2-4e1a-9c3d-8b2f0a1d4e5c"],
     )
-    invoked_tools: Optional[List[ToolCall]] = Field(
+    invoked_tools: list[ToolCall] | None = Field(
         default=None,
         description="Lista narzędzi, które zostały faktycznie wywołane podczas przetwarzania (nazwa i argumenty). Kluczowe dla audytu.",
         examples=[[{"name": "create_ticket", "arguments": {"title": "VPN outage"}}]],
     )
-    errors: Optional[List[str]] = Field(
+    errors: list[str] | None = Field(
         default=None,
         description="Lista błędów, które wystąpiły podczas wykonania, ale nie przerwały całego procesu.",
         examples=[["Narzędzie 'get_legacy_metrics' jest przestarzałe."]],

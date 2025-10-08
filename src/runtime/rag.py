@@ -1,10 +1,89 @@
-# src/runtime/rag.py
-# -*- coding: utf-8 -*-
-# Program jest objęty licencją Apache-2.0.
-# Copyright 2025
-# Autor: Siergej Sobolewski
-"""Implementacja warstwy RAG (Retrieval-Augmented Generation).
+# SPDX-License-Identifier: Apache-2.0
+"""File: services/gateway-python/src/runtime/rag.py
+Project: AstraDesk Framework — API Gateway
+Description:
+    Production-ready Retrieval-Augmented Generation (RAG) layer. Encodes text
+    into dense embeddings, stores vectors and metadata in PostgreSQL (pgvector),
+    and performs fast semantic retrieval with optional MMR re-ranking. Designed
+    to be LLM-agnostic and provide high-quality context to upstream planners.
 
+Author: Siergej Sobolewski
+Since: 2025-10-07
+
+Overview
+--------
+- Embeddings:
+  * SentenceTransformer model (configurable) with L2-normalized vectors.
+  * Batched encoding; optional text normalization and de-duplication.
+- Storage:
+  * Async PostgreSQL (asyncpg) with `pgvector` column for embeddings.
+  * Transactional upserts for consistency; explicit delete by `source`.
+- Retrieval:
+  * k-NN via `ORDER BY embedding <-> $1::vector` (cosine distance).
+  * Similarity helper (1 - distance) for user-friendly scoring.
+  * MMR (Maximal Marginal Relevance) re-ranking to improve diversity.
+- Ops:
+  * Count total documents; administrative delete by `source`.
+
+Responsibilities
+----------------
+- `upsert(source, chunks) -> int`:
+  * Normalize → deduplicate → embed → store (transaction). Raises on DB failure.
+- `retrieve(query, k) -> List[str]`:
+  * Return top-k chunks by vector search.
+- `retrieve_with_scores(query, k) -> List[Tuple[str, float]]`:
+  * Return top-k chunks with cosine similarity in [0, 1].
+- `retrieve_mmr(query, k, fetch_k, lambda_mult) -> List[Tuple[str, float]]`:
+  * Re-rank candidates with MMR to balance relevance and diversity.
+- `delete_source(source) -> int` / `count_documents() -> int`:
+  * Housekeeping endpoints for data lifecycle.
+
+Design principles
+-----------------
+- LLM-agnostic: this layer only retrieves relevant context; generation lives elsewhere.
+- Fail-closed on writes: DB errors surface to callers; reads log and return empty lists.
+- Compact vectors: normalized float32 arrays; minimize memory bandwidth.
+- Deterministic math: explicit cosine via pgvector `<->` operator; clear score mapping.
+
+Security & safety
+-----------------
+- Sanitize/normalize inputs before embedding; ignore very short/noisy chunks.
+- Avoid logging document content in production; log only minimal diagnostics.
+- Enforce sensible size limits (batching) to protect memory/VRAM.
+
+Performance
+-----------
+- Batched encoding for throughput; vector ops in Postgres via `pgvector`.
+- Single SELECT with `ORDER BY <->` for k-NN; lightweight post-processing in Python.
+- MMR implemented with vectorized dot products and a simple greedy loop.
+
+Schema expectations (illustrative)
+----------------------------------
+-- Requires pgvector extension and a vector column with model dimension.
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE TABLE documents (
+  id        bigserial PRIMARY KEY,
+  source    text NOT NULL,
+  chunk     text NOT NULL,
+  embedding vector(384) NOT NULL  -- adjust to model dimension
+);
+CREATE INDEX ON documents USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+
+Usage (example)
+---------------
+>>> rag = RAG(pg_pool, model="sentence-transformers/all-MiniLM-L6-v2")
+>>> await rag.upsert(source="kb/networking.md", chunks=["VPN guide ...", "TLS hints ..."])
+>>> ctx = await rag.retrieve("How to fix VPN?", k=5)
+>>> ctx_mmr = await rag.retrieve_mmr("How to fix VPN?", k=5, fetch_k=20, lambda_mult=0.6)
+
+Notes
+-----
+- Ensure `vector` dimension matches the embedding models output.
+- For large corpora, tune `ivfflat` lists and analyze with `ANALYZE` for better recall.
+- Consider background jobs for periodic re-embedding if the model changes.
+
+Notes (PL):
+------------
 Moduł ten dostarcza kompletną, gotową do użytku produkcyjnego warstwę RAG
 dla aplikacji AstraDesk. Odpowiada za wektoryzację fragmentów tekstu,
 przechowywanie ich w bazie danych PostgreSQL z rozszerzeniem pgvector oraz
@@ -26,14 +105,16 @@ Założenia projektowe:
   a metryka podobieństwa jest odpowiednio przeliczana (similarity = 1 - distance).
 - Moduł jest niezależny od logiki generowania odpowiedzi przez LLM; jego
   jedynym zadaniem jest dostarczenie relewantnego kontekstu.
-"""
+
+"""  # noqa: D205
 
 from __future__ import annotations
 
 import logging
 import math
 import unicodedata
-from typing import Any, Iterable, List, Optional, Sequence, Tuple
+from collections.abc import Iterable, Sequence
+from typing import Any
 
 import asyncpg
 import numpy as np
@@ -54,10 +135,13 @@ def _normalize_text(s: str) -> str:
         białych znaków do pojedynczych spacji.
 
     Args:
+    ----
         s: Ciąg znaków do normalizacji.
 
     Returns:
+    -------
         Znormalizowany ciąg znaków.
+
     """
     s = unicodedata.normalize("NFC", s)
     s = s.strip()
@@ -111,6 +195,7 @@ class RAG:
         tekstu.
 
         Args:
+        ----
             pg_pool: Współdzielona, asynchroniczna pula połączeń do bazy
                 danych PostgreSQL z rozszerzeniem pgvector.
             model: Nazwa modelu z biblioteki SentenceTransformer, który
@@ -125,7 +210,9 @@ class RAG:
                 (NFC, zwinięcie białych znaków) przed wektoryzacją.
 
         Raises:
+        ------
             ValueError: Jeśli `pg_pool` nie zostanie dostarczony (jest None).
+
         """
         if pg_pool is None:
             raise ValueError("pg_pool must not be None")
@@ -133,7 +220,13 @@ class RAG:
         self.pg_pool = pg_pool
         self.model_name = model
         self.model = SentenceTransformer(model)
-        self.dim = self.model.get_sentence_embedding_dimension()
+        dimension = self.model.get_sentence_embedding_dimension()
+        if dimension is None:
+            raise ValueError(
+                f"Nie udało się określić wymiaru embeddingu dla modelu '{model}'. "
+                "Sprawdź, czy model jest poprawny i czy wszystkie jego pliki są dostępne."
+            )
+        self.dim: int = dimension
 
         self.batch_size = batch_size
         self.deduplicate = deduplicate
@@ -147,10 +240,13 @@ class RAG:
         (o normie L2 równej 1), co jest kluczowe dla metryki kosinusowej.
 
         Args:
+        ----
             texts: Sekwencja tekstów do wektoryzacji.
 
         Returns:
+        -------
             Macierz NumPy z embeddingami.
+
         """
         if not texts:
             return np.zeros((0, self.dim), dtype=np.float32)
@@ -163,57 +259,85 @@ class RAG:
         )
         return np.asarray(vecs, dtype=np.float32)
 
-    async def upsert(self, source: str, chunks: List[str]) -> int:
-        """Przetwarza i wstawia fragmenty tekstu (chunks) do bazy danych.
 
-        Proces obejmuje opcjonalną normalizację, deduplikację, filtrowanie,
-        a następnie wektoryzację i zapis do bazy w ramach jednej transakcji.
-        Operacja jest krytyczna - jej niepowodzenie rzuci wyjątek.
+    def _prepare_chunks(self, chunks: list[str]) -> list[str]:
+        """Prywatna metoda do normalizacji, filtrowania i deduplikacji chunków.
+
+        Ta metoda hermetyzuje logikę przygotowania danych wejściowych
+        przed procesem wektoryzacji.
 
         Args:
+        ----
+            chunks: Surowa lista fragmentów tekstu.
+
+        Returns:
+        -------
+            Przetworzona i oczyszczona lista fragmentów gotowa do wektoryzacji.
+
+        """
+        prepped: list[str] = []
+        # Użycie `set` jest bardziej wydajne do sprawdzania duplikatów niż lista.
+        seen: set[str] = set()
+
+        for chunk in chunks:
+            if chunk is None:
+                continue
+
+            processed_chunk = _normalize_text(chunk) if self.normalize else chunk.strip()
+
+            if len(processed_chunk) < self.min_chars:
+                continue
+            if self.deduplicate:
+                if processed_chunk in seen:
+                    continue
+                seen.add(processed_chunk)
+            prepped.append(processed_chunk)
+        return prepped
+
+    async def upsert(self, source: str, chunks: list[str]) -> int:
+        """Przetwarza i wstawia fragmenty tekstu (chunks) do bazy danych.
+
+        Proces obejmuje przygotowanie danych, wektoryzację i transakcyjny
+        zapis do bazy danych. Operacja jest krytyczna - jej niepowodzenie
+        rzuci wyjątek.
+
+        Args:
+        ----
             source: Identyfikator źródła dokumentów (np. nazwa pliku).
             chunks: Lista fragmentów tekstu do przetworzenia.
 
         Returns:
+        -------
             Liczba fragmentów, które zostały pomyślnie wstawione do bazy.
-            
+
         Raises:
+        ------
             asyncpg.PostgresError: W przypadku błędu komunikacji z bazą danych.
+            ValueError: Jeśli `source` jest nieprawidłowy.
+
         """
         if not source or not source.strip():
             raise ValueError("source must not be empty")
-        if not chunks:
+
+        prepared_chunks = self._prepare_chunks(chunks)
+
+        if not prepared_chunks:
             return 0
 
-        prepped: List[str] = []
-        seen: set[str] = set()
-        for c in chunks:
-            if c is None:
-                continue
-            t = _normalize_text(c) if self.normalize else c.strip()
-            if len(t) < self.min_chars:
-                continue
-            if self.deduplicate and t in seen:
-                continue
-            seen.add(t)
-            prepped.append(t)
-
-        if not prepped:
-            return 0
-
-        vecs = self._embed(prepped)
+        vectors = self._embed(prepared_chunks)
 
         try:
             async with self.pg_pool.acquire() as con:
                 async with con.transaction():
-                    for chunk, vec in zip(prepped, vecs, strict=True):
+                    # Używamy `strict=True` dla bezpieczeństwa
+                    for chunk, vec in zip(prepared_chunks, vectors, strict=True):
                         await con.execute(
-                            "INSERT INTO documents(source, chunk, embedding) VALUES ($1, $2, $3)",
+                            "INSERT INTO documents(source, chunk, embedding) VALUES ($1, 2, $3)",
                             source,
                             chunk,
                             vec.tolist(),
                         )
-            return len(prepped)
+            return len(prepared_chunks)
         except (asyncpg.PostgresError, OSError) as e:
             logger.error(
                 f"Nie udało się wstawić dokumentów dla źródła '{source}'. Błąd: {e}",
@@ -221,36 +345,42 @@ class RAG:
             )
             raise
 
-    async def retrieve(self, query: str, k: int = 5) -> List[str]:
+    async def retrieve(self, query: str, k: int = 5) -> list[str]:
         """Wyszukuje k najbliższych fragmentów tekstu dla danego zapytania.
 
         Args:
+        ----
             query: Zapytanie użytkownika.
             k: Liczba fragmentów do zwrócenia.
 
         Returns:
+        -------
             Lista k najbardziej pasujących fragmentów tekstu.
+
         """
         rows = await self._retrieve_rows(query, k)
         return [r["chunk"] for r in rows]
 
     async def retrieve_with_scores(
         self, query: str, k: int = 5
-    ) -> List[Tuple[str, float]]:
+    ) -> list[tuple[str, float]]:
         """Wyszukuje k najbliższych fragmentów wraz z wynikiem podobieństwa.
 
         Wynik podobieństwa (cosine similarity) jest w zakresie [0, 1],
         gdzie 1 oznacza identyczność.
 
         Args:
+        ----
             query: Zapytanie użytkownika.
             k: Liczba fragmentów do zwrócenia.
 
         Returns:
+        -------
             Lista par (fragment_tekstu, wynik_podobieństwa).
+
         """
         rows = await self._retrieve_rows(query, k, return_distance=True)
-        out: List[Tuple[str, float]] = []
+        out: list[tuple[str, float]] = []
         for r in rows:
             dist = float(r.get("distance", 1.0) or 1.0)
             sim = max(0.0, min(1.0, 1.0 - dist))
@@ -263,7 +393,7 @@ class RAG:
         k: int = 5,
         fetch_k: int = 20,
         lambda_mult: float = 0.5,
-    ) -> List[Tuple[str, float]]:
+    ) -> list[tuple[str, float]]:
         """Wyszukuje fragmenty z re-rankingiem MMR (Maximal Marginal Relevance).
 
         Algorytm ten balansuje między trafnością wyników (relevance) a ich
@@ -271,13 +401,16 @@ class RAG:
         podobnych do siebie fragmentów.
 
         Args:
+        ----
             query: Zapytanie użytkownika.
             k: Liczba wyników do zwrócenia po re-rankingu.
             fetch_k: Liczba kandydatów do pobrania z bazy przed re-rankingiem.
             lambda_mult: Współczynnik balansu (1.0 = tylko trafność, 0.0 = tylko różnorodność).
 
         Returns:
+        -------
             Lista par (fragment_tekstu, wynik_trafności) posortowana malejąco.
+
         """
         if k <= 0:
             return []
@@ -298,12 +431,15 @@ class RAG:
         selected_indices: list[int] = []
         candidate_indices = set(range(len(docs)))
 
+        if not docs:
+            return []
+
         first_idx = int(np.argmax(relevance_scores))
         selected_indices.append(first_idx)
         candidate_indices.remove(first_idx)
 
         while len(selected_indices) < k and candidate_indices:
-            best_i: Optional[int] = None
+            best_i: int | None = None
             best_score = -math.inf
 
             for i in candidate_indices:
@@ -313,24 +449,31 @@ class RAG:
                 if mmr_score > best_score:
                     best_score, best_i = mmr_score, i
 
-            assert best_i is not None, "Logika pętli MMR musi znaleźć kandydata"
+            if best_i is None:
+                raise RuntimeError("Logika pętli MMR nie znalazła kandydata, co jest błędem.")
+
             selected_indices.append(best_i)
             candidate_indices.remove(best_i)
 
         items = [(docs[i], float(relevance_scores[i])) for i in selected_indices]
         return sorted(items, key=lambda item: item[1], reverse=True)
 
+
     async def delete_source(self, source: str) -> int:
         """Usuwa wszystkie dokumenty powiązane z danym źródłem.
 
         Args:
+        ----
             source: Identyfikator źródła do usunięcia.
 
         Returns:
+        -------
             Liczba usuniętych dokumentów.
-            
+
         Raises:
+        ------
             asyncpg.PostgresError: W przypadku błędu komunikacji z bazą danych.
+
         """
         if not source or not source.strip():
             raise ValueError("source must not be empty")
@@ -362,16 +505,19 @@ class RAG:
 
     async def _retrieve_rows(
         self, query: str, k: int, *, return_distance: bool = False
-    ) -> List[asyncpg.Record]:
+    ) -> list[asyncpg.Record]:
         """Wewnętrzna metoda do pobierania surowych wierszy z bazy danych.
 
         Args:
+        ----
             query: Zapytanie użytkownika.
             k: Liczba wierszy do pobrania.
             return_distance: Czy dołączyć kolumnę `distance` w wyniku.
 
         Returns:
+        -------
             Lista rekordów `asyncpg.Record`, lub pusta lista w razie błędu.
+
         """
         if not query or not query.strip() or k <= 0:
             return []
@@ -379,15 +525,20 @@ class RAG:
         try:
             query_embedding = self._embed([query])[0].tolist()
 
-            distance_sql = (
-                ", (embedding <-> $1::vector) AS distance" if return_distance else ""
-            )
-            sql = f"""
-                SELECT chunk{distance_sql}
-                FROM documents
-                ORDER BY embedding <-> $1::vector
-                LIMIT $2
-            """
+            if return_distance:
+                sql = """
+                    SELECT chunk, (embedding <-> $1::vector) AS distance
+                    FROM documents
+                    ORDER BY embedding <-> $1::vector
+                    LIMIT $2
+                """
+            else:
+                sql = """
+                    SELECT chunk
+                    FROM documents
+                    ORDER BY embedding <-> $1::vector
+                    LIMIT $2
+                """
 
             async with self.pg_pool.acquire() as con:
                 rows = await con.fetch(sql, query_embedding, k)
@@ -399,4 +550,3 @@ class RAG:
                 exc_info=True,
             )
             return []
-        

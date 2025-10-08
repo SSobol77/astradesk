@@ -1,31 +1,94 @@
-# src/model_gateway/base.py
-# -*- coding: utf-8 -*-
-# Program jest objęty licencją Apache-2.0.
-# Author: Siergej Sobolewski
-#
-# Cel modułu
-# ----------
-# Podstawowe typy, kontrakty i narzędzia dla warstwy "Model Gateway":
-#  - ujednolicone modele wiadomości (LLMMessage) i parametrów (ChatParams),
-#  - interfejs providera LLM z trybem pełnym i streamingowym,
-#  - wyjątki domenowe (konfiguracja, limity, time-out, serwer),
-#  - funkcje pomocnicze do mapowania wiadomości na formaty API (OpenAI/Anthropic),
-#  - opcjonalny interfejs tokenizatora do policzenia użycia (usage).
-#
-# Dzięki temu konkretni providerzy (OpenAI, Bedrock, vLLM, itp.) mogą zaimplementować
-# tę samą sygnaturę publiczną, a reszta systemu pozostaje stabilna.
+# SPDX-License-Identifier: Apache-2.0
+"""File: services/gateway-python/src/model_gateway/base.py
+Project: AstraDesk Framework — API Gateway
+Description:
+    Core contracts, types, and helpers for the Model Gateway layer. Provides a
+    stable, provider-agnostic interface for chat models (LLMs), a shared error
+    taxonomy, message/parameter schemas, streaming primitives, and adapters for
+    common wire formats (e.g., OpenAI-/Anthropic-style messages).
+
+Author: Siergej Sobolewski
+Since: 2025-10-07
+
+Scope & responsibilities
+------------------------
+- Message & params:
+  * `LLMMessage` — minimal chat unit (`role`, `content`) with helpers.
+  * `ChatParams` — normalized generation params (clamped ranges, extras).
+  * `Usage`, `ChatChunk` — accounting and streaming fragments.
+- Provider contract:
+  * `LLMProvider` Protocol — two methods: `chat()` (full response) and
+    `stream()` (async iterator of `ChatChunk`).
+- Error model (domain exceptions):
+  * `ModelGatewayError` — base error with rich diagnostics (provider, status, ids).
+  * `ProviderTimeout`, `ProviderOverloaded`, `ProviderServerError`,
+    `TokenLimitExceeded` — focused subclasses with factories for httpx/SDK mapping.
+- Utilities:
+  * Adapters: `to_openai_messages()`, `to_anthropic_messages()`.
+  * Validation: `validate_conversation()`.
+  * Optional tokenization contract: `Tokenizer` + `NoopTokenizer`.
+
+Design principles
+-----------------
+- Transport-agnostic core: providers implement only serialization/transport.
+- Clear separation of concerns: orchestration/business logic lives outside.
+- Observability-first: all errors carry context (request_id, retry_after, etc.).
+- Async-native: streaming via `AsyncIterator[ChatChunk]`, no blocking I/O.
+- Extensibility: add new providers by implementing `LLMProvider` and reusing
+  base adapters/errors; keep provider modules thin and stateless.
+
+Error mapping (best practice)
+-----------------------------
+- Map HTTP 429 → `ProviderOverloaded` (parse RateLimit headers when present).
+- Map HTTP 5xx → `ProviderServerError` (with retryability heuristics).
+- Map read/connect timeouts → `ProviderTimeout`.
+- Map context/token issues → `TokenLimitExceeded` (with reduction advice).
+- For everything else, raise `ModelGatewayError` with safe `details`.
+
+Security & safety
+-----------------
+- Never log secrets or raw bodies in production; prefer structured, redacted logs.
+- Enforce per-request budgets (max_tokens, wall-clock deadlines) at call sites.
+- Keep import-time side effects to zero (no network/filesystem actions).
+
+Performance & testing
+---------------------
+- Providers should reuse HTTP clients/sessions (connection pooling).
+- Favor deterministic unit tests with fakes/mocks (no real network).
+- Keep adapters minimal; push heavy transforms to orchestration if needed.
+
+Usage (example)
+---------------
+>>> class MyProvider(LLMProvider):
+...     async def chat(self, messages, *, params=None, tokenizer=None, request_id=None) -> str:
+...         # serialize → call remote → map errors → return text
+...         ...
+...     async def stream(self, messages, *, params=None, tokenizer=None, request_id=None):
+...         # yield ChatChunk(...) pieces
+...         ...
+>>> validate_conversation([LLMMessage.system("You are helpful."), LLMMessage.user("Hi!")])
+>>> p = ChatParams(max_tokens=256, temperature=0.2).normalized()
+
+Notes (PL)
+----------
+- Warstwa „Model Gateway” standaryzuje kontrakty i błędy, dzięki czemu
+  providerzy (OpenAI/Bedrock/vLLM/…) są wymienni bez zmian w reszcie systemu.
+- Streaming (`stream()`) jest obowiązkowy w implementacjach providerów.
+
+"""  # noqa: D205
 
 from __future__ import annotations
 
-import httpx
+import logging
+import secrets
 import time
-from datetime import datetime, timezone
-from typing import Any, AsyncIterator, Dict, List, Optional, Protocol, Sequence, Tuple
-
+from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from enum import Enum
+from typing import Any, Protocol, runtime_checkable
 
-
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Wyjątki specyficzne dla warstwy Model Gateway
@@ -36,8 +99,7 @@ from enum import Enum
 # ===========================
 @dataclass
 class ModelGatewayError(RuntimeError):
-    """
-    Ogólny błąd warstwy Model Gateway, niosący pełny kontekst diagnostyczny.
+    """Ogólny błąd warstwy Model Gateway, niosący pełny kontekst diagnostyczny.
 
     Pola (wszystkie opcjonalne poza 'message'):
         message      : zwięzły opis problemu (np. "Rate limited / overloaded"),
@@ -48,16 +110,29 @@ class ModelGatewayError(RuntimeError):
         details      : zdekodowane szczegóły (dict/str) z odpowiedzi providera,
         raw          : surowy obiekt odpowiedzi/błędu (httpx.Response, boto3 obj, itd.).
     """
+
     message: str
-    provider: Optional[str] = None
-    status_code: Optional[int] = None
-    request_id: Optional[str] = None
-    retry_after: Optional[float] = None
+    provider: str | None = None
+    status_code: int | None = None
+    request_id: str | None = None
+    retry_after: float | None = None
     details: Any = None
     raw: Any = None
 
     def __str__(self) -> str:
-        # Składamy krótki, ale bogaty w kontekst komunikat do logów/tracingu.
+        """Zwraca zwięzłą, czytelną reprezentację błędu.
+
+        Format wyjściowy jest zoptymalizowany pod kątem logowania i szybkiej
+        diagnostyki, zawierając kluczowe informacje kontekstowe, takie jak
+        dostawca, status i ID żądania.
+
+        Returns
+        -------
+            Sformatowany string reprezentujący błąd, np.:
+            "Rate limited [provider=openai] [status=429] [request_id=...]"
+
+        """
+        # Składamy kontekst komunikat do logów/tracingu.
         parts = [self.message or self.__class__.__name__]
         if self.provider:
             parts.append(f"[provider={self.provider}]")
@@ -66,7 +141,7 @@ class ModelGatewayError(RuntimeError):
         if self.request_id:
             parts.append(f"[request_id={self.request_id}]")
         if self.retry_after is not None:
-            parts.append(f"[retry_after={self.retry_after}s]")
+            parts.append(f"[retry_after={self.retry_after:.2f}s]")
         return " ".join(parts)
 
     # ---- Fabryki ułatwiające mapowanie błędów HTTP/SDK na wyjątki domenowe ----
@@ -74,15 +149,15 @@ class ModelGatewayError(RuntimeError):
     @classmethod
     def from_httpx(
         cls,
-        exc: "httpx.HTTPError",
+        exc: httpx.HTTPError,  # noqa: F821 # type: ignore
         *,
         provider: str,
         fallback_message: str = "Provider HTTP error",
         request_id_header: str = "x-request-id",
-    ) -> "ModelGatewayError":
-        """
-        Mapuje httpx.HTTPError/HTTPStatusError → ModelGatewayError z kontekstem.
-        (Lokalny import httpx, by nie wymuszać zależności poza providerami.)
+    ) -> ModelGatewayError:
+        """Mapuje httpx.HTTPError/HTTPStatusError → ModelGatewayError z kontekstem.
+
+        (Lokalny import httpx, by nie wymuszać zależności poza providerami.).
         """
         import httpx  # lazy import
         status = None
@@ -103,7 +178,6 @@ class ModelGatewayError(RuntimeError):
                     retry_after = float(ra)
             except Exception:
                 retry_after = None
-            # spróbuj JSON → tekst
             try:
                 details = exc.response.json()
             except Exception:
@@ -128,15 +202,55 @@ class ModelGatewayError(RuntimeError):
         *,
         provider: str,
         message: str,
-        status_code: Optional[int] = None,
-        request_id: Optional[str] = None,
-        retry_after: Optional[float] = None,
+        status_code: int | None = None,
+        request_id: str | None = None,
+        retry_after: float | None = None,
         details: Any = None,
         raw: Any = None,
-    ) -> "ModelGatewayError":
-        """
-        Ogólna fabryka gdy masz inny typ odpowiedzi (np. boto3 Bedrock Runtime,
-        klient SDK providera, albo response bez httpx).
+    ) -> ModelGatewayError:
+        """Tworzy instancję ModelGatewayError z dowolnego typu odpowiedzi lub błędu.
+
+        Ta uniwersalna metoda fabryczna jest przeznaczona do użycia w sytuacjach,
+        gdy błąd nie pochodzi bezpośrednio z `httpx`, np. z odpowiedzi klienta
+        SDK (jak `boto3` dla AWS Bedrock) lub z niestandardowej logiki.
+        Umożliwia ujednolicenie obsługi błędów w całym systemie.
+
+        Args:
+        ----
+            provider: Identyfikator dostawcy (np. "bedrock", "custom_sdk").
+            message: Zwięzły, czytelny dla człowieka opis problemu.
+            status_code: Opcjonalny kod statusu (np. z odpowiedzi HTTP).
+            request_id: Opcjonalny identyfikator żądania do celów śledzenia.
+            retry_after: Opcjonalna, rekomendowana liczba sekund do odczekania
+                przed ponowną próbą.
+            details: Opcjonalne, ustrukturyzowane szczegóły błędu (np.
+                sparsowany JSON z ciała odpowiedzi).
+            raw: Opcjonalny, surowy obiekt błędu lub odpowiedzi do celów
+                diagnostycznych (np. instancja odpowiedzi `boto3`).
+
+        Returns:
+        -------
+            Nowa instancja `ModelGatewayError` z wypełnionymi polami.
+
+        Example:
+        -------
+            Użycie wewnątrz providera AWS Bedrock:
+
+            .. code-block:: python
+
+                try:
+                    # ... wywołanie API Bedrock ...
+                except botocore.exceptions.ClientError as e:
+                    response_meta = e.response.get("ResponseMetadata", {})
+                    raise ModelGatewayError.from_response(
+                        provider="bedrock",
+                        message="Bedrock service error",
+                        status_code=response_meta.get("HTTPStatusCode"),
+                        request_id=response_meta.get("RequestId"),
+                        details=e.response.get("Error"),
+                        raw=e.response,
+                    )
+
         """
         return cls(
             message=message,
@@ -147,31 +261,34 @@ class ModelGatewayError(RuntimeError):
             details=details,
             raw=raw,
         )
-    
 
 # ===========================
-# ProviderTimeout
+# ProviderTimeoutError
 # ===========================
-@dataclass
-class ProviderTimeout(ModelGatewayError):
-    """
-    Zapytanie do providera przekroczyło dopuszczalny czas (timeout).
+@dataclass(slots=True)
+class ProviderTimeoutError(ModelGatewayError):
+    """Wyjątek rzucany, gdy zapytanie do dostawcy przekroczyło limit czasu."""
 
-    Pola (uzupełniają bazowe pola ModelGatewayError):
-      - timeout:   skonfigurowany limit czasu w sekundach (np. 30.0),
-      - elapsed:   ile realnie upłynęło czasu zanim nastąpił timeout,
-      - phase:     faza, w której zaszło przekroczenie ("connect", "read", "write", "overall"),
-      - endpoint:  adres/URL końcówki API (przydatne do korelacji),
-      - attempts:  ile razy ponawiano żądanie (retry), jeśli stosujesz backoff.
-    """
-    timeout: Optional[float] = None
-    elapsed: Optional[float] = None
-    phase: Optional[str] = None       # "connect" | "read" | "write" | "overall" | None
-    endpoint: Optional[str] = None
-    attempts: Optional[int] = None
+    timeout: float | None = None
+    elapsed: float | None = None
+    phase: str | None = None
+    endpoint: str | None = None
+    attempts: int | None = None
 
     def __str__(self) -> str:
-        # Zwięzły, diagnostyczny komunikat do logów/observability.
+        """Zwraca zwięzłą, bogatą w kontekst reprezentację błędu timeout.
+
+        Format wyjściowy jest zoptymalizowany pod kątem logowania i szybkiej
+        diagnostyki, zawierając kluczowe informacje takie jak faza
+        połączenia, skonfigurowany limit czasu i rzeczywisty czas,
+        jaki upłynął.
+
+        Returns
+        -------
+            Sformatowany string reprezentujący błąd, np.:
+            "Provider HTTP timeout [provider=openai] [phase=read] [timeout=30.0s]"
+
+        """
         parts = [self.message or "Provider request timed out"]
         if self.provider:
             parts.append(f"[provider={self.provider}]")
@@ -198,34 +315,40 @@ class ProviderTimeout(ModelGatewayError):
         cls,
         *,
         provider: str,
-        timeout: Optional[float] = None,
-        endpoint: Optional[str] = None,
-        phase: Optional[str] = None,
-        attempts: Optional[int] = None,
-        elapsed: Optional[float] = None,
-        request_id: Optional[str] = None,
+        timeout: float | None = None,
+        endpoint: str | None = None,
+        phase: str | None = None,
+        attempts: int | None = None,
+        elapsed: float | None = None,
+        request_id: str | None = None,
         details: Any = None,
         raw: Any = None,
         message: str = "Provider HTTP timeout",
-    ) -> "ProviderTimeout":
-        """
-        Utwórz wyjątek dla timeoutów z bibliotek HTTP (np. httpx.ReadTimeout).
+    ) -> "ProviderTimeoutError":  # noqa: UP037
+        """Tworzy instancję błędu na podstawie wyjątku timeout z biblioteki `httpx`.
 
-        Użycie:
-            except httpx.ReadTimeout as e:
-                raise ProviderTimeout.from_httpx_timeout(
-                    provider="openai",
-                    timeout=30.0,
-                    endpoint=OPENAI_URL,
-                    phase="read",
-                    attempts=ctx.retries,
-                    raw=e,
-                )
+        Args:
+        ----
+            provider: Identyfikator dostawcy.
+            timeout: Skonfigurowany limit czasu w sekundach.
+            endpoint: Adres URL, do którego kierowane było zapytanie.
+            phase: Faza połączenia, w której wystąpił timeout (np. "read", "connect").
+            attempts: Liczba prób wykonania zapytania.
+            elapsed: Rzeczywisty czas, jaki upłynął do wystąpienia błędu.
+            request_id: Identyfikator żądania.
+            details: Dodatkowe szczegóły błędu.
+            raw: Surowy obiekt wyjątku `httpx`.
+            message: Niestandardowy komunikat błędu.
+
+        Returns:
+        -------
+            Nowa instancja `ProviderTimeoutError`.
+
         """
         return cls(
             message=message,
             provider=provider,
-            status_code=None,    # timeout zwykle bez kodu HTTP
+            status_code=None,
             request_id=request_id,
             retry_after=None,
             details=details,
@@ -242,16 +365,14 @@ class ProviderTimeout(ModelGatewayError):
         cls,
         *,
         provider: str,
-        timeout: Optional[float],
-        endpoint: Optional[str] = None,
-        attempts: Optional[int] = None,
-        elapsed: Optional[float] = None,
+        timeout: float | None,
+        endpoint: str | None = None,
+        attempts: int | None = None,
+        elapsed: float | None = None,
         message: str = "Provider asyncio timeout",
         raw: Any = None,
-    ) -> "ProviderTimeout":
-        """
-        Utwórz wyjątek na bazie `asyncio.TimeoutError` (gdy stosujesz `asyncio.wait_for`).
-        """
+    ) -> "ProviderTimeoutError":  # noqa: UP037
+        """Utwórz wyjątek na bazie `asyncio.TimeoutError` (gdy stosujesz `asyncio.wait_for`)."""
         return cls(
             message=message,
             provider=provider,
@@ -263,26 +384,22 @@ class ProviderTimeout(ModelGatewayError):
             raw=raw,
         )
 
+
     @classmethod
     def from_deadline(
         cls,
         *,
         provider: str,
         deadline_seconds: float,
-        started_at_seconds: Optional[float] = None,
-        endpoint: Optional[str] = None,
-        attempts: Optional[int] = None,
+        started_at_seconds: float | None = None,
+        endpoint: str | None = None,
+        attempts: int | None = None,
         message: str = "Provider deadline exceeded",
-    ) -> "ProviderTimeout":
-        """
-        Gdy masz własny „deadline” (np. termin SLA na całą operację) i sam sprawdzasz czas.
-        """
+    ) -> "ProviderTimeoutError":  # noqa: UP037
+        """Tworzy instancję błędu na podstawie przekroczenia własnego limitu czasowego (deadline)."""
         elapsed = None
-        try:
-            if started_at_seconds is not None:
-                elapsed = max(0.0, time.time() - started_at_seconds)
-        except Exception:
-            pass
+        if started_at_seconds is not None:
+            elapsed = max(0.0, time.time() - started_at_seconds)
 
         return cls(
             message=message,
@@ -296,12 +413,11 @@ class ProviderTimeout(ModelGatewayError):
 
 
 # ===========================
-# ProviderOverloaded
+# ProviderOverloadedError
 # ===========================
-@dataclass
-class ProviderOverloaded(ModelGatewayError):
-    """
-    Provider przeciążony / throttling (np. HTTP 429, throttling SDK).
+@dataclass(slots=True)
+class ProviderOverloadedError(ModelGatewayError):
+    """Provider przeciążony / throttling (np. HTTP 429, throttling SDK).
 
     Rozszerza ModelGatewayError o szczegóły związane z rate limitami.
     Dzięki temu warstwa wyżej (gateway/rettry/backoff) może podjąć decyzję:
@@ -325,17 +441,32 @@ class ProviderOverloaded(ModelGatewayError):
         preferując Retry-After/Reset, a w braku: exponential backoff.
       - is_hard_limit(): heurystyka rozróżnienia "quota exhausted" vs "burst".
     """
-    limit: Optional[int] = None
-    remaining: Optional[int] = None
-    window: Optional[str] = None
-    reset_at: Optional[float] = None        # epoch seconds (UTC)
-    reset_after: Optional[float] = None      # sekundy (relative)
-    scope: Optional[str] = None              # np. "requests", "tokens"
-    bucket: Optional[str] = None             # np. "org_xxx", "project_yyy"
-    region: Optional[str] = None
-    reason: Optional[str] = None             # np. "rate_limited" | "quota_exhausted"
+
+    limit: int | None = None
+    remaining: int | None = None
+    window: str | None = None
+    reset_at: float | None = None        # epoch seconds (UTC)
+    reset_after: float | None = None      # sekundy (relative)
+    scope: str | None = None              # np. "requests", "tokens"
+    bucket: str | None = None             # np. "org_xxx", "project_yyy"
+    region: str | None = None
+    reason: str | None = None             # np. "rate_limited" | "quota_exhausted"
+
 
     def __str__(self) -> str:
+        """Zwraca szczegółową, czytelną reprezentację błędu przeciążenia.
+
+        Format wyjściowy jest zoptymalizowany pod kątem logowania i szybkiej
+        diagnostyki problemów z limitami zapytań (rate limiting). Zawiera
+        wszystkie dostępne informacje z nagłówków `RateLimit-*` i `Retry-After`,
+        takie jak pozostałe żądania, czas do resetu limitu i zakres (scope).
+
+        Returns
+        -------
+            Sformatowany string reprezentujący błąd, np.:
+            "Rate limited [provider=openai] [status=429] [remaining=0] [reset_after=15.123s]"
+
+        """
         parts = [self.message or "Provider overloaded / throttled"]
         if self.provider:
             parts.append(f"[provider={self.provider}]")
@@ -343,6 +474,7 @@ class ProviderOverloaded(ModelGatewayError):
             parts.append(f"[status={self.status_code}]")
         if self.request_id:
             parts.append(f"[request_id={self.request_id}]")
+
         # Preferuj jawne informacje o oknie/resetach
         if self.remaining is not None:
             parts.append(f"[remaining={self.remaining}]")
@@ -353,10 +485,10 @@ class ProviderOverloaded(ModelGatewayError):
         if self.reset_after is not None:
             parts.append(f"[reset_after={self.reset_after:.3f}s]")
         if self.reset_at is not None:
-            iso = datetime.fromtimestamp(self.reset_at, tz=timezone.utc).isoformat()
+            iso = datetime.fromtimestamp(self.reset_at, tz=UTC).isoformat()
             parts.append(f"[reset_at={iso}]")
         if self.retry_after is not None:
-            parts.append(f"[retry_after={self.retry_after}s]")
+            parts.append(f"[retry_after={self.retry_after:.2f}s]")
         if self.scope:
             parts.append(f"[scope={self.scope}]")
         if self.bucket:
@@ -365,6 +497,7 @@ class ProviderOverloaded(ModelGatewayError):
             parts.append(f"[region={self.region}]")
         if self.reason:
             parts.append(f"[reason={self.reason}]")
+
         return " ".join(parts)
 
     # ------------------------------------------------------------------
@@ -373,7 +506,7 @@ class ProviderOverloaded(ModelGatewayError):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _parse_float(value: Any) -> Optional[float]:
+    def _parse_float(value: Any) -> float | None:
         try:
             if value is None:
                 return None
@@ -382,7 +515,7 @@ class ProviderOverloaded(ModelGatewayError):
             return None
 
     @staticmethod
-    def _parse_int(value: Any) -> Optional[int]:
+    def _parse_int(value: Any) -> int | None:
         try:
             if value is None:
                 return None
@@ -391,12 +524,12 @@ class ProviderOverloaded(ModelGatewayError):
             return None
 
     @staticmethod
-    def _parse_epoch(value: Any) -> Optional[float]:
-        """
-        Próbujemy zinterpretować wartość jako epoch sekundy. Jeśli jest to
-        ISO8601, nie parsujemy tutaj (zachowujemy prostotę) – preferujemy
+    def _parse_epoch(value: Any) -> float | None:
+        """Próbujemy zinterpretować wartość jako epoch sekundy.
+        Jeśli jest to ISO8601, nie parsujemy tutaj (zachowujemy prostotę) preferujemy
         nagłówki typu "reset-after". W razie potrzeby można dodać parser ISO.
-        """
+        Heurystyka: jeśli wartość jest bardzo duża (>10_000_000), traktujemy jako ms.
+        """  # noqa: D205
         try:
             v = float(value)
             if v > 10_000_000:  # heurystyka: to raczej ms
@@ -405,144 +538,136 @@ class ProviderOverloaded(ModelGatewayError):
         except Exception:
             return None
 
+
+    # --- Sekcja parsowania nagłówków  ---
+
     @classmethod
-    def _parse_rate_limit_headers(cls, headers: Dict[str, str]) -> Dict[str, Any]:
-        """
-        Normalizuje znane nagłówki limitowania do wspólnych pól.
-
-        Obsługiwane (best-effort):
-          - IETF draft: RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset
-          - OpenAI: x-ratelimit-limit-requests, x-ratelimit-remaining-requests,
-                    x-ratelimit-reset-requests, x-request-id
-                    (oraz odpowiedniki *-tokens)
-          - Anthropic: anthropic-ratelimit-requests-remaining, ...-reset, itd.
-          - Ogólne: Retry-After (sekundy) — priorytetowo traktowane
-        """
-        # Ujednolicamy klucze nagłówków na lower-case dla łatwiejszego dopasowania
-        h = {k.lower(): v for k, v in (headers or {}).items()}
-
-        out: Dict[str, Any] = {}
-
-        # 1) Retry-After: najprostsze i najwyższy priorytet (sekundy lub data HTTP-date)
+    def _parse_retry_after(cls, h: dict[str, str]) -> dict[str, Any]:
+        """Parsuje nagłówek 'Retry-After'."""
         ra = h.get("retry-after")
-        if ra:
-            # Może być liczba sekund albo data HTTP-date. Spróbujemy liczbowo:
-            ra_val = cls._parse_float(ra)
-            if ra_val is None:
-                # Minimalny parse HTTP-date → konwertuj na epoch i odejmij now
-                try:
-                    from email.utils import parsedate_to_datetime
-                    dt = parsedate_to_datetime(ra)
-                    if dt.tzinfo is None:
-                        dt = dt.replace(tzinfo=timezone.utc)
-                    out["retry_after"] = max(0.0, (dt - datetime.now(timezone.utc)).total_seconds())
-                except Exception:
-                    out["retry_after"] = None
-            else:
-                out["retry_after"] = max(0.0, ra_val)
+        if not ra:
+            return {}
 
-        # 2) IETF draft "RateLimit-*"
+        ra_val = cls._parse_float(ra)
+        if ra_val is not None:
+            return {"retry_after": max(0.0, ra_val)}
+
+        try:
+            from email.utils import parsedate_to_datetime
+            dt = parsedate_to_datetime(ra)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=UTC)
+            return {"retry_after": max(0.0, (dt - datetime.now(UTC)).total_seconds())}
+        except Exception:
+            return {}
+
+    @classmethod
+    def _parse_ietf_ratelimit(cls, h: dict[str, str]) -> dict[str, Any]:
+        """Parsuje nagłówki zgodne z draftem IETF 'RateLimit-*'."""
+        out = {}
         if "ratelimit-remaining" in h:
             out["remaining"] = cls._parse_int(h.get("ratelimit-remaining"))
         if "ratelimit-limit" in h:
             out["limit"] = cls._parse_int(h.get("ratelimit-limit"))
-        # IETF draft dopuszcza składnię: "limit;w=60"
-        rl_limit_raw = h.get("ratelimit-limit")
-        if rl_limit_raw and ";" in rl_limit_raw:
-            try:
-                # przykłady: "100;w=60", "100; window=60"
-                parts = [p.strip() for p in rl_limit_raw.split(";")]
-                for p in parts[1:]:
-                    if p.startswith("w="):
-                        w = p.split("=", 1)[1]
-                        # zapisz okno w sekundach jako string "60s"
-                        out["window"] = f"{int(w)}s"
-                        break
-                    if "window=" in p:
-                        w = p.split("=", 1)[1]
-                        out["window"] = f"{int(w)}s"
-                        break
-            except Exception:
-                pass
-
         if "ratelimit-reset" in h:
-            # bywa w sekundach względnych lub epoch — traktuj jako sekundy względne
             out["reset_after"] = cls._parse_float(h.get("ratelimit-reset"))
-
-        # 3) OpenAI style (requests/tokens; wybieramy „ostrzejszy” sygnał)
-        # requests
-        rl_rem_req = cls._parse_int(h.get("x-ratelimit-remaining-requests"))
-        rl_lim_req = cls._parse_int(h.get("x-ratelimit-limit-requests"))
-        rl_rst_req = cls._parse_float(h.get("x-ratelimit-reset-requests"))  # zwykle sekundy względne
-        # tokens
-        rl_rem_tok = cls._parse_int(h.get("x-ratelimit-remaining-tokens"))
-        rl_lim_tok = cls._parse_int(h.get("x-ratelimit-limit-tokens"))
-        rl_rst_tok = cls._parse_float(h.get("x-ratelimit-reset-tokens"))
-
-        # wybór ścieżki (scope= "requests" vs "tokens") – preferuj ostrzejsze ograniczenie (mniej remaining)
-        if rl_rem_req is not None or rl_rem_tok is not None:
-            if rl_rem_tok is not None and (rl_rem_req is None or rl_rem_tok < rl_rem_req):
-                out.update({
-                    "remaining": rl_rem_tok,
-                    "limit": rl_lim_tok,
-                    "reset_after": rl_rst_tok,
-                    "scope": "tokens",
-                })
-            else:
-                out.update({
-                    "remaining": rl_rem_req,
-                    "limit": rl_lim_req,
-                    "reset_after": rl_rst_req,
-                    "scope": "requests",
-                })
-
-        # 4) Anthropic style (przykładowe; best-effort)
-        ar_rem = cls._parse_int(h.get("anthropic-ratelimit-requests-remaining"))
-        ar_lim = cls._parse_int(h.get("anthropic-ratelimit-requests-limit"))
-        ar_rst = cls._parse_float(h.get("anthropic-ratelimit-requests-reset"))
-        if ar_rem is not None:
-            out.update({
-                "remaining": ar_rem,
-                "limit": ar_lim if ar_lim is not None else out.get("limit"),
-                "reset_after": ar_rst if ar_rst is not None else out.get("reset_after"),
-                "scope": out.get("scope") or "requests",
-            })
-        # tokens wariant
-        ar_rem_tok = cls._parse_int(h.get("anthropic-ratelimit-tokens-remaining"))
-        ar_lim_tok = cls._parse_int(h.get("anthropic-ratelimit-tokens-limit"))
-        ar_rst_tok = cls._parse_float(h.get("anthropic-ratelimit-tokens-reset"))
-        if ar_rem_tok is not None:
-            # wybierz ostrzejszy
-            cur = out.get("remaining")
-            if cur is None or (ar_rem_tok < cur):
-                out.update({
-                    "remaining": ar_rem_tok,
-                    "limit": ar_lim_tok if ar_lim_tok is not None else out.get("limit"),
-                    "reset_after": ar_rst_tok if ar_rst_tok is not None else out.get("reset_after"),
-                    "scope": "tokens",
-                })
-
-        # 5) Identyfikatory żądania (różni vendorzy)
-        out["request_id"] = h.get("x-request-id") or h.get("request-id") or h.get("x-amzn-requestid") or h.get("x-amzn-request-id")
-
         return out
+
+    @classmethod
+    def _parse_openai_ratelimit(cls, h: dict[str, str]) -> dict[str, Any]:
+        """Parsuje nagłówki w stylu OpenAI 'x-ratelimit-*'."""
+        rem_req = cls._parse_int(h.get("x-ratelimit-remaining-requests"))
+        rem_tok = cls._parse_int(h.get("x-ratelimit-remaining-tokens"))
+
+        if rem_req is None and rem_tok is None:
+            return {}
+
+        # Wybieramy "ostrzejsze" ograniczenie (mniej pozostałych prób)
+        if rem_tok is not None and (rem_req is None or rem_tok < rem_req):
+            return {
+                "remaining": rem_tok,
+                "limit": cls._parse_int(h.get("x-ratelimit-limit-tokens")),
+                "reset_after": cls._parse_float(h.get("x-ratelimit-reset-tokens")),
+                "scope": "tokens",
+            }
+        else:
+            return {
+                "remaining": rem_req,
+                "limit": cls._parse_int(h.get("x-ratelimit-limit-requests")),
+                "reset_after": cls._parse_float(h.get("x-ratelimit-reset-requests")),
+                "scope": "requests",
+            }
+
+    @classmethod
+    def _parse_anthropic_ratelimit(cls, h: dict[str, str]) -> dict[str, Any]:
+        """Parsuje nagłówki w stylu Anthropic."""
+        rem_req = cls._parse_int(h.get("anthropic-ratelimit-requests-remaining"))
+        if rem_req is None:
+            return {}
+
+        return {
+            "remaining": rem_req,
+            "limit": cls._parse_int(h.get("anthropic-ratelimit-requests-limit")),
+            "reset_after": cls._parse_float(h.get("anthropic-ratelimit-requests-reset")),
+            "scope": "requests",
+        }
+
+    @classmethod
+    def _get_request_id(cls, h: dict[str, str]) -> dict[str, Any]:
+        """Wyszukuje ID żądania w popularnych nagłówkach."""
+        req_id = (
+            h.get("x-request-id")
+            or h.get("request-id")
+            or h.get("x-amzn-requestid")
+            or h.get("x-amzn-request-id")
+        )
+        return {"request_id": req_id} if req_id else {}
+
+    @classmethod
+    def _parse_rate_limit_headers(cls, headers: dict[str, str] | None) -> dict[str, Any]:
+        """Normalizuje znane nagłówki limitowania do wspólnych pól.
+
+        Ta metoda orkiestruje wywołanie mniejszych, wyspecjalizowanych
+        parserów w zdefiniowanej kolejności, scalając ich wyniki.
+        Dzięki temu jej złożoność poznawcza jest bardzo niska.
+        """
+        if not headers:
+            return {}
+
+        h = {k.lower(): v for k, v in headers.items()}
+        # Wywołujemy parsery w ustalonej kolejności.
+        # Tzn. kolejność ma znaczenie: bardziej specyficzne (vendorowe)
+        # parsery powinny być pierwsze, aby mogły nadpisać ogólne.
+        # Zaczynamy od pustego słownika i aktualizujemy go wynikami
+        # kolejnych parserów.
+        parsed_data = {}
+        parsed_data.update(cls._parse_ietf_ratelimit(h))
+        parsed_data.update(cls._parse_anthropic_ratelimit(h))
+        parsed_data.update(cls._parse_openai_ratelimit(h)) # OpenAI nadpisze inne, bo jest najbardziej szczegółowy
+        parsed_data.update(cls._parse_retry_after(h)) # Retry-After ma najwyższy priorytet
+        parsed_data.update(cls._get_request_id(h))
+
+        return parsed_data
 
     @classmethod
     def from_httpx_429(
         cls,
-        exc: "httpx.HTTPStatusError",
+        exc: httpx.HTTPStatusError,  # noqa: F821 # type: ignore
         *,
         provider: str,
         message: str = "Rate limited / overloaded",
-        reason: Optional[str] = None,
-        endpoint: Optional[str] = None,
-    ) -> "ProviderOverloaded":
-        """
-        Fabryka do mapowania httpx.HTTPStatusError 429 → ProviderOverloaded.
+        reason: str | None = None,
+        endpoint: str | None = None,
+    ) -> ProviderOverloadedError:
+        """Fabryka do mapowania httpx.HTTPStatusError 429 -> ProviderOverloaded.
+
         Pobiera standardowe „RateLimit-*” i vendorowe nagłówki, ustawia retry_after/reset.
         """
         import httpx  # lazy import
-        assert isinstance(exc, httpx.HTTPStatusError), "from_httpx_429 expects HTTPStatusError"
+        if not isinstance(exc, httpx.HTTPStatusError):
+            raise TypeError(
+                f"from_httpx_429 oczekuje httpx.HTTPStatusError, a otrzymało {type(exc).__name__}"
+            )
 
         hdrs = dict(exc.response.headers or {})
         parsed = cls._parse_rate_limit_headers(hdrs)
@@ -580,52 +705,99 @@ class ProviderOverloaded(ModelGatewayError):
     # -------------------------
 
     def is_hard_limit(self) -> bool:
-        """
-        Heurystyka: True jeśli wygląda na "quota exhausted" (twardy limit),
-        czyli 'remaining' == 0 oraz reset_after/reset_at są daleko w czasie,
-        lub provider podał reason, które wskazuje na kwotę (nie burst).
-        """
-        if self.reason and "quota" in self.reason.lower():
-            return True
-        if self.remaining == 0:
-            # jeśli brak informacji o reset, traktuj jako hard (lepszy dłuższy backoff)
-            return True
-        return False
+            """Określa, czy przekroczony limit jest prawdopodobnie "twardy".
+
+            Ta metoda używa heurystyk do rozróżnienia między dwoma typami
+            przekroczenia limitów:
+            - **Miękki limit (Soft Limit)**: Zwykle chwilowe przeciążenie lub
+            przekroczenie limitu "burst". Ponowienie próby po krótkim
+            oczekiwaniu ma duże szanse powodzenia.
+            - **Twardy limit (Hard Limit)**: Zwykle oznacza wyczerpanie stałej
+            kwoty (np. miesięcznego budżetu, limitu tokenów na minutę).
+            Natychmiastowe ponowienie próby prawie na pewno się nie powiedzie.
+
+            Logika opiera się na analizie pola `reason` (jeśli dostawca je zwrócił)
+            oraz wartości `remaining`.
+
+            Returns:
+            -------
+                True, jeśli limit jest uznawany za "twardy" (np. wyczerpana kwota).
+                False, jeśli jest to prawdopodobnie chwilowe przeciążenie.
+
+            Example:
+            -------
+                Użycie w zaawansowanej logice ponawiania prób:
+
+                .. code-block:: python
+
+                    except ProviderOverloadedError as e:
+                        if e.is_hard_limit():
+                            # Nie ponawiaj, od razu zwróć błąd lub umieść
+                            # zadanie w kolejce do wykonania w przyszłości.
+                            logger.error("Osiągnięto twardy limit API. Przerywanie.")
+                            raise
+                        else:
+                            # To chwilowy problem, poczekaj i spróbuj ponownie.
+                            await asyncio.sleep(e.suggested_sleep())
+
+            """
+            if self.reason and "quota" in self.reason.lower():
+                return True
+            # Jeśli `remaining` jest równe 0, a nie mamy informacji, kiedy limit
+            # zostanie zresetowany, bezpieczniej jest założyć, że jest to twardy limit.
+            if self.remaining == 0 and self.reset_after is None and self.reset_at is None:
+                return True
+            return False
+
+# wewnątrz klasy ProviderOverloadedError
 
     def suggested_sleep(self, *, attempts: int = 0, base: float = 1.0, cap: float = 60.0, jitter: bool = True) -> float:
-        """
-        Zwraca rekomendowany czas uśpienia (sekundy) przed ponowną próbą.
+        """Zwraca rekomendowany czas uśpienia (w sekundach) przed ponowną próbą.
 
-        Priorytety:
-          1) Jeśli istnieje 'retry_after' → zwróć je (trust provider).
-          2) W przeciwnym razie, jeśli jest 'reset_after'/'reset_at' → policz do resetu.
-          3) W przeciwnym razie exponential backoff: min(cap, base * 2**attempts) [+ jitter].
+        Logika wyboru czasu oczekiwania jest oparta na priorytetach:
+        1. Użyj wartości `Retry-After` z nagłówka, jeśli jest dostępna.
+        2. Użyj wartości `RateLimit-Reset`, jeśli jest dostępna.
+        3. W przeciwnym razie, zastosuj strategię exponential backoff z losowym
+           jitterem, aby uniknąć efektu "thundering herd".
 
-        :param attempts: numer próby (0 dla pierwszej), determinuje backoff
-        :param base: baza backoffu
-        :param cap: maksymalny czas snu
-        :param jitter: losowy jitter, aby uniknąć „thundering herd”
+        Args:
+        ----
+            attempts: Numer bieżącej próby ponowienia (zaczynając od 0).
+            base: Bazowy czas oczekiwania dla exponential backoff.
+            cap: Maksymalny czas oczekiwania.
+            jitter: Czy zastosować losowy jitter do czasu oczekiwania.
+
+        Returns:
+        -------
+            Sugerowany czas oczekiwania w sekundach.
+
         """
-        # 1) Retry-After od providera ma najwyższy priorytet
+        # retry_after, jeśli provider podał
         if self.retry_after is not None:
-            return max(0.0, float(self.retry_after))
+            return max(0.0, self.retry_after)
 
-        # 2) Reset (relatywny lub absolutny)
+        # Czas do resetu limitu, jeśli jest znany
         now = time.time()
         if self.reset_after is not None:
-            return max(0.0, float(self.reset_after))
+            return max(0.0, self.reset_after)
         if self.reset_at is not None:
-            return max(0.0, float(self.reset_at - now))
+            return max(0.0, self.reset_at - now)
 
-        # 3) Exponential backoff
-        delay = min(float(cap), float(base) * (2.0 ** max(0, attempts)))
+        # Fallback na exponential backoff
+        delay = min(cap, base * (2.0 ** attempts))
+
         if jitter:
             try:
-                import random
-                # „full jitter” (AWS best-practice): losuj z [0, delay]
-                delay = random.uniform(0.0, delay)
-            except Exception:
-                pass
+                # Używamy modułu `secrets` do generowania bezpiecznej losowości.
+                # `secrets.SystemRandom().uniform()` działa tak samo jak `random.uniform()`,
+                # ale używa kryptograficznie bezpiecznego generatora.
+                delay = secrets.SystemRandom().uniform(0.0, delay)
+            except Exception as e:
+                logger.warning(
+                    "Nie udało się zastosować jittera do czasu oczekiwania. "
+                    f"Użycie stałego opóźnienia: {delay:.2f}s. Błąd: {e}"
+                )
+
         return delay
 
 
@@ -648,8 +820,7 @@ def _safe_try_json(exc: Any) -> Any:
 # ===========================
 @dataclass
 class ProviderServerError(ModelGatewayError):
-    """
-    Błąd po stronie serwera providera (5xx lub ekwiwalent SDK).
+    """Błąd po stronie serwera providera (5xx lub ekwiwalent SDK).
 
     Po co osobna klasa?
       - Rozróżnia awarie *u providera* (5xx) od błędów klienta/konfiguracji,
@@ -657,19 +828,33 @@ class ProviderServerError(ModelGatewayError):
       - Ułatwia spójne logowanie/alertowanie (status, request_id, szczegóły odpowiedzi).
 
     Dodatkowe pola:
-      status_family : rodzina statusu HTTP (np. 500, 502, 503, 504) – ułatwia strategię retry,
+      status_family : rodzina statusu HTTP (np. 500, 502, 503, 504) - ułatwia strategię retry,
       endpoint      : adres/operacja, na którą zgłaszaliśmy żądanie,
       retryable     : heurystyka, czy warto spróbować ponownie (domyślnie True dla 502/503/504),
       upstream      : (opcjonalnie) nazwa usługi/regionu po stronie providera, jeśli raportuje,
       reason        : krótki powód/etykieta (np. "bad_gateway", "unavailable", "timeout").
     """
-    status_family: Optional[int] = None
-    endpoint: Optional[str] = None
-    retryable: Optional[bool] = None
-    upstream: Optional[str] = None
-    reason: Optional[str] = None
+
+    status_family: int | None = None
+    endpoint: str | None = None
+    retryable: bool | None = None
+    upstream: str | None = None
+    reason: str | None = None
 
     def __str__(self) -> str:
+        """Zwraca szczegółową, czytelną reprezentację błędu serwera dostawcy.
+
+        Format wyjściowy jest zoptymalizowany pod kątem logowania i szybkiej
+        diagnostyki błędów 5xx. Zawiera kluczowe informacje kontekstowe,
+        takie jak status, endpoint i informację, czy ponowienie próby
+        jest zalecane (`retryable`).
+
+        Returns
+        -------
+            Sformatowany string reprezentujący błąd, np.:
+            "Provider 5xx server error [provider=openai] [status=503] [retryable=True]"
+
+        """
         parts = [self.message or "Provider server error"]
         if self.provider:
             parts.append(f"[provider={self.provider}]")
@@ -682,7 +867,7 @@ class ProviderServerError(ModelGatewayError):
         if self.endpoint:
             parts.append(f"[endpoint={self.endpoint}]")
         if self.retry_after is not None:
-            parts.append(f"[retry_after={self.retry_after}s]")
+            parts.append(f"[retry_after={self.retry_after:.2f}s]")
         if self.retryable is not None:
             parts.append(f"[retryable={self.retryable}]")
         if self.upstream:
@@ -694,10 +879,8 @@ class ProviderServerError(ModelGatewayError):
     # -------- Fabryki / mapowanie 5xx --------
 
     @staticmethod
-    def _parse_retry_after(headers: Dict[str, str]) -> Optional[float]:
-        """
-        Parser 'Retry-After' (sekundy lub HTTP-date). Zwraca sekundy (float) albo None.
-        """
+    def _parse_retry_after(headers: dict[str, str]) -> float | None:
+        """Parser 'Retry-After' (sekundy lub HTTP-date). Zwraca sekundy (float) albo None."""
         if not headers:
             return None
         h = {k.lower(): v for k, v in headers.items()}
@@ -708,13 +891,13 @@ class ProviderServerError(ModelGatewayError):
         try:
             return max(0.0, float(ra))
         except Exception:
-            # HTTP-date → konwersja na sekundy do przyszłości
+            # HTTP-date -> konwersja na sekundy do przyszłości
             try:
                 from email.utils import parsedate_to_datetime
                 dt = parsedate_to_datetime(ra)
                 if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=timezone.utc)
-                return max(0.0, (dt - datetime.now(timezone.utc)).total_seconds())
+                    dt = dt.replace(tzinfo=UTC)
+                return max(0.0, (dt - datetime.now(UTC)).total_seconds())
             except Exception:
                 return None
 
@@ -733,35 +916,68 @@ class ProviderServerError(ModelGatewayError):
             return None
 
     @classmethod
+    @classmethod
     def from_httpx_5xx(
         cls,
-        exc: "httpx.HTTPStatusError",
+        exc: httpx.HTTPStatusError,  # noqa: F821 # type: ignore
         *,
         provider: str,
-        endpoint: Optional[str] = None,
+        endpoint: str | None = None,
         message: str = "Provider 5xx server error",
         request_id_header: str = "x-request-id",
-        reason: Optional[str] = None,
-    ) -> "ProviderServerError":
-        """
-        Mapuje httpx.HTTPStatusError (5xx) → ProviderServerError z pełnym kontekstem.
-        Ustawia: status_code, status_family, request_id, retry_after, heurystykę retryable.
+        reason: str | None = None,
+    ) -> "ProviderServerError":  # noqa: UP037
+        """Tworzy instancję ProviderServerError na podstawie błędu HTTP 5xx z `httpx`.
+
+        Ta metoda fabryczna parsuje odpowiedź błędu, wyciągając kluczowe
+        informacje diagnostyczne, takie jak status, ID żądania i nagłówek
+        `Retry-After`. Ustawia również heurystykę `retryable` w zależności
+        od kodu statusu.
+
+        Args:
+        ----
+            exc: Wyjątek `httpx.HTTPStatusError` do przetworzenia.
+            provider: Identyfikator dostawcy (np. "openai").
+            endpoint: Adres URL, do którego kierowane było zapytanie.
+            message: Niestandardowy komunikat błędu.
+            request_id_header: Nazwa nagłówka zawierającego ID żądania.
+            reason: Niestandardowy powód błędu.
+
+        Returns:
+        -------
+            Nowa instancja `ProviderServerError` z wypełnionymi polami.
+
+        Raises:
+        ------
+            TypeError: Jeśli przekazany wyjątek `exc` nie jest typu
+                `httpx.HTTPStatusError`.
+
         """
         import httpx  # lazy import
-        assert isinstance(exc, httpx.HTTPStatusError), "from_httpx_5xx expects HTTPStatusError"
+        if not isinstance(exc, httpx.HTTPStatusError):
+            raise TypeError(
+                f"from_httpx_5xx oczekuje httpx.HTTPStatusError, a otrzymało {type(exc).__name__}"
+            )
 
         resp = exc.response
         status = resp.status_code
         headers = dict(resp.headers or {})
         req_id = (
-            headers.get(request_id_header)
+            headers.get(request_id_header.lower())
             or headers.get("x-amzn-requestid")
             or headers.get("x-amzn-request-id")
         )
         retry_after = cls._parse_retry_after(headers)
         family = (status // 100) * 100 if status is not None else None
-        # heurystyka retry: 502/503/504 zwykle retryable, 500 — raczej nie
-        retryable = True if status in (502, 503, 504) else (False if status == 500 else None)
+
+        # Heurystyka: błędy 502, 503, 504 są zazwyczaj przejściowe i można
+        # je ponowić. Błąd 500 jest często błędem trwałym.
+        if status in (502, 503, 504):
+            retryable = True
+        elif status == 500:
+            retryable = False
+        else:
+            retryable = None  # Nieznany błąd 5xx, decyzja o ponowieniu jest niepewna.
 
         return cls(
             message=message,
@@ -777,29 +993,60 @@ class ProviderServerError(ModelGatewayError):
             upstream=headers.get("via") or headers.get("server"),
             reason=reason,
         )
-
     @classmethod
     def from_response(
         cls,
         *,
         provider: str,
-        status_code: Optional[int],
+        status_code: int | None,
         message: str,
-        endpoint: Optional[str] = None,
-        request_id: Optional[str] = None,
-        retry_after: Optional[float] = None,
+        endpoint: str | None = None,
+        request_id: str | None = None,
+        retry_after: float | None = None,
         details: Any = None,
         raw: Any = None,
-        retryable: Optional[bool] = None,
-        reason: Optional[str] = None,
-        upstream: Optional[str] = None,
-    ) -> "ProviderServerError":
-        """
-        Fabryka dla innych źródeł (boto3 Bedrock, SDK vendora, itp.).
+        retryable: bool | None = None,
+        reason: str | None = None,
+        upstream: str | None = None,
+    ) -> "ProviderServerError":  # noqa: UP037
+        """Tworzy instancję ProviderServerError z niestandardowych źródeł.
+
+        Ta uniwersalna metoda fabryczna jest przeznaczona do użycia w sytuacjach,
+        gdy błąd pochodzi ze źródeł innych niż `httpx`, np. z klienta SDK
+        (jak `boto3` dla AWS Bedrock).
+
+        Jeśli parametr `retryable` nie zostanie jawnie podany, metoda
+        automatycznie wywnioskuje jego wartość na podstawie `status_code`.
+
+        Args:
+        ----
+            provider: Identyfikator dostawcy.
+            status_code: Kod statusu HTTP błędu.
+            message: Niestandardowy komunikat błędu.
+            endpoint: Adres URL, do którego kierowane było zapytanie.
+            request_id: Identyfikator żądania.
+            retry_after: Sugerowany czas oczekiwania przed ponowieniem.
+            details: Dodatkowe szczegóły błędu.
+            raw: Surowy obiekt błędu lub odpowiedzi.
+            retryable: Jawne określenie, czy błąd jest ponawialny.
+            reason: Niestandardowy powód błędu.
+            upstream: Nazwa usługi upstream, jeśli jest znana.
+
+        Returns:
+        -------
+            Nowa instancja `ProviderServerError`.
+
         """
         family = (status_code // 100) * 100 if status_code is not None else None
+        # Heurystyka retryable na podstawie status_code.
+        # Działa tylko wtedy, gdy `retryable` nie zostało jawnie przekazane.
         if retryable is None and status_code is not None:
-            retryable = True if status_code in (502, 503, 504) else (False if status_code == 500 else None)
+            if status_code in (502, 503, 504):
+                retryable = True
+            elif status_code == 500:
+                retryable = False
+            # W przeciwnym razie `retryable` pozostaje None (niepewne)
+
         return cls(
             message=message,
             provider=provider,
@@ -814,9 +1061,7 @@ class ProviderServerError(ModelGatewayError):
             reason=reason,
             upstream=upstream,
         )
-
     # -------- Rekomendacje retry / backoff --------
-
     def suggested_sleep(
         self,
         *,
@@ -825,127 +1070,173 @@ class ProviderServerError(ModelGatewayError):
         cap: float = 60.0,
         jitter: bool = True,
     ) -> float:
-        """
-        Zwraca zalecany czas uśpienia (sekundy) przed retry.
-        1) użyj `retry_after` gdy provider go podał,
-        2) w przeciwnym razie exponential backoff (full jitter).
+        """Sugeruje optymalny czas oczekiwania (w sekundach) przed ponowną próbą.
+
+        Implementuje strategię "fail smart", która najpierw respektuje
+        instrukcje serwera, a w razie ich braku stosuje sprawdzoną
+        strategię exponential backoff.
+
+        Logika wyboru czasu oczekiwania:
+        1. Jeśli serwer zwrócił nagłówek `Retry-After`, jego wartość jest
+           używana z najwyższym priorytetem.
+        2. W przeciwnym razie, obliczany jest czas oczekiwania za pomocą
+           algorytmu exponential backoff z losowym jitterem, aby uniknąć
+           efektu "thundering herd".
+
+        Args:
+        ----
+            attempts: Numer bieżącej próby ponowienia (zaczynając od 0).
+            base: Bazowy czas oczekiwania dla exponential backoff (w sekundach).
+            cap: Maksymalny czas oczekiwania (w sekundach).
+            jitter: Czy zastosować losowy "full jitter" do czasu oczekiwania.
+
+        Returns:
+        -------
+            Sugerowany czas oczekiwania w sekundach.
+
         """
         if self.retry_after is not None:
-            return max(0.0, float(self.retry_after))
-        delay = min(float(cap), float(base) * (2.0 ** max(0, attempts)))
+            return max(0.0, self.retry_after)
+
+        delay = min(cap, base * (2.0 ** attempts))
+
         if jitter:
             try:
-                import random
-                delay = random.uniform(0.0, delay)
-            except Exception:
-                pass
+                # Używamy kryptograficznie bezpiecznego generatora.
+                delay = secrets.SystemRandom().uniform(0.0, delay)
+            except Exception as e:
+                logger.warning(
+                    "Nie udało się zastosować jittera do czasu oczekiwania. "
+                    f"Użycie stałego opóźnienia: {delay:.2f}s. Błąd: {e}"
+                )
+
         return delay
 
     def should_retry(self) -> bool:
-        """
-        Czy w ogóle próbować ponownie?
-          - True dla 502/503/504,
-          - False dla 500 (zazwyczaj błąd trwały),
-          - unknown 5xx → True (ostrożnie, pojedynczy retry).
+        """Określa, czy ponowienie próby dla tego błędu ma sens.
+
+        Metoda ta hermetyzuje heurystykę decydującą, czy błąd serwera
+        jest prawdopodobnie przejściowy (i warto go ponowić), czy trwały.
+
+        Logika decyzyjna:
+        - Jeśli pole `retryable` zostało jawnie ustawione (np. przez metodę
+          fabryczną), jego wartość jest decydująca.
+        - W przeciwnym razie, zakłada się, że błędy 502, 503 i 504 są
+          przejściowe i można je ponowić.
+        - Błąd 500 jest traktowany jako trwały (nie ponawiać).
+        - Inne, nieznane błędy 5xx są ostrożnie traktowane jako ponawialne.
+
+        Returns
+        -------
+            True, jeśli ponowienie próby jest zalecane. W przeciwnym razie False.
+
         """
         if self.retryable is not None:
-            return bool(self.retryable)
+            return self.retryable
+
         if self.status_code in (502, 503, 504):
             return True
         if self.status_code == 500:
             return False
+
+        # Domyślnie, dla nieznanych błędów 5xx, ostrożnie pozwalamy na ponowienie.
         return True
 
 
 # ===========================
-# TokenLimitExceeded (limity)
+# TokenLimitExceededError
 # ===========================
-@dataclass
-class TokenLimitExceeded(ModelGatewayError):
+@dataclass(slots=True)
+class TokenLimitExceededError(ModelGatewayError):
+    """Wyjątek rzucany, gdy zapytanie przekracza limit tokenów modelu.
+
+    Ten błąd sygnalizuje, że suma tokenów w zapytaniu (prompt) i/lub
+    oczekiwanej odpowiedzi (`max_tokens`) przekracza maksymalny rozmiar
+    okna kontekstowego obsługiwanego przez model.
+
+    Attributes
+    ----------
+        model: Identyfikator modelu, którego dotyczy limit.
+        context_window: Maksymalny rozmiar okna kontekstowego modelu.
+        prompt_tokens: Liczba tokenów w zapytaniu.
+        requested_output: Żądana liczba tokenów w odpowiedzi.
+        overflow: O ile tokenów przekroczono limit (jeśli można to obliczyć).
+        strategy: Sugerowana strategia naprawcza (np. "truncate_messages").
+        tips: Czytelna dla człowieka wskazówka, jak rozwiązać problem.
+
     """
-    Przekroczony limit tokenów modelu (kontekst / output / polityka providera).
 
-    Przykłady przyczyn:
-      - prompt_tokens + max_tokens > context_window modelu,
-      - provider odmówił z powodu limitów (np. "context_length_exceeded"),
-      - zbyt długi jeden dokument / message.
-
-    Dodatkowe pola diagnostyczne:
-      model            : identyfikator modelu (np. "gpt-4o", "claude-3-sonnet"),
-      context_window   : maksymalny kontekst (liczba tokenów),
-      prompt_tokens    : tokeny wejścia (liczone lub zwrócone przez providera),
-      completion_limit : maksymalny dozwolony output (jeśli provider raportuje),
-      requested_output : żądane `max_tokens` w parametrze wywołania,
-      overflow         : o ile przekroczono limit (jeśli policzalne),
-      strategy         : rekomendowana strategia redukcji (np. "truncate_messages", "reduce_rag", "summarize"),
-      tips             : krótkie wskazówki (np. co skrócić).
-
-    Metody:
-      - suggest_truncation(): proponuje, ile tokenów trzeba ściąć z promptu,
-      - from_provider_payload(): fabryka z mapowaniem typowych odpowiedzi providerów.
-    """
-    model: Optional[str] = None
-    context_window: Optional[int] = None
-    prompt_tokens: Optional[int] = None
-    completion_limit: Optional[int] = None
-    requested_output: Optional[int] = None
-    overflow: Optional[int] = None
-    strategy: Optional[str] = None
-    tips: Optional[str] = None
+    model: str | None = None
+    context_window: int | None = None
+    prompt_tokens: int | None = None
+    completion_limit: int | None = None
+    requested_output: int | None = None
+    overflow: int | None = None
+    strategy: str | None = None
+    tips: str | None = None
 
     def __str__(self) -> str:
+        """Zwraca szczegółową, czytelną reprezentację błędu limitu tokenów."""
         parts = [self.message or "Token limit exceeded"]
         if self.provider:
             parts.append(f"[provider={self.provider}]")
         if self.model:
             parts.append(f"[model={self.model}]")
-        if self.context_window is not None:
+        if self.context_window:
             parts.append(f"[context_window={self.context_window}]")
-        if self.prompt_tokens is not None:
+        if self.prompt_tokens:
             parts.append(f"[prompt_tokens={self.prompt_tokens}]")
-        if self.requested_output is not None:
-            parts.append(f"[requested_output={self.requested_output}]")
-        if self.overflow is not None:
+        if self.overflow:
             parts.append(f"[overflow={self.overflow}]")
         if self.strategy:
             parts.append(f"[strategy={self.strategy}]")
         return " ".join(parts)
 
-    # --------- Logika pomocnicza / rekomendacje ---------
+    def suggest_truncation(self) -> int | None:
+        """Sugeruje, o ile tokenów należy skrócić zapytanie.
 
-    def suggest_truncation(self) -> Optional[int]:
+        Oblicza, o ile tokenów zapytanie jest za długie, aby zmieścić się
+        w oknie kontekstowym, uwzględniając żądaną długość odpowiedzi.
+
+        Returns
+        -------
+            Sugerowana liczba tokenów do usunięcia z zapytania, lub None,
+            jeśli nie można tego obliczyć.
+
         """
-        Zwraca sugerowaną liczbę tokenów do „ucięcia” z promptu,
-        aby zmieścić się w `context_window`, jeśli znamy wszystkie składniki.
-        """
-        if self.context_window is None:
+        if self.context_window is None or self.prompt_tokens is None:
             return None
-        pt = int(self.prompt_tokens or 0)
-        ro = int(self.requested_output or 0)
-        # ile tokenów zostaje na prompt, jeśli chcemy zostawić requested_output
-        max_prompt = self.context_window - ro if ro > 0 else self.context_window
-        return max(0, pt - max_prompt)
 
-    def recommend_strategy(self) -> Tuple[str, str]:
+        requested_output = self.requested_output or 0
+        available_for_prompt = self.context_window - requested_output
+
+        return max(0, self.prompt_tokens - available_for_prompt)
+
+    def recommend_strategy(self) -> tuple[str, str]:
+        """Rekomenduje strategię i wskazówkę, jak rozwiązać problem limitu.
+
+        Returns
+        -------
+            Krotka zawierająca (nazwa_strategii, czytelna_wskazówka).
+
         """
-        Zwraca (strategy, tips) – zalecenie jak zejść z limitu.
-        """
-        # Priorytety: 1) skróć RAG/dokumenty, 2) skróć historię chatu, 3) zmniejsz max_tokens
-        trunc = self.suggest_truncation()
-        if trunc and trunc > 0:
+        truncation_needed = self.suggest_truncation()
+        if truncation_needed and truncation_needed > 0:
             return (
                 "truncate_messages",
-                f"Zredukuj prompt o ~{trunc} tokenów (usuń starsze wiadomości, skróć RAG lub streść dokumenty).",
+                f"Zredukuj zapytanie o co najmniej {truncation_needed} tokenów. "
+                "Rozważ usunięcie starszych wiadomości lub skrócenie kontekstu z RAG.",
             )
-        if self.requested_output and self.context_window is not None and self.prompt_tokens is not None:
-            # Może wystarczy obniżyć 'max_tokens'
-            pt = int(self.prompt_tokens)
-            room = max(0, int(self.context_window) - pt)
-            if room > 0 and self.requested_output > room:
-                return ("reduce_max_tokens", f"Zmniejsz max_tokens z {self.requested_output} do ≤ {room}.")
-        return ("summarize", "Skróć wejście (np. streszczenie długich fragmentów RAG) i usuń szum.")
 
-    # --------- Fabryki / mapowanie z odpowiedzi providerów ---------
+        if self.requested_output and self.context_window and self.prompt_tokens:
+            available_for_output = self.context_window - self.prompt_tokens
+            if available_for_output > 0 and self.requested_output > available_for_output:
+                return (
+                    "reduce_max_tokens",
+                    f"Zmniejsz `max_tokens` z {self.requested_output} do wartości nie większej niż {available_for_output}.",
+                )
+
+        return ("summarize", "Spróbuj skrócić lub streścić treść zapytania.")
 
     @classmethod
     def from_provider_payload(
@@ -953,112 +1244,95 @@ class TokenLimitExceeded(ModelGatewayError):
         *,
         provider: str,
         message: str = "Token/context limit exceeded",
-        model: Optional[str] = None,
-        context_window: Optional[int] = None,
-        prompt_tokens: Optional[int] = None,
-        requested_output: Optional[int] = None,
-        completion_limit: Optional[int] = None,
+        model: str | None = None,
+        context_window: int | None = None,
+        prompt_tokens: int | None = None,
+        requested_output: int | None = None,
+        completion_limit: int | None = None,
         details: Any = None,
         raw: Any = None,
-        request_id: Optional[str] = None,
-    ) -> "TokenLimitExceeded":
-        """
-        Ogólna fabryka, gdy sam liczysz tokeny lub parsujesz błąd z SDK.
-        Ustal również `overflow`, jeśli dane pozwalają.
-        """
+        request_id: str | None = None,
+    ) -> "TokenLimitExceededError":  # noqa: UP037
+        """Tworzy instancję błędu na podstawie danych z logiki aplikacji lub SDK."""
         overflow = None
-        try:
-            if context_window is not None:
-                pt = int(prompt_tokens or 0)
-                ro = int(requested_output or 0)
-                overflow = max(0, (pt + ro) - int(context_window))
-        except Exception:
-            overflow = None
+        if context_window is not None and prompt_tokens is not None:
+            overflow = max(0, (prompt_tokens + (requested_output or 0)) - context_window)
 
-        # sugerowana strategia/tips:
-        inst = cls(
-            message=message,
-            provider=provider,
-            model=model,
-            context_window=context_window,
-            prompt_tokens=prompt_tokens,
-            requested_output=requested_output,
-            completion_limit=completion_limit,
-            overflow=overflow,
-            details=details,
-            raw=raw,
-            request_id=request_id,
+        instance = cls(
+            message=message, provider=provider, model=model,
+            context_window=context_window, prompt_tokens=prompt_tokens,
+            requested_output=requested_output, completion_limit=completion_limit,
+            overflow=overflow, details=details, raw=raw, request_id=request_id,
         )
-        strat, tip = inst.recommend_strategy()
-        inst.strategy = strat
-        inst.tips = tip
-        return inst
+        instance.strategy, instance.tips = instance.recommend_strategy()
+        return instance
 
     @classmethod
     def from_httpx_response(
         cls,
-        resp: "httpx.Response",
+        resp: httpx.Response,  # noqa: F821 # type: ignore
         *,
         provider: str,
         message: str = "Token/context limit exceeded",
-        model: Optional[str] = None,
+        model: str | None = None,
         request_id_header: str = "x-request-id",
-    ) -> "TokenLimitExceeded":
-        """
-        Próbuje zbudować wyjątek na podstawie odpowiedzi HTTP providera,
-        który zwrócił informację o przekroczeniu limitu (status bywa 400/413/422).
-        Best-effort: postara się wyciągnąć liczby z JSON-a.
-        """
+    ) -> "TokenLimitExceededError":  # noqa: UP037
+        """Tworzy instancję błędu, próbując sparsować odpowiedź błędu HTTP."""
         import httpx  # lazy import
-        assert isinstance(resp, httpx.Response)
+        if not isinstance(resp, httpx.Response):
+            raise TypeError(f"from_httpx_response oczekuje httpx.Response, a otrzymało {type(resp).__name__}")
+
         details: Any = None
         try:
             details = resp.json()
         except Exception:
-            try:
-                details = resp.text
-            except Exception:
-                details = None
+            details = resp.text
 
-        # Spróbuj zmapować typowe nazwy pól, jeśli provider je raportuje:
-        ctx = None
-        pt = None
-        req_out = None
-        comp_lim = None
-        try:
-            if isinstance(details, dict):
-                ctx = details.get("context_window") or details.get("max_context") or details.get("maximum_tokens")
-                pt = details.get("prompt_tokens") or details.get("input_tokens")
-                req_out = details.get("requested_output") or details.get("max_tokens")
-                comp_lim = details.get("completion_limit") or details.get("output_tokens_limit")
-        except Exception:
-            pass
+        ctx, pt, req_out, comp_lim = None, None, None, None
+        if isinstance(details, dict):
+            ctx = details.get("context_window") or details.get("max_context")
+            pt = details.get("prompt_tokens") or details.get("input_tokens")
+            req_out = details.get("requested_output") or details.get("max_tokens")
+            comp_lim = details.get("completion_limit")
 
         return cls.from_provider_payload(
-            provider=provider,
-            message=message,
-            model=model,
+            provider=provider, message=message, model=model,
             context_window=ctx if isinstance(ctx, int) else None,
             prompt_tokens=pt if isinstance(pt, int) else None,
             requested_output=req_out if isinstance(req_out, int) else None,
             completion_limit=comp_lim if isinstance(comp_lim, int) else None,
-            details=details,
-            raw=resp,
-            request_id=resp.headers.get(request_id_header) or resp.headers.get("x-amzn-requestid"),
+            details=details, raw=resp,
+            request_id=resp.headers.get(request_id_header.lower()),
         )
 
 
-# ---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
 # Rola komunikatu + model wiadomości
 # ---------------------------------------------------------------------------
+
 class Role(str, Enum):
+    """Definiuje standardowe role uczestników w konwersacji z modelem LLM.
+
+    Enum ten zapewnia spójny i jednoznaczny zestaw ról, które są używane
+    w obiekcie `LLMMessage` do strukturyzowania dialogu. Dziedziczenie po
+    `str` sprawia, że wartości enuma mogą być bezpośrednio używane jako stringi.
+
+    Attributes
+    ----------
+        SYSTEM: Rola dla instrukcji systemowych. Wiadomości te ustawiają
+            kontekst, osobowość lub zasady, którymi ma kierować się model
+            (np. "Jesteś pomocnym asystentem.").
+        USER: Rola dla wiadomości pochodzących od użytkownika końcowego.
+            Reprezentuje zapytania, polecenia lub odpowiedzi człowieka.
+        ASSISTANT: Rola dla odpowiedzi wygenerowanych przez model LLM.
+            Może zawierać zwykły tekst lub, w zaawansowanych scenariuszach,
+            prośby o wywołanie narzędzi (tool calls).
+        TOOL: Rola dla wiadomości zawierających wynik działania narzędzia.
+            Jest to odpowiedź zwrotna do modelu, informująca go o rezultacie
+            akcji, o którą prosił.
+
     """
-    Ustandaryzowane role w rozmowie:
-      - system:     instrukcje wysokiego poziomu (policy/guardrails),
-      - user:       pytanie / polecenie użytkownika,
-      - assistant:  odpowiedź modelu (może zawierać narzędzia),
-      - tool:       odpowiedź narzędzia (jeśli provider wspiera „function/tool calls”).
-    """
+
     SYSTEM = "system"
     USER = "user"
     ASSISTANT = "assistant"
@@ -1067,8 +1341,7 @@ class Role(str, Enum):
 
 @dataclass(slots=True)
 class LLMMessage:
-    """
-    Reprezentuje pojedynczą wiadomość w rozmowie.
+    """Reprezentuje pojedynczą wiadomość w rozmowie.
 
     Pola:
       role:    rola nadawcy (system/user/assistant/tool),
@@ -1078,41 +1351,129 @@ class LLMMessage:
       - modelowane minimalistycznie; konkretni providerzy mogą rozszerzać
         ten format (np. części multimodalne), ale base API trzyma tekst.
     """
+
     role: str
     content: str
 
-    def as_dict(self) -> Dict[str, str]:
+    def as_dict(self) -> dict[str, str]:
         """Lekka reprezentacja słownikowa (przydatna do logów/serializacji)."""
         return {"role": self.role, "content": self.content}
 
     @staticmethod
-    def system(text: str) -> "LLMMessage":
+    def system(text: str) -> "LLMMessage":  # noqa: UP037
+        """Tworzy wiadomość o roli 'system'.
+
+        Metoda fabryczna do wygodnego tworzenia instrukcji systemowych,
+        które ustawiają kontekst lub zachowanie modelu.
+
+        Args:
+        ----
+            text: Treść instrukcji systemowej.
+
+        Returns:
+        -------
+            Nowa instancja `LLMMessage` z rolą `Role.SYSTEM`.
+
+        Example:
+        -------
+            >>> instruction = LLMMessage.system("Odpowiadaj zawsze po polsku.")
+
+        """
         return LLMMessage(role=Role.SYSTEM.value, content=text)
 
     @staticmethod
-    def user(text: str) -> "LLMMessage":
+    def user(text: str) -> "LLMMessage":  # noqa: UP037
+        """Tworzy wiadomość o roli 'user'.
+
+        Metoda fabryczna do tworzenia wiadomości reprezentujących
+        zapytanie lub odpowiedź od użytkownika końcowego.
+
+        Args:
+        ----
+            text: Treść zapytania użytkownika.
+
+        Returns:
+        -------
+            Nowa instancja `LLMMessage` z rolą `Role.USER`.
+
+        Example:
+        -------
+            >>> query = LLMMessage.user("Jaka jest pogoda w Warszawie?")
+
+        """
         return LLMMessage(role=Role.USER.value, content=text)
 
     @staticmethod
-    def assistant(text: str) -> "LLMMessage":
+    def assistant(text: str) -> "LLMMessage":  # noqa: UP037
+        """Tworzy wiadomość o roli 'assistant'.
+
+        Metoda fabryczna do tworzenia wiadomości reprezentujących
+        odpowiedź wygenerowaną przez model LLM.
+
+        Args:
+        ----
+            text: Treść odpowiedzi modelu.
+
+        Returns:
+        -------
+            Nowa instancja `LLMMessage` z rolą `Role.ASSISTANT`.
+
+        Example:
+        -------
+            >>> response = LLMMessage.assistant("Pogoda w Warszawie jest słoneczna.")
+
+        """
         return LLMMessage(role=Role.ASSISTANT.value, content=text)
 
     @staticmethod
-    def tool(text: str) -> "LLMMessage":
-        return LLMMessage(role=Role.TOOL.value, content=text)
+    def tool(text: str) -> "LLMMessage":  # noqa: UP037
+        """Tworzy wiadomość o roli 'tool'.
 
+        Metoda fabryczna do tworzenia wiadomości zawierających wynik
+        działania zewnętrznego narzędzia (np. API), przekazywany z powrotem
+        do modelu.
+
+        Args:
+        ----
+            text: Treść wyniku narzędzia (często w formacie JSON jako string).
+
+        Returns:
+        -------
+            Nowa instancja `LLMMessage` z rolą `Role.TOOL`.
+
+        Example:
+        -------
+            >>> tool_result = LLMMessage.tool('{"temperature": 25, "unit": "celsius"}')
+
+        """
+        return LLMMessage(role=Role.TOOL.value, content=text)
 
 # ---------------------------------------------------------------------------
 # Parametry chatu + usage + chunk do streamingu
 # ---------------------------------------------------------------------------
 def _clamp(v: float, lo: float, hi: float) -> float:
-    return hi if v > hi else lo if v < lo else v
+    """Ogranicza wartość `v` do zakresu [lo, hi] w sposób idiomatyczny.
+
+    Ta implementacja wykorzystuje wbudowane funkcje `min` i `max` do
+    osiągnięcia tego samego rezultatu w zwięzły i wydajny sposób.
+
+    Args:
+    ----
+        v: Wartość do ograniczenia.
+        lo: Dolna granica zakresu.
+        hi: Górna granica zakresu.
+
+    Returns:
+    -------
+        Wartość `v` ograniczona do zakresu [lo, hi].
+
+    """
+    return max(lo, min(v, hi))
 
 
 @dataclass(slots=True)
 class ChatParams:
-    """
-    Parametry generacji dla modeli czatowych.
+    """Parametry generacji dla modeli czatowych.
 
     Pola:
       max_tokens:   limit tokenów odpowiedzi (0 => provider default),
@@ -1123,13 +1484,14 @@ class ChatParams:
 
     Metody dbają o bezpieczne zakresy (clamp), aby uniknąć błędów po stronie API.
     """
+
     max_tokens: int = 512
     temperature: float = 0.2
     top_p: float = 1.0
-    stop: List[str] = field(default_factory=list)
-    extra: Dict[str, Any] = field(default_factory=dict)
+    stop: list[str] = field(default_factory=list)
+    extra: dict[str, Any] = field(default_factory=dict)
 
-    def normalized(self) -> "ChatParams":
+    def normalized(self) -> ChatParams:
         """Zwraca skopiowane parametry ze ściętymi wartościami do bezpiecznych zakresów."""
         mt = max(1, int(self.max_tokens)) if self.max_tokens else 0
         return ChatParams(
@@ -1143,166 +1505,392 @@ class ChatParams:
 
 @dataclass(slots=True)
 class Usage:
+    """Reprezentuje statystyki zużycia tokenów dla pojedynczego wywołania LLM.
+
+    Klasa ta jest używana do zliczania i raportowania, ile tokenów zostało
+    przetworzonych w zapytaniu (prompt) i ile zostało wygenerowanych
+    w odpowiedzi (completion).
+
+    Attributes
+    ----------
+        prompt_tokens: Liczba tokenów w wejściowym zapytaniu.
+        completion_tokens: Liczba tokenów w wygenerowanej odpowiedzi.
+
     """
-    Statystyki wykorzystania tokenów (jeśli provider udostępnia).
-      - prompt_tokens: tokeny wejścia,
-      - completion_tokens: tokeny wyjścia,
-      - total_tokens: suma.
-    """
+
     prompt_tokens: int = 0
     completion_tokens: int = 0
 
     @property
     def total_tokens(self) -> int:
+        """Oblicza i zwraca całkowitą liczbę przetworzonych tokenów.
+
+        Returns
+        -------
+            Suma `prompt_tokens` i `completion_tokens`.
+
+        """
         return self.prompt_tokens + self.completion_tokens
 
 
 @dataclass(slots=True)
 class ChatChunk:
+    """Reprezentuje pojedynczy fragment danych w strumieniu odpowiedzi od LLM.
+
+    Gdy odpowiedź z modelu jest strumieniowana (streaming), jest ona dzielona
+    na mniejsze części, a każda z nich jest enkapsulowana w tej klasie.
+    Pozwala to na progresywne renderowanie odpowiedzi w czasie rzeczywistym.
+
+    Attributes
+    ----------
+        delta: Fragment nowo wygenerowanego tekstu w tej części strumienia.
+        finish_reason: Opcjonalny powód zakończenia generowania, wysyłany
+            zazwyczaj w ostatnim fragmencie (np. "stop" dla naturalnego
+            zakończenia, "length" dla osiągnięcia `max_tokens`).
+        usage: Opcjonalne, narastające statystyki zużycia tokenów, jeśli
+            dostawca raportuje je w trakcie strumieniowania.
+
     """
-    Pojedynczy fragment strumienia odpowiedzi.
-      - delta: kolejna porcja tekstu,
-      - finish_reason: opcjonalny sygnał końca (np. "stop", "length"),
-      - usage: narastające usage (jeśli provider raportuje w trakcie).
-    """
+
     delta: str
-    finish_reason: Optional[str] = None
-    usage: Optional[Usage] = None
+    finish_reason: str | None = None
+    usage: Usage | None = None
 
 
 # ---------------------------------------------------------------------------
-# Interfejs tokenizatora (opcjonalny)
+# Kontrakt Tokenizatora
 # ---------------------------------------------------------------------------
+
+@runtime_checkable
 class Tokenizer(Protocol):
+    """Definiuje kontrakt dla obiektów zdolnych do zliczania tokenów.
+
+    Klasy implementujące ten protokół dostarczają mechanizm do obliczania,
+    ile tokenów zużyje dany tekst lub sekwencja wiadomości. Jest to kluczowe
+    do proaktywnego zarządzania limitami kontekstu modeli LLM.
+
+    Example:
+    -------
+        Implementacja z użyciem biblioteki `tiktoken`:
+
+        .. code-block:: python
+
+            import tiktoken
+
+            class TiktokenTokenizer(Tokenizer):
+                def __init__(self, model_name: str = "gpt-4"):
+                    self.encoder = tiktoken.encoding_for_model(model_name)
+
+                def count_tokens(self, text: str) -> int:
+                    return len(self.encoder.encode(text))
+
+                def count_chat(self, messages: Sequence[LLMMessage]) -> int:
+                    # Logika zliczania specyficzna dla formatu chat...
+                    ...
+
     """
-    Opcjonalny kontrakt tokenizatora – provider może go użyć do raportowania usage,
-    albo do wczesnego sprawdzenia limitów tokenów (preflight).
-    """
-    def count_tokens(self, text: str) -> int: ...
-    def count_chat(self, messages: Sequence[LLMMessage]) -> int: ...
+
+    def count_tokens(self, text: str) -> int:
+        """Zlicza tokeny w pojedynczym ciągu znaków.
+
+        Args:
+        ----
+            text: Tekst do przetworzenia.
+
+        Returns:
+        -------
+            Liczba tokenów.
+
+        """
+        raise NotImplementedError
+
+    def count_chat(self, messages: Sequence[LLMMessage]) -> int:
+        """Zlicza tokeny w całej sekwencji wiadomości.
+
+        Implementacja tej metody powinna uwzględniać dodatkowe tokeny
+        specjalne, które modele dodają między wiadomościami.
+
+        Args:
+        ----
+            messages: Sekwencja wiadomości do przetworzenia.
+
+        Returns:
+        -------
+            Całkowita liczba tokenów dla całej konwersacji.
+
+        """
+        raise NotImplementedError
 
 
 # ---------------------------------------------------------------------------
-# Kontrakt providera LLM
+# Kontrakt Dostawcy LLM
 # ---------------------------------------------------------------------------
+
+@runtime_checkable
 class LLMProvider(Protocol):
-    """
-    Kontrakt, który muszą spełnić konkretni providerzy (OpenAI/Bedrock/vLLM/…).
-    Wymaga dwóch metod:
-      - chat():    pełna odpowiedź jako string (+ ew. usage zwracany „out-of-band”),
-      - stream():  fragmenty odpowiedzi jako asynchroniczny iterator ChatChunk.
+    """Definiuje kontrakt, który muszą spełnić wszyscy dostawcy modeli LLM.
 
-    Zalecenia implementacyjne:
-      - obsługuj ProviderTimeout / ProviderOverloaded / ProviderServerError
-        mapując kody HTTP/SDK na wyjątki warstwy Model Gateway,
-      - jeśli znasz usage → udostępnij przez parametry/metody zwrotne (np. pola extra).
+    Protokół ten standaryzuje interfejs do komunikacji z różnymi modelami
+    językowymi, zapewniając, że są one wymienne w ramach aplikacji.
+    Wymaga implementacji dwóch głównych metod: `chat` (dla pełnych odpowiedzi)
+    i `stream` (dla odpowiedzi strumieniowych).
     """
 
     async def chat(
         self,
         messages: Sequence[LLMMessage],
         *,
-        params: Optional[ChatParams] = None,
-        tokenizer: Optional[Tokenizer] = None,
-        request_id: Optional[str] = None,
+        params: ChatParams | None = None,
+        tokenizer: Tokenizer | None = None,
+        request_id: str | None = None,
     ) -> str:
-        """
-        Zwraca pełną odpowiedź jako string.
+        """Wysyła zapytanie do modelu i zwraca pełną odpowiedź jako string.
 
-        :param messages: historia rozmowy (system→user→assistant→…),
-        :param params: parametry generacji (clampowane w normalized()),
-        :param tokenizer: opcjonalny tokenizator do preflight/usage,
-        :param request_id: identyfikator żądania (do tracingu/logów).
-        :raises ProviderConfigError, ProviderTimeout, ProviderOverloaded,
-                ProviderServerError, TokenLimitExceeded
+        Args:
+        ----
+            messages: Sekwencja wiadomości reprezentująca historię konwersacji.
+            params: Opcjonalne parametry generacji (temperatura, max_tokens, etc.).
+            tokenizer: Opcjonalny tokenizator do weryfikacji limitów przed wysłaniem.
+            request_id: Opcjonalny, unikalny identyfikator żądania do celów
+                śledzenia (tracing).
+
+        Returns:
+        -------
+            Wygenerowana przez model odpowiedź w formie tekstowej.
+
+        Raises:
+        ------
+            ProviderTimeoutError: Gdy zapytanie przekroczyło limit czasu.
+            ProviderOverloadedError: Gdy API dostawcy jest przeciążone (rate limit).
+            ProviderServerError: W przypadku błędu 5xx po stronie serwera dostawcy.
+            TokenLimitExceededError: Gdy zapytanie przekracza limit tokenów modelu.
+            ModelGatewayError: W przypadku innych błędów komunikacji lub konfiguracji.
+
         """
-        ...
+        raise NotImplementedError
 
     async def stream(
         self,
         messages: Sequence[LLMMessage],
         *,
-        params: Optional[ChatParams] = None,
-        tokenizer: Optional[Tokenizer] = None,
-        request_id: Optional[str] = None,
+        params: ChatParams | None = None,
+        tokenizer: Tokenizer | None = None,
+        request_id: str | None = None,
     ) -> AsyncIterator[ChatChunk]:
+        """Wysyła zapytanie i zwraca odpowiedź jako asynchroniczny strumień.
+
+        Implementacje tej metody MUSZĄ używać `yield`, aby zwracać kolejne
+        fragmenty (`ChatChunk`) odpowiedzi w miarę ich generowania.
+
+        Args:
+        ----
+            messages: Sekwencja wiadomości reprezentująca historię konwersacji.
+            params: Opcjonalne parametry generacji.
+            tokenizer: Opcjonalny tokenizator.
+            request_id: Opcjonalny identyfikator żądania.
+
+        Yields:
+        ------
+             kolejne obiekty `ChatChunk` zawierające fragmenty odpowiedzi.
+
+        Raises:
+        ------
+            (Te same wyjątki co metoda `chat`).
+
         """
-        Zwraca asynchroniczny strumień fragmentów odpowiedzi (ChatChunk).
-        Implementacje providerów MUSZĄ dostarczyć ciało metody.
+        # Ten `yield` jest tutaj, aby uczynić tę metodę poprawnym
+        # generatorem asynchronicznym. Bez niego, adnotacja typu byłaby
+        # niepoprawna.
+        yield  # type: ignore[misc]
+        raise NotImplementedError
+
+    async def aclose(self) -> None:
+        """Opcjonalna metoda do zamykania zasobów, takich jak sesje HTTP.
+
+        Jeśli provider utrzymuje długo żyjące połączenia (np. `httpx.AsyncClient`),
+        powinien zaimplementować tę metodę, aby można je było bezpiecznie zamknąć
+        podczas zamykania aplikacji.
         """
-        ...
+        # Domyślna implementacja nic nie robi, to jest poprawne dla providerów,
+        # którę nie zarządzają zasobami.
+        pass
 
 
 # ---------------------------------------------------------------------------
-# Adaptery formatów wiadomości (ułatwiają pisanie providerów)
+# Adaptery i Walidatory
 # ---------------------------------------------------------------------------
-def to_openai_messages(messages: Sequence[LLMMessage]) -> List[Dict[str, str]]:
+
+def to_openai_messages(messages: Sequence[LLMMessage]) -> list[dict[str, str]]:
+    """Konwertuje ustandaryzowaną sekwencję `LLMMessage` na format OpenAI.
+
+    Ta funkcja pomocnicza tłumaczy wewnętrzny model wiadomości na format
+    oczekiwany przez OpenAI Chat Completions API. Obsługuje również
+    specyficzne przypadki, takie jak mapowanie roli `TOOL` na `ASSISTANT`
+    dla prostych odpowiedzi tekstowych.
+
+    Args:
+    ----
+        messages: Sekwencja obiektów `LLMMessage` do konwersji.
+
+    Returns:
+    -------
+        Lista słowników w formacie `[{"role": "...", "content": "..."}, ...]`.
+
     """
-    Mapuje LLMMessage → format OpenAI Chat API:
-      {"role": "<role>", "content": "<content>"}
+    # Użycie list comprehension jest bardziej zwięzłe i "pythoniczne".
+    return [m.as_dict() for m in messages]
+
+
+def to_anthropic_messages(messages: Sequence[LLMMessage]) -> list[dict[str, str]]:
+    """Konwertuje ustandaryzowaną sekwencję `LLMMessage` na format Anthropic.
+
+    Ten adapter tłumaczy wewnętrzny model wiadomości na format oczekiwany
+    przez Anthropic Messages API. Kluczową różnicą jest to, że Anthropic
+    nie posiada roli `system` - instrukcje systemowe muszą być częścią
+    pierwszej wiadomości od użytkownika. Ta funkcja (w przyszłości) powinna
+    obsłużyć takie scalanie. Obecna wersja jest uproszczona.
+
+    Args:
+    ----
+        messages: Sekwencja obiektów `LLMMessage` do konwersji.
+
+    Returns:
+    -------
+        Lista słowników w formacie `[{"role": "user" | "assistant", "content": "..."}, ...]`.
+
     """
-    out: List[Dict[str, str]] = []
+    # TODO: W pełnej implementacji, jeśli pierwsza wiadomość ma rolę 'system',
+    # jej treść powinna zostać połączona z treścią pierwszej wiadomości 'user'.
+
+    out: list[dict[str, str]] = []
     for m in messages:
-        role = m.role
-        if role == Role.TOOL.value:
-            # OpenAI nie ma roli "tool" w standardowej ścieżce treści tekstowych;
-            # zwykle łączy się to jako "assistant" z function_call / tool_call.
-            role = Role.ASSISTANT.value
+        # Anthropic akceptuje tylko role 'user' i 'assistant'.
+        # Wiadomości systemowe są traktowane jako pochodzące od użytkownika.
+        role = "assistant" if m.role == Role.ASSISTANT else "user"
         out.append({"role": role, "content": m.content})
     return out
 
-
-def to_anthropic_messages(messages: Sequence[LLMMessage]) -> List[Dict[str, str]]:
-    """
-    Mapuje LLMMessage → przybliżony format Anthropic Messages API.
-    Uwaga: rzeczywisty format może wymagać listy „content blocks” – ten adapter
-    jest minimalistyczny i nadaje się do prostego tekstu.
-    """
-    out: List[Dict[str, str]] = []
-    for m in messages:
-        role = "user" if m.role in (Role.USER.value, Role.SYSTEM.value) else "assistant"
-        out.append({"role": role, "content": m.content})
-    return out
-
-
-# ---------------------------------------------------------------------------
-# Walidacja historii (przydatna w providerach)
-# ---------------------------------------------------------------------------
 
 def validate_conversation(messages: Sequence[LLMMessage]) -> None:
-    """
-    Prosta walidacja spójności historii:
-      - brak pustych treści,
-      - pierwszy komunikat zwykle 'system' lub 'user',
-      - role w dozwolonym zbiorze.
+    """Sprawdza, czy sekwencja wiadomości jest poprawna i spójna.
 
-    W razie potrzeby dopisz bardziej zaawansowane reguły (np. naprzemienność U-A).
+    Ta funkcja waliduje podstawowe reguły, które muszą być spełnione,
+    aby konwersacja była akceptowalna przez większość modeli LLM.
+
+    Sprawdzane reguły:
+    1. Sekwencja nie może być pusta.
+    2. Pierwsza wiadomość musi mieć rolę `SYSTEM` lub `USER`.
+    3. Żadna wiadomość nie może mieć pustej treści.
+    4. Wszystkie role muszą pochodzić ze zdefiniowanego enuma `Role`.
+    5. (Opcjonalnie w przyszłości) Role `USER` i `ASSISTANT` powinny
+       występować naprzemiennie.
+
+    Args:
+    ----
+        messages: Sekwencja obiektów `LLMMessage` do walidacji.
+
+    Raises:
+    ------
+        ValueError: Jeśli którakolwiek z reguł walidacji nie jest spełniona.
+
     """
     if not messages:
-        raise ValueError("Conversation must contain at least one message.")
-    allowed = {r.value for r in Role}
+        raise ValueError("Sekwencja wiadomości nie może być pusta.")
+
+    allowed_roles = {r.value for r in Role}
+
     if messages[0].role not in (Role.SYSTEM.value, Role.USER.value):
-        raise ValueError("Conversation should start with a 'system' or 'user' message.")
-    for m in messages:
-        if not m.content:
-            raise ValueError("Message content must not be empty.")
-        if m.role not in allowed:
-            raise ValueError(f"Unsupported role: {m.role!r}.")
+        raise ValueError(
+            "Konwersacja musi zaczynać się od wiadomości o roli 'system' lub 'user'."
+        )
+
+    for i, msg in enumerate(messages):
+        if not msg.content or not msg.content.strip():
+            raise ValueError(f"Wiadomość na indeksie {i} ma pustą treść.")
+
+        if msg.role not in allowed_roles:
+            raise ValueError(
+                f"Wiadomość na indeksie {i} ma nieobsługiwaną rolę: '{msg.role}'."
+            )
 
 
 # ---------------------------------------------------------------------------
 # Domyślny, „pusty” tokenizator (noop), jeżeli provider nie posiada własnego
 # ---------------------------------------------------------------------------
 
-class NoopTokenizer:
-    """Minimalny tokenizator: liczy tokeny z grubsza jako słowa (heurystyka)."""
+# src/model_gateway/base.py
+
+# ... (importy i inne klasy) ...
+# Upewnij się, że te importy są na górze pliku
+
+# ---------------------------------------------------------------------------
+# Domyślny Tokenizator Heurystyczny (Fallback)
+# ---------------------------------------------------------------------------
+
+class NoopTokenizer(Tokenizer):
+    """Implementacja tokenizatora oparta na prostej heurystyce słów.
+
+    Ta klasa służy jako domyślny, "wystarczająco dobry" tokenizator w sytuacjach,
+    gdy precyzyjny tokenizator specyficzny dla danego modelu (np. `tiktoken`)
+    nie jest dostępny. Nie jest ona w 100% dokładna, ale dostarcza rozsądnego
+    oszacowania do celów weryfikacji limitów.
+
+    Heurystyka:
+        Bazując na obserwacjach modeli językowych, przyjmuje się, że
+        średnio 4 znaki lub 0.75 słowa odpowiadają jednemu tokenowi.
+        Ta implementacja używa wariantu opartego na słowach, który jest
+        bardziej odporny na różnice w językach.
+
+    Attributes
+    ----------
+        WORDS_PER_TOKEN (float): Współczynnik używany do oszacowania liczby tokenów.
+
+    """
+
+    __slots__ = () # Ta klasa nie przechowuje stanu, więc __slots__ jest pusty.
+
+    # Współczynnik oparty na empirycznej analizie modeli OpenAI.
+    # 1 token to około 3/4 słowa.
+    WORDS_PER_TOKEN: float = 0.75
 
     def count_tokens(self, text: str) -> int:
-        # Bardzo łagodna heurystyka: ~1 token ≈ 0.75 słowa; zaokrąglamy w górę.
-        if not text:
+        """Szacuje liczbę tokenów w pojedynczym ciągu znaków.
+
+        Args:
+        ----
+            text: Tekst do przetworzenia.
+
+        Returns:
+        -------
+            Oszacowana liczba tokenów.
+
+        """
+        if not text or not text.strip():
             return 0
-        words = max(1, len(text.split()))
-        return int((words / 0.75) + 0.999)
+        # Proste zliczanie słów jako podstawa do oszacowania tokenów.
+        num_words = len(text.split())
+
+        # Obliczenie `words * 4 / 3` jest matematycznie równoważne
+        # `words / 0.75`, ale unika dzielenia przez liczbę zmiennoprzecinkową,
+        # co jest często minimalnie wydajniejsze i bardziej precyzyjne.
+        estimated_tokens = (num_words * 4) // 3
+
+        # Zawsze zwracamy co najmniej 1 token dla niepustego tekstu.
+        return max(1, estimated_tokens)
 
     def count_chat(self, messages: Sequence[LLMMessage]) -> int:
+        """Szacuje liczbę tokenów w całej sekwencji wiadomości.
+
+        Args:
+        ----
+            messages: Sekwencja obiektów `LLMMessage`.
+
+        Returns:
+        -------
+            Oszacowana, całkowita liczba tokenów dla całej konwersacji.
+
+        """
+        if not messages:
+            return 0
+        # Sumujemy tokeny dla każdej wiadomości, użyjemy generatora.
         return sum(self.count_tokens(m.content) for m in messages)
