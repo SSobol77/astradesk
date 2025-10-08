@@ -2,6 +2,8 @@
   <img src="assets/AstraDesktop.png" alt="AstraDesk - Framework AI" width="560"/>
 </p>
 
+<br>
+
 # AstraDesk 2.0 - Internal AI Agents Framework
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](https://www.apache.org/licenses/LICENSE-2.0)
@@ -17,45 +19,45 @@
 
 AstraDesk to wewnętrzny framework do budowy agentów AI, zaprojektowany dla działów wsparcia (Support) i operacji (SRE/DevOps). Oferuje modularną architekturę z gotowymi agentami demonstracyjnymi, integracjami z bazami danych, systemami messagingu i narzędziami DevOps. Framework wspiera skalowalność, bezpieczeństwo enterprise (OIDC/JWT, RBAC, mTLS via Istio) oraz pełne CI/CD.
 
-## Table of Contents
+## Spis treści
 
-- [Features](#features)
-- [Architecture Overview](#architecture-overview)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-  - [Local Development with Docker Compose](#local-development-with-docker-compose)
-  - [Building from Source](#building-from-source)
-- [Configuration](#configuration)
-  - [Environment Variables](#environment-variables)
-  - [OIDC/JWT Authentication](#oidcjwt-authentication)
-  - [RBAC Policies](#rbac-policies)
-- [Usage](#usage)
-  - [Running Agents](#running-agents)
-  - [Ingesting Documents for RAG](#ingesting-documents-for-rag)
-  - [Admin Portal](#admin-portal)
-  - [Tools and Integrations](#tools-and-integrations)
-- [Deployment](#deployment)
-  - [Kubernetes with Helm](#kubernetes-with-helm)
+- [Funkcje](#funkcje)
+- [Przeznaczenie i Zastosowania](#przeznaczenie-i-zastosowania)
+- [Przegląd architektury](#przegląd-architektury)
+- [Wymagania wstępne](#wymagania-wstępne)
+- [Instalacja](#instalacja)
+  - [Lokalne środowisko (Docker Compose)](#lokalne-środowisko-docker-compose)
+  - [Budowanie ze źródeł](#budowanie-ze-źródeł)
+- [Konfiguracja](#konfiguracja)
+  - [Zmienne środowiskowe](#zmienne-środowiskowe)
+  - [Uwierzytelnianie OIDC/JWT](#uwierzytelnianie-oidcjwt)
+  - [Polityki RBAC](#polityki-rbac)
+- [Użycie](#użycie)
+  - [Uruchamianie agentów](#uruchamianie-agentów)
+  - [Wczytywanie dokumentów do RAG](#wczytywanie-dokumentów-do-rag)
+  - [Portal administracyjny](#portal-administracyjny)
+  - [Narzędzia i integracje](#narzędzia-i-integracje)
+- [Wdrożenie](#wdrożenie)
+  - [Kubernetes (Helm)](#kubernetes-helm)
   - [OpenShift](#openshift)
-  - [AWS with Terraform](#aws-with-terraform)
-  - [Configuration Management Tools](#configuration-management-tools)
-  - [mTLS and Istio Service Mesh](#mtls-and-istio-service-mesh)
+  - [AWS (Terraform)](#aws-terraform)
+  - [Narzędzia zarządzania konfiguracją](#narzędzia-zarządzania-konfiguracją)
+  - [mTLS i siatka usług Istio](#mtls-i-siatka-usług-istio)
 - [CI/CD](#cicd)
   - [Jenkins](#jenkins)
   - [GitLab CI](#gitlab-ci)
-- [Monitoring and Observability](#monitoring-and-observability)
+- [Monitorowanie i obserwowalność](#monitorowanie-i-obserwowalność)
   - [OpenTelemetry](#opentelemetry)
-  - [Grafana Dashboards and Alerts](#grafana-dashboards-and-alerts)
+  - [Pulpity i alerty Grafany](#pulpity-i-alerty-grafany)
+- [Przewodnik dla deweloperów](#przewodnik-dla-deweloperów)
+- [Testowanie](#testowanie)
+- [Bezpieczeństwo](#bezpieczeństwo)
+- [Mapa drogowa](#mapa-drogowa)
+- [Wkład](#wkład)
+- [Licencja](#licencja)
+- [Kontakt](#kontakt)
 
-- [Developer's Guide](#developers-guide)
-- [Testing](#testing)
-- [Security](#security)
-- [Roadmap](#roadmap)
-- [Contributing](#contributing)
-- [License](#license)
-- [Contact](#contact)
-
-## Features
+## Funkcje
 
 - **AI Agents**: Dwa gotowe agenty:
   - **SupportAgent**: Wsparcie użytkownika z RAG na dokumentach firmowych (PDF, HTML, Markdown), pamięcią dialogową i narzędziami ticketingu.
@@ -69,7 +71,20 @@ AstraDesk to wewnętrzny framework do budowy agentów AI, zaprojektowany dla dzi
 - **Observability**: OpenTelemetry, Prometheus/Grafana/Loki/Tempo.
 - **Scalability**: HPA w Helm, retries/timeouty w integracjach, autoscaling w EKS.
 
-## Architecture Overview
+## Przeznaczenie i Zastosowania
+
+**AstraDesk** to **framework do budowy agentów AI** dla zespołów **Support** oraz **SRE/DevOps**.
+Zapewnia modułowy rdzeń (planer, pamięć, RAG, rejestr narzędzi) i gotowe agentowe przykłady.
+
+- **Support / Helpdesk**: RAG na dokumentach firmy (procedury, FAQ, runbooki), tworzenie/aktualizacja zgłoszeń (tickety), pamięć konwersacji.
+- **Automatyzacje SRE/DevOps**: odczyt metryk (Prometheus/Grafana), triage incydentów, kontrolowane akcje (np. restart usługi) zabezpieczone **RBAC** i objęte audytem.
+- **Integracje enterprise**: Gateway (Python/FastAPI), Adapter Ticketów (Java/WebFlux + MySQL), Portal Admin (Next.js) oraz warstwa danych (Postgres/pgvector, Redis, NATS).
+- **Bezpieczeństwo i compliance**: OIDC/JWT, RBAC per‑narzędzie, **mTLS** (Istio), pełen ślad audytowy.
+- **Operacje na skalę**: Docker/Kubernetes/OpenShift, Terraform (AWS), CI/CD (Jenkins/GitLab), obserwowalność (OpenTelemetry, Prometheus/Grafana/Loki/Tempo).
+
+> **To nie pojedynczy chatbot**, lecz **framework** do komponowania własnych agentów, narzędzi i polityk z pełną kontrolą (bez lock‑in do SaaS).
+
+## Przegląd architektury
 
 AstraDesk składa się z trzech głównych komponentów:
 - **Python API Gateway**: FastAPI obsługujący żądania do agentów, z RAG, pamięcią i toolami.
@@ -78,18 +93,18 @@ AstraDesk składa się z trzech głównych komponentów:
 
 Komunikacja: HTTP (między komponentami), NATS (eventy/audyty), Redis (pamięć robocza), Postgres/pgvector (RAG/dialogi/audyty), MySQL (tickety).
 
-## Prerequisites
+## Wymagania wstępne
 
 - **Docker** i **Docker Compose** (do lokalnego dev).
 - **Kubernetes** z Helm (do deploymentu).
 - **AWS CLI** i **Terraform** (do chmury).
 - **Node.js 22**, **JDK 21**, **Python 3.11** (do buildów).
 - **Postgres 16**, **MySQL 8**, **Redis 7**, **NATS 2** (serwisy bazowe).
-- Opcjonalnie: Istio, cert-manager (do mTLS/TLS).
+- **Opcjonalnie:** Istio, cert-manager (do mTLS/TLS).
 
-## Installation
+## Instalacja
 
-### Local Development with Docker Compose
+### Lokalne środowisko (Docker Compose)
 
 1. Sklonuj repozytorium:
    ```
@@ -125,7 +140,7 @@ Komunikacja: HTTP (między komponentami), NATS (eventy/audyty), Redis (pamięć 
    ```
    - Admin Portal: http://localhost:3000
 
-### Building from Source
+### Budowanie ze źródeł
 
 1. Zainstaluj zależności:
    ```
@@ -139,9 +154,9 @@ Komunikacja: HTTP (między komponentami), NATS (eventy/audyty), Redis (pamięć 
    - Java Adapter: `cd services/ticket-adapter-java && ./gradlew bootRun`
    - Admin Portal: `cd services/admin-portal && npm run dev`
 
-## Configuration
+## Konfiguracja
 
-### Environment Variables
+### Zmienne środowiskowe
 
 - **DATABASE_URL**: PostgreSQL connection string (np. `postgresql://user:pass@host:5432/db`).
 - **REDIS_URL**: Redis URI (np. `redis://host:6379/0`).
@@ -154,22 +169,22 @@ Komunikacja: HTTP (między komponentami), NATS (eventy/audyty), Redis (pamięć 
 
 Pełna lista w `.env.example`.
 
-### OIDC/JWT Authentication
+### Uwierzytelnianie OIDC/JWT
 
 - Włączone w API Gateway i Java Adapter.
 - Użyj Bearer token w requestach: `Authorization: Bearer <token>`.
 - Walidacja: Issuer, audience, signature via JWKS.
 - W Admin Portal: Użyj Auth0 lub podobnego do front-channel flow.
 
-### RBAC Policies
+### Polityki RBAC
 
 - Role z JWT claims (np. "roles": ["sre"]).
 - Narzędzia (np. restart_service) sprawdzają role via `require_role(claims, "sre")`.
 - Dostosuj w `runtime/policy.py` i toolach (np. `REQUIRED_ROLE_RESTART`).
 
-## Usage
+## Użycie
 
-### Running Agents
+### Uruchamianie agentów
 
 Wywołaj API:
 
@@ -183,25 +198,25 @@ curl -X POST http://localhost:8080/v1/agents/run \
 - Response: JSON z outputem, trace_id, used_tools.
 - Demo queries: `./scripts/demo_queries.sh`.
 
-### Ingesting Documents for RAG
+### Wczytywanie dokumentów do RAG
 
 - Wspierane formaty: .md, .txt (rozszerzalne o PDF/HTML).
 - Uruchom: `make ingest` (źródło: `./docs`).
 
-### Admin Portal
+### Portal administracyjny
 
 - Dostępny na `http://localhost:3000`.
 - Funkcje: Health check API, przykładowe curl do agentów.
 - Rozszerz o fetch audytów: Dodaj endpoint `/v1/audits` w API.
 
-### Tools and Integrations
+### Narzędzia i integracje
 
 - Rejestr tooli: `registry.py` – dodaj nowe via `register(name, async_fn)`.
 - Przykłady: create_ticket (proxy do Java), get_metrics (stub Prometheus), restart_service (z RBAC).
 
-## Deployment
+## Wdrożenie
 
-### Kubernetes with Helm
+### Kubernetes (Helm)
 
 1. Zbuduj i push obrazy (użyj CI).
 2. Zainstaluj chart:
@@ -222,7 +237,7 @@ curl -X POST http://localhost:8080/v1/agents/run \
    oc process -f deploy/openshift/astradesk-template.yaml -p TAG=0.2.1 | oc apply -f -
    ```
 
-### AWS with Terraform
+### AWS (Terraform)
 
 1. Inicjuj:
 
@@ -234,13 +249,13 @@ curl -X POST http://localhost:8080/v1/agents/run \
 
    - Tworzy: VPC, EKS, RDS (Postgres/MySQL), S3.
 
-### Configuration Management Tools
+### Narzędzia zarządzania konfiguracją
 
 - **Ansible**: `ansible-playbook -i ansible/inventories/dev/hosts.ini ansible/roles/astradesk_docker/main.yml`.
 - **Puppet**: `puppet apply puppet/manifests/astradesk.pp`.
 - **Salt**: `salt '*' state.apply astradesk`.
 
-### mTLS and Istio Service Mesh
+### mTLS i siatka usług Istio
 
 1. Utwórz namespace: `kubectl apply -f deploy/istio/00-namespace.yaml`.
 2. Włącz mTLS: `kubectl apply -f deploy/istio/10-peer-authentication.yaml` (i resztę plików z deploy/istio/).
@@ -256,19 +271,21 @@ curl -X POST http://localhost:8080/v1/agents/run \
 
 - `.gitlab-ci.yml`: Etapy build/test/docker/deploy (manual).
 
-## Monitoring and Observability
+## Monitorowanie i obserwowalność
 
 ### OpenTelemetry
 
 - Wbudowane w FastAPI (instrumentation).
 - Eksport: Do OTLP (Prometheus/Grafana).
 
-### Grafana Dashboards and Alerts
+### Pulpity i alerty Grafany
 
 - Dashboard: `grafana/dashboard-astradesk.json` (latency, DB calls).
 - Alerty: `grafana/alerts.yaml` (high latency, errors) – załaduj do Prometheus.
 
-## Developer's Guide
+<br>
+
+## Przewodnik dla deweloperów
 
 Ta sekcja zawiera praktyczne instrukcje i odpowiedzi na najczęstsze pytania, które pomogą Ci szybko rozpocząć pracę z projektem.
 
@@ -424,14 +441,14 @@ Po uruchomieniu aplikacji (w dowolnym trybie), możesz wysyłać zapytania do AP
 - **P: Gdzie mogę zmienić słowa kluczowe dla `KeywordPlanner`?**
   - **O:** W pliku `src/runtime/planner.py`, wewnątrz konstruktora `__init__` klasy `KeywordPlanner`.
 
+<br>
 
-
-## Testing
+## Testowanie
 
 - Uruchom: `make test` (Python), `make test-java`, `make test-admin`.
 - Pokrycie: Unit (pytest, JUnit, Vitest), integracyjne (API flow).
 
-## Security
+## Bezpieczeństwo
 
 - **Auth**: OIDC/JWT z JWKS.
 - **RBAC**: Per tool, na bazie claims.
@@ -439,7 +456,7 @@ Po uruchomieniu aplikacji (w dowolnym trybie), możesz wysyłać zapytania do AP
 - **Audyt**: W Postgres + NATS publish.
 - **Polityki**: Allow-lists w toolach, retries w proxy.
 
-## Roadmap
+## Mapa drogowa
 
 - Integracja LLM (Bedrock/OpenAI/vLLM) z guardrails.
 - Temporal dla długotrwałych workflowów.
@@ -447,17 +464,21 @@ Po uruchomieniu aplikacji (w dowolnym trybie), możesz wysyłać zapytania do AP
 - Multi-tenancy i RBAC advanced (OPA).
 - Pełne dashboardy Grafana z alertami.
 
-## Contributing
+## Wkład
 
 - Fork repo, stwórz branch, PR z testami.
 - Użyj `make lint/type` przed commit.
 
-## License
+## Licencja
 
 Apache License 2.0. See [LICENSE](LICENSE) for details.
 
-## Contact
+## Kontakt
 
 Autor: Siergej Sobolewski (s.sobolewski@hotmail.com).  
 Issues: [GitHub Issues](https://github.com/SSobol77/astradesk/issues).  
-Data: October 04, 2025.
+
+<br>
+
+---
+*Ostatnia aktualizacja: 2025-10-08*
