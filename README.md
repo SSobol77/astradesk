@@ -4,7 +4,7 @@
 
 <br>
 
-# AstraDesk 2.0 - Internal AI Agents Framework
+# AstraDesk Duo - Internal AI Agents Framework
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Python Version](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
