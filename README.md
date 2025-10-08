@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/AstraDesktop.png" alt="AstraDesk - Framework AI" width="560"/>
+</p>
+
 # AstraDesk 2.0 - Internal AI Agents Framework
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](https://www.apache.org/licenses/LICENSE-2.0)
