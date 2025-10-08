@@ -1,46 +1,133 @@
-# src/runtime/registry.py
-# -*- coding: utf-8 -*-
-# Program jest objęty licencją Apache-2.0.
-# Autor: Siergej Sobolewski
-#
-# Cel modułu
-# ----------
-# Centralny rejestr narzędzi (tools) agentów:
-#  - przechowuje referencje do funkcji narzędzi (async lub sync),
-#  - udostępnia metadane (opis, wersja, polityka RBAC, schema argumentów),
-#  - zapewnia bezpieczne, zunifikowane wywołanie (execute),
-#  - opcjonalnie egzekwuje RBAC na podstawie `allowed_roles` i `claims`.
-#
-# Wytyczne:
-#  - Narzędzia powinny przyjmować argumenty nazwane (**kwargs) oraz zwracać tekst (str)
-#    lub serializowalny JSON (który i tak wyżej zostanie zrenderowany do str).
-#  - Jeżeli narzędzie jest funkcją *sync*, zostanie uruchomione w wątku
-#    z użyciem `asyncio.to_thread`, aby nie blokować event-loopa.
-#
-# Integracja RBAC:
-#  - Jeżeli podczas rejestracji ustawisz `allowed_roles={"sre", "it.support"}`,
-#    metoda `execute()` sprawdzi, czy użytkownik (claims) ma *co najmniej jedną*
-#    z tych ról. Wymagane jest przekazanie `claims` w **kwargs (np. z middleware OIDC).
-#  - Sprawdzanie ról używa `runtime.policy.get_roles` (jeśli dostępne). Gdy moduł
-#    policy nie jest dostępny, fallback: oczekuje `claims["roles"]` (lista).
-#
-# Bezpieczeństwo i stabilność:
-#  - walidacja nazw narzędzi (litery/cyfry/._-),
-#  - prywatny lock podczas rejestracji/wyrejestrowania,
-#  - jasne wyjątki i docstringi do szybkiej diagnozy błędów.
-#
-# Przykład:
-# ---------
-# registry = ToolRegistry()
-# async def create_ticket(title: str, body: str, **_): ...
-# registry.register(
-#     "create_ticket", create_ticket,
-#     description="Creates a ticket in the system",
-#     allowed_roles={"it.support","sre"},
-#     version="1.0.0",
-#     schema={"title":"str","body":"str"}
-# )
-# result = await registry.execute("create_ticket", title="VPN down", body="Users cannot connect", claims=claims)
+# SPDX-License-Identifier: Apache-2.0
+"""File: services/gateway-python/src/runtime/registry.py
+Project: AstraDesk Framework — API Gateway
+Description:
+    Central tool (action) registry for AstraDesk agents. Stores callable
+    references with rich metadata, enforces optional RBAC, and provides a
+    unified, safe `execute()` path that works for both async and sync tools
+    (the latter run via `asyncio.to_thread` to avoid blocking the event loop).
+
+Author: Siergej Sobolewski
+Since: 2025-10-07
+
+Overview
+--------
+- Metadata-first:
+  * `ToolInfo`: name, function, description, version, allowed roles (RBAC),
+    and a lightweight argument schema for UI/validation.
+- Safe execution:
+  * Optional RBAC gate (any-of roles) based on JWT claims (via `runtime.policy`).
+  * Sync→async bridge for CPU-bound or legacy functions.
+  * Gentle kwargs handling: `claims` is stripped if the tool does not accept it.
+- Concurrent mutations:
+  * Registration/unregistration guarded by an asyncio lock.
+
+Public API
+----------
+- Registration & mutations:
+  * `await register(name, fn, *, description="", version="1.0.0", allowed_roles=None, schema=None, override=False)`
+  * `await unregister(name)`
+- Lookup & enumeration:
+  * `get(name) -> Callable`
+  * `get_info(name) -> ToolInfo`
+  * `names() -> list[str]`
+  * `list_info() -> list[ToolInfo]`
+  * `exists(name) -> bool`
+- Execution:
+  * `await execute(name, **kwargs) -> Any` — RBAC (if configured) + sync/async handling.
+
+Tool contract
+-------------
+- Callables should accept **named** arguments (`**kwargs`) and return either:
+  * `str` (human-readable result), or
+  * JSON-serializable structures (rendered upstream as text/JSON).
+- For RBAC-aware tools, pass `claims` (OIDC/JWT claims dict) in `kwargs`.
+  The registry removes `claims` if the callable does not declare it.
+
+RBAC integration
+----------------
+- If `ToolInfo.allowed_roles` is non-empty, `execute()` requires that
+  the caller holds at least one of those roles.
+- Role extraction uses `runtime.policy.get_roles(claims)` when available.
+  If the policy module is absent, a safe fallback reads `claims["roles"]`.
+
+Security & safety
+-----------------
+- Tool names validated by regex: `[A-Za-z0-9._-]{1,128}`.
+- Fail-closed RBAC: missing or empty roles deny access when required.
+- Avoid leaking sensitive data in exceptions; raise concise, actionable errors.
+
+Performance
+-----------
+- O(1) lookups by name; lock scope is tight (only for mutations).
+- Sync tools run in a thread to keep the event loop responsive.
+- Metadata accessors (`get_info`, `list_info`) are zero-alloc copies of dict/list.
+
+Usage (example)
+---------------
+>>> registry = ToolRegistry()
+>>> async def create_ticket(title: str, body: str, **_): return f"Created: {title}"
+>>> await registry.register(
+...     "create_ticket",
+...     create_ticket,
+...     description="Creates a ticket in the system",
+...     allowed_roles={"it.support", "sre"},
+...     version="1.0.0",
+...     schema={"title": "str", "body": "str"},
+... )
+>>> result = await registry.execute(
+...     "create_ticket",
+...     title="VPN down",
+...     body="Users cannot connect",
+...     claims={"roles": ["sre"]},
+... )
+
+Notes
+-----
+- Keep schemas lightweight; deep validation belongs to a dedicated layer.
+- Prefer idempotent tool semantics where possible; callers may retry.
+- Version field is informational; use it to drive UI/help and analytics.
+
+Notes (PL):
+----------
+Centralny rejestr narzędzi (tools) agentów:
+ - przechowuje referencje do funkcji narzędzi (async lub sync),
+ - udostępnia metadane (opis, wersja, polityka RBAC, schema argumentów),
+ - zapewnia bezpieczne, zunifikowane wywołanie (execute),
+ - opcjonalnie egzekwuje RBAC na podstawie `allowed_roles` i `claims`.
+
+Wytyczne:
+ - Narzędzia powinny przyjmować argumenty nazwane (**kwargs) oraz zwracać tekst (str)
+   lub serializowalny JSON (który i tak wyżej zostanie zrenderowany do str).
+ - Jeżeli narzędzie jest funkcją *sync*, zostanie uruchomione w wątku
+   z użyciem `asyncio.to_thread`, aby nie blokować event-loopa.
+
+Integracja RBAC:
+ - Jeżeli podczas rejestracji ustawisz `allowed_roles={"sre", "it.support"}`,
+   metoda `execute()` sprawdzi, czy użytkownik (claims) ma *co najmniej jedną*
+   z tych ról. Wymagane jest przekazanie `claims` w **kwargs (np. z middleware OIDC).
+ - Sprawdzanie ról używa `runtime.policy.get_roles` (jeśli dostępne). Gdy moduł
+   policy nie jest dostępny, fallback: oczekuje `claims["roles"]` (lista).
+
+Bezpieczeństwo i stabilność:
+ - walidacja nazw narzędzi (litery/cyfry/._-),
+ - prywatny lock podczas rejestracji/wyrejestrowania,
+ - jasne wyjątki i docstringi do szybkiej diagnozy błędów.
+
+Przykład:
+---------
+registry = ToolRegistry()
+async def create_ticket(title: str, body: str, **_): ...
+registry.register(
+    "create_ticket", create_ticket,
+    description="Creates a ticket in the system",
+    allowed_roles={"it.support","sre"},
+    version="1.0.0",
+    schema={"title":"str","body":"str"}
+)
+result = await registry.execute("create_ticket", title="VPN down", body="Users cannot connect", claims=claims)
+
+"""  # noqa: D205
 
 from __future__ import annotations
 
@@ -76,17 +163,16 @@ _TOOL_NAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 
 @dataclass
 class ToolInfo:
-    """
-    Metadane zarejestrowanego narzędzia.
-
+    """Metadane zarejestrowanego narzędzia.
     Pola:
-        name:          unikalna nazwa narzędzia (w rejestrze),
-        fn:            funkcja wywoływana przy użyciu execute(),
-        description:   krótki opis (do UI/Docs),
-        version:       wersja narzędzia (semver; informacyjnie),
+        name: unikalna nazwa narzędzia (w rejestrze),
+        fn: funkcja wywoływana przy użyciu execute(),
+        description: krótki opis (do UI/Docs),
+        version: wersja narzędzia (semver; informacyjnie),
         allowed_roles: zbiór ról uprawniających do użycia (RBAC „any-of”),
-        schema:        lekka specyfikacja argumentów (np. do walidacji/UI).
-    """
+        schema: lekka specyfikacja argumentów (np. do walidacji/UI).
+    """  # noqa: D205
+
     name: str
     fn: ToolCallable
     description: str = ""
@@ -96,8 +182,7 @@ class ToolInfo:
 
 
 class ToolRegistry:
-    """
-    Rejestr asynchronicznych narzędzi agentów.
+    """Rejestr asynchronicznych narzędzi agentów.
 
     Funkcje:
       - register(name, fn, ...): rejestracja narzędzia z metadanymi,
@@ -130,8 +215,7 @@ class ToolRegistry:
         schema: Optional[Dict[str, Any]] = None,
         override: bool = False,
     ) -> None:
-        """
-        Rejestruje narzędzie `name` → `fn` z metadanymi.
+        """Rejestruje narzędzie `name` → `fn` z metadanymi.
 
         :param name: identyfikator narzędzia (A-Za-z0-9._-; max 128)
         :param fn:   funkcja narzędzia (async lub sync)
@@ -164,8 +248,7 @@ class ToolRegistry:
             self._tools[name] = info
 
     async def unregister(self, name: str) -> None:
-        """
-        Wyrejestrowuje narzędzie.
+        """Wyrejestrowuje narzędzie.
         :raises KeyError: gdy nie istnieje.
         """
         async with self._lock:
@@ -201,7 +284,7 @@ class ToolRegistry:
         return list(self._tools.values())
 
     def exists(self, name: str) -> bool:
-        """Czy narzędzie istnieje w rejestrze?"""
+        """Sprawdzamy czy narzędzie istnieje w rejestrze."""
         return name in self._tools
 
     # -------------------------
@@ -209,8 +292,7 @@ class ToolRegistry:
     # -------------------------
 
     async def execute(self, name: str, **kwargs: Any) -> Any:
-        """
-        Wykonuje narzędzie o nazwie `name` z przekazanymi argumentami nazwanymi.
+        """Wykonuje narzędzie o nazwie `name` z przekazanymi argumentami nazwanymi.
 
         Funkcje bezpieczeństwa:
           - RBAC: jeżeli `allowed_roles` jest ustawione, wymaga co najmniej jednej z tych ról

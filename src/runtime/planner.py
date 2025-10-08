@@ -1,9 +1,69 @@
-# src/runtime/planner.py
-# -*- coding: utf-8 -*-
-# Program jest objęty licencją Apache-2.0.
-# Copyright 2025
-# Autor: Siergej Sobolewski
-"""Implementacja konfigurowalnego, heurystycznego planera opartego na słowach kluczowych.
+# SPDX-License-Identifier: Apache-2.0
+"""File: services/gateway-python/src/runtime/planner.py
+Project: AstraDesk Framework — API Gateway
+Description:
+    Configurable, deterministic keyword-based planner used as a fallback (or a
+    lightweight primary) when the LLM planner is unavailable or unnecessary.
+    Maps user queries to structured tool invocations using simple, auditable
+    rules and produces readable, formatted responses.
+
+Author: Siergej Sobolewski
+Since: 2025-10-07
+
+Overview
+--------
+- Rule architecture: plan generation is driven by `KeywordRule` entries
+  (keywords → tool name → argument factory).
+- Deterministic behavior: no LLM dependency; outputs are predictable and fast.
+- Data model alignment: plans are expressed as `ToolCall` from `runtime.models`.
+- Human-friendly finalize: composes a clear response from tool results or RAG
+  context when no tools produced output.
+
+Responsibilities
+----------------
+- `make_plan(query) -> List[ToolCall]`
+  * Normalize input; select the first matching rule; build tool arguments via
+    the rule’s `arg_factory`.
+  * Return a single-step plan or an empty list if no rule matches.
+- `finalize(query, tool_results, rag_context) -> str`
+  * Prefer tool results; fall back to knowledge snippets; otherwise provide a
+    polite “no action/answer” message.
+
+Design principles
+-----------------
+- Keep rules explicit and easy to extend (additive changes, no hidden magic).
+- Favor safe defaults in argument factories (trim lengths, sanitize basics).
+- Separation of concerns: planning only; execution/rendering done upstream.
+
+Security & safety
+-----------------
+- Avoid injecting unvalidated user strings into arguments that may reach shell,
+  SQL, or network boundaries; let downstream layers validate/escape properly.
+- Keep argument factories conservative (length limits, normalization).
+- Do not include secrets or PII in generated arguments or messages.
+
+Performance
+-----------
+- O( |rules| ) matching with simple substring checks; fast and GC-friendly.
+- Zero network I/O; suitable for hot paths and as a resilient fallback.
+
+Usage (example)
+---------------
+>>> planner = KeywordPlanner()
+>>> plan = planner.make_plan("Utwórz ticket dla incydentu VPN")
+>>> if plan:
+...     results = await run_tools(plan)  # external orchestration
+...     reply = planner.finalize("Utwórz ticket...", results, rag_context=[])
+
+Notes
+-----
+- Add new `KeywordRule` entries to expand coverage (e.g., restart service).
+- If you need locale-specific matching or stemming, place it inside rules or
+  pre-processing; keep the core planner deterministic and auditable.
+
+Notes (PL):
+------------
+Implementacja konfigurowalnego, heurystycznego planera opartego na słowach kluczowych.
 
 Ten moduł dostarcza implementację planera, który pełni rolę "fallbacku"
 lub podstawowego mechanizmu decyzyjnego w sytuacji, gdy zaawansowany planer
@@ -19,7 +79,10 @@ Główne cechy:
   zapewniając spójny kontrakt z resztą systemu.
 - **Ustrukturyzowane odpowiedzi**: Metoda `finalize` tworzy czytelne,
   sformatowane odpowiedzi dla użytkownika na podstawie wyników narzędzi i RAG.
-"""
+- **Bezpieczeństwo**: Unika wstrzykiwania niesprawdzonych danych użytkownika
+  do argumentów narzędzi, stosując bezpieczne domyślne wartości i ograniczenia długości.
+"""  # noqa: D205
+
 from __future__ import annotations
 
 from dataclasses import dataclass

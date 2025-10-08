@@ -1,16 +1,22 @@
-# src/gateway/main.py
-"""Główny moduł API Gateway dla AstraDesk (FastAPI, Python 3.11).
+# SPDX-License-Identifier: Apache-2.0
+"""File: services/gateway-python/app/main.py
+Project: AstraDesk Framework — API Gateway
+Description: FastAPI entrypoint (Python 3.11+) exposing HTTP endpoints and
+             managing application lifecycle via `lifespan`. Centralizes
+             dependency injection, auth, logging, and error handling.
+Author: Siergej Sobolewski
+Since: 2025-10-07.
 
-Ten moduł jest punktem wejściowym aplikacji. Jego odpowiedzialność
-ogranicza się do:
-- Definiowania endpointów HTTP (np. /healthz, /v1/agents/run).
-- Zarządzania cyklem życia aplikacji (startup/shutdown) za pomocą `lifespan`.
-- Wstrzykiwania zależności (np. stan aplikacji, autoryzacja).
-- Globalnej obsługi błędów i logowania.
+Notes (PL):
+- Ten moduł jest PUNKTEM WEJŚCIOWYM aplikacji (FastAPI).
+- Odpowiedzialność ograniczona do:
+  * Definiowania endpointów HTTP (np. `/healthz`, `/v1/agents/run`).
+  * Zarządzania cyklem życia (startup/shutdown) przez `lifespan`.
+  * Wstrzykiwania zależności (stan aplikacji, autoryzacja) przez `Depends`.
+  * Globalnej obsługi wyjątków i logowania.
+- Logika biznesowa agentów jest delegowana do modułu `orchestrator`.
+"""  # noqa: D205
 
-Cała logika biznesowa związana z wykonywaniem zadań przez agentów
-jest delegowana do modułu `orchestrator`.
-"""
 from __future__ import annotations
 
 from dotenv import load_dotenv

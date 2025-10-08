@@ -1,5 +1,57 @@
-# src/model_gateway/guardrails.py
-"""Moduł implementujący podstawowe zabezpieczenia (guardrails).
+# SPDX-License-Identifier: Apache-2.0
+"""File: services/gateway-python/src/model_gateway/guardrails.py
+Project: AstraDesk Framework — API Gateway
+Description:
+    Core guardrails for validating inputs and normalizing LLM outputs before they
+    reach orchestration or tool execution layers. Provides intent filtering,
+    JSON/schema validation for model-produced plans, and safe output clipping.
+
+Author: Siergej Sobolewski
+Since: 2025-10-07
+
+Overview
+--------
+- Intent filtering: detect potentially dangerous patterns (e.g., shell/SQL abuse).
+- Plan validation: ensure LLM-produced plans are valid JSON and conform to a
+  strict Pydantic schema (`PlanModel` → list of typed `PlanStepModel`).
+- Output clipping: truncate overly long text safely with ellipsis.
+
+Design principles
+-----------------
+- Fail closed: reject unsafe or malformed content early and explicitly.
+- Keep policies transparent: patterns and schemas are code-reviewed artifacts.
+- Side-effect free: pure functions suitable for synchronous and async contexts.
+- Extensible: patterns and schemas can evolve without touching call sites.
+
+Security & safety
+-----------------
+- Normalize and validate inputs before any tool invocation or DB access.
+- Treat guardrails as a *first line of defense* within a layered security model.
+- Never log secrets; redact user content when needed. Log only minimal context.
+
+Performance
+-----------
+- Regexes compiled at import for low-overhead checks.
+- Pydantic validation is fast for small/medium payloads; avoid giant blobs.
+- Use guardrails on the hot path, but keep schemas lean and focused.
+
+Usage (example)
+---------------
+>>> if not is_safe_input(user_text):
+...     raise ValueError("Unsafe input detected")
+>>> plan = validate_plan_json(model_output_json)  # returns PlanModel
+>>> preview = clip_output(render(plan), max_chars=2_000)
+
+Notes
+-----
+- This module does not replace WAF, IAM, or network policies—use it alongside
+  upstream controls (defense in depth).
+- Keep schemas tightly scoped to the current planner contract and update them
+  together with planner changes.
+
+Notes (PL):
+-----------
+Moduł implementujący podstawowe zabezpieczenia (guardrails).
 
 Ten moduł dostarcza zestaw funkcji stanowiących pierwszą linię obrony
 przed niepożądanymi lub potencjalnie złośliwymi danymi wejściowymi oraz
@@ -14,7 +66,9 @@ Funkcjonalności:
 
 Uwaga: Te zabezpieczenia nie stanowią kompletnego rozwiązania bezpieczeństwa,
 ale są kluczowym elementem warstwowej strategii obronnej (defense in depth).
-"""
+
+"""  # noqa: D205
+
 from __future__ import annotations
 
 import json

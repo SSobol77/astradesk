@@ -1,15 +1,25 @@
-# src/gateway/orchestrator.py
-"""Moduł zawierający logikę biznesową orkiestracji agentów.
+# SPDX-License-Identifier: Apache-2.0
+"""File: services/gateway-python/src/gateway/orchestrator.py
+Project: AstraDesk Framework — API Gateway
+Description: Business logic layer for agent orchestration: agent selection,
+             planner choice (LLM vs. keyword), tool execution, fallback
+             handling, and final response assembly.
+Author: Siergej Sobolewski
+Since: 2025-10-07.
 
-Klasa `AgentOrchestrator` jest sercem logiki wykonawczej. Odpowiada za:
-- Wybór odpowiedniego agenta.
-- Decyzję o użyciu planera (LLM vs. Keyword).
-- Wykonanie planu (wywołanie narzędzi).
-- Obsługę logiki fallback.
-- Przygotowanie finalnej odpowiedzi.
-
-Dzięki temu `main.py` pozostaje czystą warstwą webową.
-"""
+Notes (PL):
+- Warstwa czysto domenowa: brak zależności od FastAPI/HTTP. Dzięki temu łatwo testować.
+- Odpowiedzialności:
+  * Wybór agenta i strategii (heurystyki/LLM).
+  * Decyzja o użyciu planera (LLM vs. keyword/rules).
+  * Wykonanie planu: orkiestracja narzędzi/akcji, kolejkowanie kroków.
+  * Fallback i retry (np. backoff, circuit breaker) oraz agregacja wyników.
+  * Budowa finalnej odpowiedzi dla warstwy webowej.
+- Zalecenia:
+  * Interfejsy/porty dla narzędzi (np. ToolRunner), DI przez konstruktory.
+  * Deterministyczne testy jednostkowe z dublami (fakes/mocks).
+  * Telemetria: eventy/traces przekazywane przez adapter obserwowalności.
+"""  # noqa: D205
 from __future__ import annotations
 
 import logging

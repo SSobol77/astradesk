@@ -1,5 +1,63 @@
-# src/model_gateway/router.py
-"""Centralny router i menedżer cyklu życia dla dostawców modeli LLM.
+# SPDX-License-Identifier: Apache-2.0
+"""File: services/gateway-python/src/model_gateway/router.py
+Project: AstraDesk Framework — API Gateway
+Description:
+    Central router and lifecycle manager for LLM providers. Maintains a single
+    lazily-initialized (singleton) provider instance for the whole application,
+    selected at runtime via configuration, and exposes a safe shutdown hook.
+
+Author: Siergej Sobolewski
+Since: 2025-10-07
+
+Overview
+--------
+- Singleton provider: one shared client instance (e.g., one Async HTTP session).
+- Lazy initialization: create the provider only on first access, not at import.
+- Concurrency-safe: protects first-time creation with an `asyncio.Lock`.
+- Registry pattern: providers are registered under string keys (extensible).
+- Managed shutdown: optional `aclose()` call to cleanly release resources.
+
+Configuration
+-------------
+- MODEL_PROVIDER : selects active provider (e.g., "openai", "bedrock", "vllm").
+
+Responsibilities
+----------------
+- `register(name, cls)`    : add/override a provider implementation.
+- `get_provider()`         : return the shared, lazily-created provider instance.
+- `shutdown()`             : close active provider (if it exposes `aclose()`).
+
+Design principles
+-----------------
+- Zero side effects on import: no network calls, no singleton creation upfront.
+- Explicit lifecycle: creation on demand, explicit teardown during app shutdown.
+- Open for extension: add new providers without editing call sites.
+- Observability: minimal, non-sensitive logging around init/shutdown.
+
+Concurrency & safety
+--------------------
+- Double-checked locking around instance creation to avoid duplicate inits.
+- All public methods are async-friendly; safe to call from FastAPI lifespan.
+
+Usage (sketch)
+--------------
+>>> from model_gateway.router import provider_router
+>>> provider = await provider_router.get_provider()
+>>> text = await provider.chat(messages, params=params)
+# On application shutdown:
+>>> await provider_router.shutdown()
+
+Notes
+-----
+- If you add a new provider module, register it in `__init__` or here via
+  `register("myprovider", MyProviderClass)` before first `get_provider()` call.
+- Keep provider classes thin and stateless; long-lived resources should be tied
+  to the provider instance and released in `aclose()`.
+
+Notes (PL):
+-----------
+Implementacja routera dostawców LLM z zarządzaniem cyklem życia.
+Centralny router i menedżer cyklu życia dla dostawców modeli LLM.
 
 Ten moduł jest kluczowym komponentem warstwy `model_gateway`. Jego zadaniem
 jest stworzenie i zarządzanie **jedną, współdzieloną instancją (singleton)**
@@ -25,12 +83,16 @@ Główne cechy i zasady projektowe:
 
 Konfiguracja:
 - `MODEL_PROVIDER`: Nazwa dostawcy do aktywacji (np. "openai", "bedrock", "vllm").
-"""
+
+"""  # noqa: D205
+
 from __future__ import annotations
 
 import asyncio
 import logging
 import os
+import inspect
+
 from typing import Dict, Type
 
 from .base import LLMProvider
@@ -103,26 +165,27 @@ class ProviderRouter:
             logger.info(f"Inicjalizowanie dostawcy LLM: '{provider_name}'...")
             self._instance = provider_class()
             logger.info(f"Dostawca LLM '{provider_name}' został pomyślnie zainicjalizowany.")
-            
+
             return self._instance
 
     async def shutdown(self) -> None:
-        """Bezpiecznie zamyka aktywnego dostawcę LLM.
-
-        Wywołuje metodę `aclose`, jeśli istnieje, co jest kluczowe dla
-        prawidłowego zamknięcia sesji HTTP i zwolnienia zasobów.
-        """
+        """Bezpiecznie zamyka aktywnego dostawcę LLM."""
         if self._instance:
             logger.info(f"Zamykanie dostawcy LLM: '{self._instance.__class__.__name__}'...")
-            # Sprawdzamy, czy provider ma metodę aclose (dobra praktyka)
-            if hasattr(self._instance, "aclose") and callable(self._instance.aclose):
+
+            # Sprawdzamy, czy atrybut `aclose` istnieje.
+            aclose_method = getattr(self._instance, "aclose", None)
+            # Sprawdzamy, czy jest to funkcja asynchroniczna.
+            if aclose_method and inspect.iscoroutinefunction(aclose_method):
                 try:
-                    await self._instance.aclose()
+                    await aclose_method() # Wywołujemy znalezioną metodę
                     logger.info("Dostawca LLM został pomyślnie zamknięty.")
                 except Exception as e:
                     logger.error(f"Wystąpił błąd podczas zamykania dostawcy LLM: {e}", exc_info=True)
-            self._instance = None
+            else:
+                logger.debug(f"Dostawca {self._instance.__class__.__name__} nie posiada asynchronicznej metody aclose(). Pomijanie.")
 
+            self._instance = None
 
 # Globalna, współdzielona instancja routera, która będzie używana w całej aplikacji.
 provider_router = ProviderRouter()

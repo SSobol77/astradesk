@@ -1,8 +1,74 @@
-# src/runtime/memory.py
-# Program jest objęty licencją Apache-2.0.
-# Copyright 2025
-# Autor: Siergej Sobolewski
-"""Moduł zarządzania pamięcią i audytem dla agentów AstraDesk.
+# SPDX-License-Identifier: Apache-2.0
+"""File: services/gateway-python/src/runtime/memory.py
+Project: AstraDesk Framework — API Gateway
+Description:
+    Memory & audit layer for agents. Provides a thin, async abstraction over
+    PostgreSQL (durable dialogue/audit logs), Redis (ephemeral working memory
+    with TTL), and NATS (best-effort audit event emission). Separates critical
+    persistence paths from non-blocking telemetry to protect request latency.
+
+Author: Siergej Sobolewski
+Since: 2025-10-07
+
+Overview
+--------
+- Durable persistence (PostgreSQL via asyncpg):
+  * `store_dialogue()` saves user-agent exchanges with contextual metadata.
+  * `audit()` records audit entries transactionally; failures are fatal.
+- Ephemeral working memory (Redis):
+  * `append_work()` appends work buffers with TTL using pipeline (RPUSH+EXPIRE).
+  * `get_work()` retrieves the latest N items without mutation.
+- Event emission (NATS):
+  * `audit()` emits a JSON audit event to NATS on topic `astradesk.audit`
+    using best-effort semantics (errors logged, not raised).
+
+Operational contracts
+---------------------
+- Critical path:
+  * PostgreSQL writes inside `audit()` MUST succeed → raise on failure.
+- Best-effort:
+  * Redis ops and NATS publishes SHOULD NOT block critical paths → log & continue.
+- Encodings:
+  * All persisted/emitted payloads are JSON (UTF-8), compact separators.
+
+Security & safety
+-----------------
+- Do not store secrets or PII unredacted in dialogues/audits.
+- Validate inputs: non-empty keys/actors/actions; JSON-serializable payloads.
+- Prefer least-privilege DB roles and NATS/Redis credentials (TLS where possible).
+
+Performance
+-----------
+- Use async connection pool (`asyncpg.Pool`) for Postgres.
+- Redis pipeline for atomic RPUSH+EXPIRE; bounded list reads.
+- NATS publisher is shared and lazy-connected (see `runtime.events`).
+
+Schema expectations (illustrative)
+----------------------------------
+- `dialogues(agent text, query text, answer text, meta jsonb, created_at timestamptz default now())`
+- `audits(actor text, action text, payload jsonb, created_at timestamptz default now())`
+(Actual schema may vary; keep JSONB indexed if you query by fields.)
+
+Usage (example)
+---------------
+>>> mem = Memory(pg_pool, redis_cli)
+>>> await mem.store_dialogue(agent="support", query="VPN issue", answer="Try restart", meta={"tenant":"acme"})
+>>> await mem.append_work("work:support:session123", "step:normalize", ttl_sec=1800)
+>>> last = await mem.get_work("work:support:session123", count=5)
+>>> await mem.audit(actor="support-agent", action="ticket.create", payload={"ticketId": 123})
+
+Notes
+-----
+- `audit()` first persists to Postgres (critical), then emits to NATS (best-effort).
+- Keep payload sizes reasonable; very large blobs belong in object storage.
+
+Notes (PL):
+------------
+ Zapewnienie warstwy pamięci i audytu dla agentów AstraDesk Framework.
+ Moduł zapewnia abstrakcję nad PostgreSQL (trwała persystencja dialogów i logów audytowych),
+ Redis (ephemeralna pamięć robocza z TTL) oraz NATS (emisja zdarzeń audytowych w trybie
+ best-effort). Oddziela krytyczne ścieżki zapisu od nieblokującej telemetrii, aby
+ chronić opóźnienia żądań.
 
 Ta warstwa odpowiada za interakcje z systemami przechowywania danych,
 zapewniając spójny interfejs do:
@@ -15,7 +81,9 @@ zapewniając spójny interfejs do:
 
 Projekt opiera się na zasadzie separacji odpowiedzialności i "fail fast"
 dla operacji krytycznych, zapewniając integralność i obserwowalność systemu.
-"""
+
+"""  # noqa: D205
+
 from __future__ import annotations
 
 import json
@@ -39,9 +107,11 @@ class Memory:
     Enkapsuluje logikę interakcji z PostgreSQL, Redis i NATS,
     udostępniając wysokopoziomowe metody dla warstwy agentów.
 
-    Attributes:
+    Attributes
+    ----------
         pg_pool: Współdzielona, asynchroniczna pula połączeń do PostgreSQL.
         redis: Asynchroniczny klient do serwera Redis.
+
     """
 
     __slots__ = ("pg_pool", "redis")
@@ -50,11 +120,14 @@ class Memory:
         """Inicjalizuje warstwę pamięci.
 
         Args:
+        ----
             pg_pool: Skonfigurowana pula połączeń `asyncpg` do bazy Postgres.
             redis_cli: Skonfigurowany, asynchroniczny klient Redis.
 
         Raises:
+        ------
             ValueError: Jeśli `pg_pool` lub `redis_cli` nie zostaną dostarczone.
+
         """
         if pg_pool is None:
             raise ValueError("Pula połączeń PostgreSQL (pg_pool) jest wymagana.")
@@ -73,10 +146,12 @@ class Memory:
         ale aplikacja nie jest przerywana.
 
         Args:
+        ----
             agent: Nazwa agenta (np. 'support', 'ops').
             query: Pytanie użytkownika.
             answer: Odpowiedź wygenerowana przez agenta.
             meta: Metadane kontekstowe (np. claims z OIDC, ID sesji).
+
         """
         if not all((agent, query, answer is not None)):
             raise ValueError("Argumenty agent, query i answer nie mogą być puste.")
@@ -103,9 +178,11 @@ class Memory:
         Operacja "best-effort".
 
         Args:
+        ----
             key: Klucz listy w Redis (np. 'work:support:session123').
             value: Wartość tekstowa do dopisania na koniec listy.
             ttl_sec: Czas życia klucza w sekundach.
+
         """
         if not key or ttl_sec <= 0:
             raise ValueError("Klucz nie może być pusty, a ttl_sec musi być dodatnie.")
@@ -122,11 +199,14 @@ class Memory:
         """Pobiera ostatnie `count` elementów z listy w Redis (bez ich usuwania).
 
         Args:
+        ----
             key: Klucz listy w Redis.
             count: Liczba elementów do pobrania z końca listy.
 
         Returns:
+        -------
             Lista wartości (str), od najstarszej do najnowszej, lub pusta lista w razie błędu.
+
         """
         if not key or count <= 0:
             raise ValueError("Klucz nie może być pusty, a count musi być dodatnie.")
@@ -146,12 +226,15 @@ class Memory:
         jest realizowana w trybie "best-effort".
 
         Args:
+        ----
             actor: Identyfikator wykonawcy akcji (np. nazwa agenta, ID użytkownika).
             action: Nazwa wykonanej akcji (np. 'create_ticket').
             payload: Szczegóły akcji w formacie serializowalnym do JSON.
 
         Raises:
+        ------
             asyncpg.PostgresError: W przypadku błędu zapisu do bazy danych.
+
         """
         if not all((actor, action, payload is not None)):
             raise ValueError("Argumenty actor, action i payload nie mogą być puste.")

@@ -1,59 +1,151 @@
-# src/runtime/policy.py
-# -*- coding: utf-8 -*-
-# Program jest objęty licencją Apache-2.0.
-# Copyright 2025
-# Autor: Siergej Sobolewski
-#
-# Cel modułu
-# ----------
-# „Prawdziwa” warstwa RBAC+ABAC dla AstraDesk:
-#  - RBAC: sprawdzanie ról użytkownika pochodzących z różnych IdP (Keycloak/AzureAD/custom),
-#  - ABAC: zasady oparte na atrybutach (np. właściciel zasobu, środowisko, godziny),
-#  - Polityki ładowane lokalnie (ENV/plik) z prostym cache TTL i odświeżaniem na żądanie.
-#
-# Bez zależności zewnętrznych — czysty Python. Możesz łatwo podmienić _loader na pobieranie
-# z configmapy/consula/SSM. Wersja lekka, ale produkcyjnie używalna.
-#
-# Przykłady użycia
-# ----------------
-# from runtime.policy import policy, require_role, authorize
-#
-# # RBAC (prosto):
-# require_role(claims, "sre")
-#
-# # ABAC/RBAC akcja (np. restart_service) z atrybutami kontekstu:
-# authorize(
-#     action="ops.restart_service",
-#     claims=claims,                      # JWT claims (OIDC)
-#     attrs={"service": "webapp", "env": "prod", "owner": "alice"}
-# )
-#
-# # W toolu:
-# async def restart_service(service: str, *, claims: dict | None = None):
-#     authorize("ops.restart_service", claims, {"service": service})
-#     ...
-#
-# Struktura polityki (JSON) — ENV: POLICY_JSON lub plik: POLICY_FILE
-# ------------------------------------------------------------------
-# {
-#   "roles_required": {
-#     "ops.restart_service": { "all": ["sre"] },
-#     "tickets.create":      { "any": ["it.support", "sre"] }
-#   },
-#   "abac": {
-#     "ops.restart_service": [
-#       {"attr": "service", "in": ["webapp","payments","search"]},
-#       {"attr": "env", "in": ["dev","staging","prod"]}   # opcjonalnie
-#     ]
-#   },
-#   "idp_role_mapping": {
-#     "from": ["roles", "groups", "realm_access.roles"],  # kolejne miejsca z rolami
-#     "prefix_strip": ["ROLE_"],                          # usuń prefiksy z AAD/Keycloak
-#     "lowercase": true                                   # normalizuj nazwy ról
-#   }
-# }
-#
-# Jeśli nie podasz własnej polityki, aktywuje się domyślna (bezpieczna, konserwatywna).
+# SPDX-License-Identifier: Apache-2.0
+"""File: services/gateway-python/src/runtime/policy.py
+Project: AstraDesk Framework — API Gateway
+Description:
+    Production-grade RBAC + ABAC policy layer for AstraDesk. Provides fast,
+    dependency-free authorization checks with a TTL-cached, hot-reloadable
+    policy store. Policies can be supplied via environment or JSON file and
+    define required roles per action and attribute-based constraints.
+
+Author: Siergej Sobolewski
+Since: 2025-10-07
+
+Overview
+--------
+- RBAC:
+  * Per-action role gates with `any` / `all` semantics.
+  * Role extraction from heterogeneous IdPs (Keycloak/Azure AD/custom) using
+    configurable claim paths, prefix stripping, and case normalization.
+- ABAC:
+  * Attribute-based constraints evaluated as an AND-group per action
+    (`equals` / `in` operators).
+- Policy source & cache:
+  * Load from `POLICY_JSON` (env) or `POLICY_FILE` (JSON). Fallback to a safe,
+    conservative default policy.
+  * TTL-based in-memory cache with explicit `refresh_now()` hook.
+
+Configuration (env)
+-------------------
+- POLICY_JSON         : inline JSON policy (highest precedence).
+- POLICY_FILE         : path to a JSON policy file (used if POLICY_JSON empty).
+- POLICY_TTL_SECONDS  : cache TTL seconds for policy reloads (default: 60).
+
+Policy schema (JSON)
+--------------------
+{
+  "roles_required": {
+    "ops.restart_service": { "all": ["sre"] },
+    "tickets.create":      { "any": ["it.support", "sre"] }
+  },
+  "abac": {
+    "ops.restart_service": [
+      {"attr": "service", "in": ["webapp","payments","search"]},
+      {"attr": "env", "in": ["dev","staging","prod"]}
+    ]
+  },
+  "idp_role_mapping": {
+    "from": ["roles", "groups", "realm_access.roles"],
+    "prefix_strip": ["ROLE_"],
+    "lowercase": true
+  }
+}
+
+Public API
+----------
+- Role helpers:
+  * `get_roles(claims) -> list[str]`
+  * `has_role(claims, required) -> bool`
+  * `require_role(claims, required)` / `require_any_role(claims, roles)` / `require_all_roles(claims, roles)`
+- Authorization:
+  * `authorize(action, claims, attrs=None)` → raises `AuthorizationError` on denial.
+- Admin facade:
+  * `policy.refresh_now()` — force reload (bypass TTL).
+  * `policy.current()`    — get compiled policy snapshot.
+
+Design principles
+-----------------
+- Deterministic & fast: pure-Python, no network calls on the hot path.
+- Defense-in-depth: RBAC first; ABAC to restrict scope (service/env/owner...).
+- Extensible: add more claim sources or rule operators without breaking callers.
+- Safe defaults: missing policy falls back to a conservative baseline.
+
+Security & safety
+-----------------
+- Normalize roles to avoid prefix/case mismatches across IdPs.
+- Treat missing attributes for ABAC as a denial (fail-closed).
+- Do not log token contents; pass minimal, non-sensitive context to logs.
+
+Performance
+-----------
+- O(1) lookups and simple set ops for RBAC checks.
+- ABAC rule evaluation is linear in the number of rules per action.
+- TTL cache prevents repeated parsing/IO; explicit refresh for control planes.
+
+Usage (example)
+---------------
+>>> from runtime.policy import policy, authorize, require_role
+>>> require_role(claims, "sre")  # RBAC quick check
+>>> authorize("ops.restart_service", claims, {"service":"webapp","env":"prod"})  # RBAC+ABAC
+
+Notes
+-----
+- Keep policies small and auditable; prefer “all/any” over complex logic.
+- For multi-tenant or per-project policies, layer an external resolver that
+  supplies the appropriate JSON to this module.
+
+
+Notes (PL):
+------------
+„Prawdziwa” warstwa RBAC+ABAC dla AstraDesk:
+ - RBAC: sprawdzanie ról użytkownika pochodzących z różnych IdP (Keycloak/AzureAD/custom),
+ - ABAC: zasady oparte na atrybutach (np. właściciel zasobu, środowisko, godziny),
+ - Polityki ładowane lokalnie (ENV/plik) z prostym cache TTL i odświeżaniem na żądanie.
+
+Bez zależności zewnętrznych — czysty Python. Możesz łatwo podmienić _loader na pobieranie
+z configmapy/consula/SSM. Wersja lekka, ale produkcyjnie używalna.
+
+Przykłady użycia
+----------------
+from runtime.policy import policy, require_role, authorize
+
+# RBAC (prosto):
+require_role(claims, "sre")
+
+# ABAC/RBAC akcja (np. restart_service) z atrybutami kontekstu:
+authorize(
+    action="ops.restart_service",
+    claims=claims,                      # JWT claims (OIDC)
+    attrs={"service": "webapp", "env": "prod", "owner": "alice"}
+)
+
+# W toolu:
+async def restart_service(service: str, *, claims: dict | None = None):
+    authorize("ops.restart_service", claims, {"service": service})
+    ...
+
+Struktura polityki (JSON) — ENV: POLICY_JSON lub plik: POLICY_FILE
+------------------------------------------------------------------
+{
+  "roles_required": {
+    "ops.restart_service": { "all": ["sre"] },
+    "tickets.create":      { "any": ["it.support", "sre"] }
+  },
+  "abac": {
+    "ops.restart_service": [
+      {"attr": "service", "in": ["webapp","payments","search"]},
+      {"attr": "env", "in": ["dev","staging","prod"]}   # opcjonalnie
+    ]
+  },
+  "idp_role_mapping": {
+    "from": ["roles", "groups", "realm_access.roles"],  # kolejne miejsca z rolami
+    "prefix_strip": ["ROLE_"],                          # usuń prefiksy z AAD/Keycloak
+    "lowercase": true                                   # normalizuj nazwy ról
+  }
+}
+
+Jeśli nie podasz własnej polityki, aktywuje się domyślna (bezpieczna, konserwatywna).
+
+"""  # noqa: D205
 
 from __future__ import annotations
 
