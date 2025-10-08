@@ -2,7 +2,9 @@
   <img src="assets/AstraDesktop.png" alt="AstraDesk - AI Framework" width="560"/>
 </p>
 
-# AstraDesk 2.0 — Internal AI Agents Framework
+<br>
+
+# AstraDesk 2.0 - Internal AI Agents Framework
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Python Version](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
@@ -21,6 +23,7 @@ AstraDesk is an internal framework for building AI agents, designed for Support 
 ## Table of Contents
 
 - [Features](#features)
+- [Purpose & Use Cases](#purpose--use-cases)
 - [Architecture Overview](#architecture-overview)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
@@ -55,6 +58,8 @@ AstraDesk is an internal framework for building AI agents, designed for Support 
 - [License](#license)
 - [Contact](#contact)
 
+<br>
+
 ## Features
 
 - **AI Agents**: Two ready-made agents:
@@ -69,23 +74,57 @@ AstraDesk is an internal framework for building AI agents, designed for Support 
 - **Observability**: OpenTelemetry, Prometheus/Grafana/Loki/Tempo.
 - **Scalability**: HPA in Helm, retries/timeouts in integrations, autoscaling on EKS.
 
+<br>
+
+## Purpose & Use Cases
+
+**AstraDesk** is an internal **AI agents framework** for Support and SRE/DevOps teams.
+It provides a modular core (planner, memory, RAG, tool registry) and ready-to-run demo agents.
+Typical applications include:
+
+- **Support / Helpdesk**: RAG on company documents (procedures, FAQs, runbooks), ticket creation/update, and conversational memory.
+
+- **SRE/DevOps Automation**: Metrics lookups (Prometheus/Grafana), incident triage, and controlled actions (e.g., service restart) protected by **RBAC** and auditable.
+
+- **Enterprise Integrations**: Gateway (Python/FastAPI), Ticket Adapter (Java/WebFlux + MySQL), Admin Portal (Next.js), and data plane (Postgres/pgvector, Redis, NATS).
+
+- **Security & Compliance**: OIDC/JWT, per-tool RBAC, **mTLS** (Istio), audit trails.
+
+- **Operations at Scale**: Docker/Kubernetes/OpenShift, Terraform (AWS), CI/CD (Jenkins/GitLab), observability (OpenTelemetry, Prometheus/Grafana/Loki/Tempo).
+
+> **Not a single chatbot** - it’s a **framework** to compose your own agents, tools, and policies with full control (no SaaS lock‑in).
+
+<br>
+
 ## Architecture Overview
 
 AstraDesk consists of three primary components:
+
 - **Python API Gateway**: FastAPI handling agent requests with RAG, memory, and tools.
+
 - **Java Ticket Adapter**: Reactive service (WebFlux) integrating with MySQL for ticketing.
+
 - **Next.js Admin Portal**: Web UI for monitoring.
 
 Communication: HTTP (between components), NATS (events/audit), Redis (working memory), Postgres/pgvector (RAG/dialogs/audit), MySQL (tickets).
 
+<br>
+
 ## Prerequisites
 
 - **Docker** and **Docker Compose** (for local development).
+
 - **Kubernetes** with Helm (for deployment).
+
 - **AWS CLI** and **Terraform** (for cloud).
+
 - **Node.js 22**, **JDK 21**, **Python 3.11** (for builds).
+
 - **Postgres 16**, **MySQL 8**, **Redis 7**, **NATS 2** (base services).
-- Optional: Istio, cert-manager (for mTLS/TLS).
+
+- **Optional:** Istio, cert-manager (for mTLS/TLS).
+
+<br>
 
 ## Installation
 
@@ -139,17 +178,26 @@ Communication: HTTP (between components), NATS (events/audit), Redis (working me
    - Java Adapter: `cd services/ticket-adapter-java && ./gradlew bootRun`
    - Admin Portal: `cd services/admin-portal && npm run dev`
 
+<br>
+
 ## Configuration
 
 ### Environment Variables
 
 - **DATABASE_URL**: PostgreSQL connection string (e.g., `postgresql://user:pass@host:5432/db`).
+
 - **REDIS_URL**: Redis URI (e.g., `redis://host:6379/0`).
+
 - **NATS_URL**: NATS server (e.g., `nats://host:4222`).
+
 - **TICKETS_BASE_URL**: URL of the Java adapter (e.g., `http://ticket-adapter:8081`).
+
 - **MYSQL_URL**: MySQL JDBC (e.g., `jdbc:mysql://host:3306/db?useSSL=false`).
+
 - **OIDC_ISSUER**: OIDC issuer (e.g., `https://your-issuer.com/`).
+
 - **OIDC_AUDIENCE**: JWT audience.
+
 - **OIDC_JWKS_URL**: JWKS URL (e.g., `https://your-issuer.com/.well-known/jwks.json`).
 
 See `.env.example` for the full list.
@@ -157,15 +205,22 @@ See `.env.example` for the full list.
 ### OIDC/JWT Authentication
 
 - Enabled in API Gateway and Java Adapter.
+
 - Use a Bearer token in requests: `Authorization: Bearer <token>`.
+
 - Validation: issuer, audience, signature via JWKS.
+
 - In Admin Portal: Use Auth0 or a similar provider for the front-channel flow.
 
 ### RBAC Policies
 
 - Roles are read from JWT claims (e.g., `"roles": ["sre"]`).
+
 - Tools (e.g., `restart_service`) check roles via `require_role(claims, "sre")`.
+
 - Adjust in `runtime/policy.py` and in tools (e.g., `REQUIRED_ROLE_RESTART`).
+
+<br>
 
 ## Usage
 
@@ -196,11 +251,14 @@ curl -X POST http://localhost:8080/v1/agents/run   -H "Content-Type: application
 - Tool registry: `registry.py` — add new tools via `register(name, async_fn)`.
 - Examples: `create_ticket` (proxy to Java), `get_metrics` (Prometheus stub), `restart_service` (with RBAC).
 
+<br>
+
 ## Deployment
 
 ### Kubernetes with Helm
 
 1. Build and push container images (use CI).
+
 2. Install the chart:
 
    ```sh
@@ -241,6 +299,8 @@ curl -X POST http://localhost:8080/v1/agents/run   -H "Content-Type: application
 2. Enable mTLS: `kubectl apply -f deploy/istio/10-peer-authentication.yaml` (and the remaining files in `deploy/istio/`).
 3. Gateway: HTTPS on port 443 with cert-manager.
 
+<br>
+
 ## CI/CD
 
 ### Jenkins
@@ -250,6 +310,8 @@ curl -X POST http://localhost:8080/v1/agents/run   -H "Content-Type: application
 ### GitLab CI
 
 - `.gitlab-ci.yml`: stages for build/test/docker/deploy (manual).
+
+<br>
 
 ## Monitoring and Observability
 
@@ -262,6 +324,8 @@ curl -X POST http://localhost:8080/v1/agents/run   -H "Content-Type: application
 
 - Dashboard: `grafana/dashboard-astradesk.json` (latency, DB calls).
 - Alerts: `grafana/alerts.yaml` (high latency, errors) — load into Prometheus.
+
+<br>
 
 ## Developer's Guide
 
@@ -412,38 +476,64 @@ After starting the application (in any mode), you can send requests to the API w
 - **Q: Where can I change keywords for the `KeywordPlanner`?**  
   **A:** In `src/runtime/planner.py`, inside the `KeywordPlanner` constructor (`__init__`).
 
+<br>
+
 ## Testing
 
 - Run: `make test` (Python), `make test-java`, `make test-admin`.
+
 - Coverage: Unit (pytest, JUnit, Vitest), integration (API flow).
+
+<br>
 
 ## Security
 
 - **Auth**: OIDC/JWT with JWKS.
+
 - **RBAC**: Per-tool, based on claims.
+
 - **mTLS**: STRICT via Istio.
+
 - **Audit**: In Postgres + NATS publish.
+
 - **Policies**: Allow-lists in tools, retries in proxies.
+
+<br>
 
 ## Roadmap
 
 - LLM integration (Bedrock/OpenAI/vLLM) with guardrails.
+
 - Temporal for long-running workflows.
+
 - RAG evaluations (Ragas).
+
 - Multi-tenancy and advanced RBAC (OPA).
+
 - Complete Grafana dashboards with alerts.
+
+<br>
 
 ## Contributing
 
 - Fork the repo, create a branch, open a PR with tests.
+
 - Run `make lint/type` before committing.
+
+<br>
 
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE) for details.
 
+<br>
+
 ## Contact
 
 Author: Siergej Sobolewski (s.sobolewski@hotmail.com).  
-Issues: GitHub Issues.  
+Issues: GitHub Issues. 
+
+<br>
+
+---
 Date: October 08, 2025.
