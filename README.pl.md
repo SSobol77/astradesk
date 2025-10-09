@@ -10,14 +10,15 @@
 [![Python Version](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
 [![JDK Version](https://img.shields.io/badge/JDK-21-green.svg)](https://openjdk.org/projects/jdk/21/)
 [![Node.js Version](https://img.shields.io/badge/Node.js-22-brightgreen.svg)](https://nodejs.org/en)
-[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](https://github.com/your-org/astradesk/actions) 
+[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](https://github.com/your-org/astradesk/actions)
 
 <!-- Zmień na rzeczywisty link CI -->
 **Języki:** [Polski](README.pl.md) | [English](README.md)
 
 <br>
 
-AstraDesk to wewnętrzny framework do budowy agentów AI, zaprojektowany dla działów wsparcia (Support) i operacji (SRE/DevOps). Oferuje modularną architekturę z gotowymi agentami demonstracyjnymi, integracjami z bazami danych, systemami messagingu i narzędziami DevOps. Framework wspiera skalowalność, bezpieczeństwo enterprise (OIDC/JWT, RBAC, mTLS via Istio) oraz pełne CI/CD.
+[AstraDesk](https://v0-site-creation-pi.vercel.app/)
+ to wewnętrzny framework do budowy agentów AI, zaprojektowany dla działów wsparcia (Support) i operacji (SRE/DevOps). Oferuje modularną architekturę z gotowymi agentami demonstracyjnymi, integracjami z bazami danych, systemami messagingu i narzędziami DevOps. Framework wspiera skalowalność, bezpieczeństwo enterprise (OIDC/JWT, RBAC, mTLS via Istio) oraz pełne CI/CD.
 
 ## Spis treści
 
@@ -475,7 +476,10 @@ Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 ## Kontakt
 
+Web site:[ AstraDesk](https://v0-site-creation-pi.vercel.app/)
+
 Autor: Siergej Sobolewski (s.sobolewski@hotmail.com).  
+
 Issues: [GitHub Issues](https://github.com/SSobol77/astradesk/issues).  
 
 <br>
