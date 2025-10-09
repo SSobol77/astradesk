@@ -12,12 +12,12 @@
 [![Node.js Version](https://img.shields.io/badge/Node.js-22-brightgreen.svg)](https://nodejs.org/en)
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](https://github.com/your-org/astradesk/actions)
 
-<!-- Zmień na rzeczywisty link CI -->
+
 **Języki:** [Polski](README.pl.md) | [English](README.md)
 
 <br>
 
-[AstraDesk](https://v0-site-creation-pi.vercel.app/)
+[AstraDesk](https://astradesk.vercel.app/)
  to wewnętrzny framework do budowy agentów AI, zaprojektowany dla działów wsparcia (Support) i operacji (SRE/DevOps). Oferuje modularną architekturę z gotowymi agentami demonstracyjnymi, integracjami z bazami danych, systemami messagingu i narzędziami DevOps. Framework wspiera skalowalność, bezpieczeństwo enterprise (OIDC/JWT, RBAC, mTLS via Istio) oraz pełne CI/CD.
 
 ## Spis treści
@@ -476,7 +476,7 @@ Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 ## Kontakt
 
-Web site:[ AstraDesk](https://v0-site-creation-pi.vercel.app/)
+Web site:[ AstraDesk](https://astradesk.vercel.app/)
 
 Autor: Siergej Sobolewski (s.sobolewski@hotmail.com).  
 
@@ -485,4 +485,4 @@ Issues: [GitHub Issues](https://github.com/SSobol77/astradesk/issues).
 <br>
 
 ---
-*Ostatnia aktualizacja: 2025-10-08*
+*Ostatnia aktualizacja: 2025-10-10*
