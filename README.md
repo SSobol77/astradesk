@@ -18,7 +18,8 @@
 
 <br>
 
-AstraDesk is an internal framework for building AI agents, designed for Support and SRE/DevOps teams. It offers a modular architecture with ready-to-use demo agents, integrations with databases, messaging systems, and DevOps tools. The framework supports scalability, enterprise-grade security (OIDC/JWT, RBAC, mTLS via Istio), and end-to-end CI/CD.
+[AstraDesk](https://v0-site-creation-pi.vercel.app/)
+ is an internal framework for building AI agents, designed for Support and SRE/DevOps teams. It offers a modular architecture with ready-to-use demo agents, integrations with databases, messaging systems, and DevOps tools. The framework supports scalability, enterprise-grade security (OIDC/JWT, RBAC, mTLS via Istio), and end-to-end CI/CD.
 
 ## Table of Contents
 
@@ -530,8 +531,11 @@ Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 ## Contact
 
+Web site:[ AstraDesk](https://v0-site-creation-pi.vercel.app/)
+
 Author: Siergej Sobolewski (s.sobolewski@hotmail.com).  
-Issues: GitHub Issues. 
+
+Issues: GitHub Issues.
 
 <br>
 
