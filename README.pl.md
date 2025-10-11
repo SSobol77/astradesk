@@ -13,7 +13,7 @@
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](https://github.com/your-org/astradesk/actions)
 
 
-**Języki:** [Polski](README.pl.md) | [English](README.md)
+🌍 **Języki:** [English](README.md) | 🇵🇱 [Polski](README.pl.md) |  [中文 (当前文件)](README.zh.md)
 
 <br>
 
@@ -476,11 +476,13 @@ Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 ## Kontakt
 
-Web site:[ AstraDesk](https://astradesk.vercel.app/)
+🌐 Web site:[ AstraDesk](https://astradesk.vercel.app/)
 
-Autor: Siergej Sobolewski (s.sobolewski@hotmail.com).  
+📧 Autor: Siergej Sobolewski (s.sobolewski@hotmail.com).  
 
-Issues: [GitHub Issues](https://github.com/SSobol77/astradesk/issues).  
+💬 Kanały wsparcia: [Support Slack](https://astradesk.slack.com)
+
+🐙 Issues: [GitHub Issues](https://github.com/SSobol77/astradesk/issues).  
 
 <br>
 
