@@ -14,7 +14,7 @@
 
 <!-- Replace with the real CI link -->
 <!-- Language: EN | PL -->
-**Languages:** [English](README.md) | [Polski](README.pl.md)
+🌍 **Languages:** 🇺🇸 [English](README.md) | [Polski](README.pl.md) | [中文 (当前文件)](README.zh.md)
 
 <br>
 
@@ -531,11 +531,13 @@ Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 ## Contact
 
-Web site:[ AstraDesk](https://astradesk.vercel.app/)
+🌐 Web site:[ AstraDesk](https://astradesk.vercel.app/)
 
-Author: Siergej Sobolewski (s.sobolewski@hotmail.com).  
+👨‍💻 Author: Siergej Sobolewski (s.sobolewski@hotmail.com).  
 
-Issues: GitHub Issues.
+💬 Support: [Support Slack](https://astradesk.slack.com)
+
+🐙 Issues: GitHub Issues.
 
 <br>
 
