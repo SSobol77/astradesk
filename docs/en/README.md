@@ -51,11 +51,3 @@
 - Refer to **Security & Governance** for policies and compliance.
 
 <br>
-
-## Rendering Notes
-
-- Mermaid diagrams render natively on GitHub and most modern docs sites.
-
-- Place the logo file `astradesk-logo.svg` **one level above** this folder: `../astradesk-logo.svg`.
-
-<br>
