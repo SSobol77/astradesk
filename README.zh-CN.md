@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/AstraDesktop.png" alt="AstraDesk - AI 框架" width="560"/>
+  <img src="docs/assets/AstraDesktop.png" alt="AstraDesk - AI 框架" width="560"/>
 </p>
 
 <br>
