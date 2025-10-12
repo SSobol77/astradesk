@@ -1,3 +1,7 @@
+---
+lang: en
+---
+
 <p align="center">
   <img src="assets/AstraDesktop.png" alt="AstraDesk - AI Framework" width="560"/>
 </p>
@@ -14,7 +18,7 @@
 
 <!-- Replace with the real CI link -->
 <!-- Language: EN | PL -->
-🌍 **Languages:** 🇺🇸 [English](README.md) | [Polski](README.pl.md) | [中文 (当前文件)](README.zh.md)
+🌍 **Languages:** 🇺🇸 [English](README.md) | [Polski](README.pl.md) | [中文 (当前文件)](README.zh-CN.md)
 
 <br>
 

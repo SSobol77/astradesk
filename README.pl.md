@@ -13,7 +13,7 @@
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](https://github.com/your-org/astradesk/actions)
 
 
-🌍 **Języki:** [English](README.md) | 🇵🇱 [Polski](README.pl.md) |  [中文 (当前文件)](README.zh.md)
+🌍 **Języki:** [English](README.md) | 🇵🇱 [Polski](README.pl.md) |  [中文 (当前文件)](README.zh-CN.md)
 
 <br>
 
