@@ -43,8 +43,8 @@ dev = [
 docs = [
   "mkdocs>=1.6.0",
   "mkdocs-material>=9.5.0",
+  "mkdocs-material-extensions",
   "pymdown-extensions>=10.8",
-  "mkdocs-mermaid2-plugin>=1.1.1"
 ]
 
 [tool.uv]

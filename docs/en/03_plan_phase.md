@@ -1,10 +1,6 @@
----
-lang: en
----
+![AstraDesk](../assets/astradesk-logo.svg)
 
-![AstraDesk](../astradesk-logo.svg)
-
-# 3. Plan Phase — Use Case, KPIs, Acceptable Agency
+# 3. Plan Phase - Use Case, KPIs, Acceptable Agency
 
 > Plan with **business outcomes** and **acceptable agency** in mind.  
 > Output of this phase: Use Case Charter, KPI contract, data access scope, and risk register.

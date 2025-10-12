@@ -1,3 +1,6 @@
+# ============================================================================
+# AstraDesk — MkDocs Material configuration
+# ============================================================================
 site_name: AstraDesk Framework
 site_description: "AstraDesk Enterprise AI Agents Framework — Technical Guide (v1.0)"
 site_url: https://astradesk.vercel.app
@@ -22,6 +25,22 @@ theme:
     - search.suggest
     - search.highlight
     - content.tabs.link
+  palette:
+    - scheme: default
+      primary: blue
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      primary: blue
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  font:
+    text: Inter
+    code: JetBrains Mono
 
 markdown_extensions:
   - admonition
@@ -31,31 +50,36 @@ markdown_extensions:
   - tables
   - toc:
       permalink: true
-  - pymdownx.arithmatex
   - pymdownx.details
-  - pymdownx.extra
-  - pymdownx.inlinehilite
-  - pymdownx.keys
-  - pymdownx.mark
-  - pymdownx.smartsymbols
-  - pymdownx.snippets
-  - pymdownx.superfences:
-      custom_fences:
-        - name: mermaid
-          class: mermaid
-  - pymdownx.tabbed:
-      alternate_style: true
-  - pymdownx.tasklist:
-      custom_checkbox: true
-  - pymdownx.tilde
+  - pymdownx.superfences
   - pymdownx.highlight:
       anchor_linenums: true
       linenums: false
-      auto_title: false
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.snippets
+  - pymdownx.emoji:
+      # UŻYJ nowszej nazwy (Material v9+), jeśli masz z nią błąd – uprość do samego 'pymdownx.emoji'
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
 
 plugins:
   - search
-  - mkdocs-mermaid2-plugin
+  - git-revision-date-localized:
+      enable_creation_date: true
+      fallback_to_build_date: true
+
+
+extra_javascript:
+  - https://unpkg.com/mermaid@10/dist/mermaid.min.js
+  - js/mermaid-init.js 
+
+extra_css:
+  - styles/mermaid-card.css
+
+watch:
+  - docs/js
+  - docs/styles
 
 nav:
   - Home: README.md

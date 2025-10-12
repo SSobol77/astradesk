@@ -1,22 +1,26 @@
----
-lang: en
----
-
-![AstraDesk](../astradesk-logo.svg)
+![AstraDesk](../assets/astradesk-logo.svg)
 
 # 9. MCP Gateway & Domain Packs
 
 > AstraDesk treats **all integrations** as **MCP servers** with governed tools/resources/prompts.  
 > The **Gateway** centralizes authZ, policy, quotas, routing, and audit. **Domain Packs** bundle ready-to-use tools.
 
+<br>
+
 ---
 
 ## 9.1 Gateway Responsibilities (v1.0)
+
 - **AuthN/Z**: OIDC for agents; per-tool **RBAC** with parameter allow-lists.  
+
 - **Policy**: OPA/Rego side-effect gates (`read|write|execute`), PII-aware egress rules.  
+
 - **Routing**: env routing (dev/stage/prod), failover to fallback MCP.  
+
 - **Quotas & Rate Limits**: per tenant/agent/tool; circuit breakers.  
+
 - **Schema Registry**: JSON Schemas for each tool version; hash pinned at call time.  
+
 - **Audit**: signed event for every tool call (args digest + result digest).  
 
 <br>
@@ -43,6 +47,8 @@ sequenceDiagram
     GW->>OP: audit_event(denied)
   end
 ````
+
+<br>
 
 <br>
 
@@ -81,6 +87,8 @@ audit:
   retention_days: 365
 ```
 
+<br>
+
 ---
 
 ## 9.3 Audit Event (canonical)
@@ -100,9 +108,13 @@ audit:
 }
 ```
 
+<br>
+
 ---
 
 ## 9.4 Error Taxonomy (Gateway → Agent)
+
+<br>
 
 | code                   | http | meaning                           | action                          |
 | ---------------------- | ---: | --------------------------------- | ------------------------------- |
@@ -113,9 +125,13 @@ audit:
 | `timeout`              |  504 | exceeded server SLA               | reduce `top_k`/payload, retry   |
 | `auth_failed`          |  401 | token invalid/expired             | refresh token                   |
 
+<br>
+
 ---
 
 ## 9.5 Domain Packs (v1.0)
+
+<br>
 
 ### 9.5.1 Support Pack
 
@@ -123,9 +139,13 @@ audit:
 
 **Included MCP tools**
 
-* `kb.search (read)` — KB/FAQ retrieval (vector/graph backends supported).
-* `jira.create_issue (write)` — create ticket with labels/priority (approval).
-* `slack.post_message (write)` — post to channel with templates (approval).
+- `kb.search (read)` - KB/FAQ retrieval (vector/graph backends supported).
+
+- `jira.create_issue (write)` - create ticket with labels/priority (approval).
+
+- `slack.post_message (write)` - post to channel with templates (approval).
+
+<br>
 
 **Schemas (extracts)**
 
@@ -143,6 +163,8 @@ audit:
   "additionalProperties": false
 }
 ```
+
+<br>
 
 **Pack install (Catalog manifest)**
 
@@ -167,6 +189,8 @@ policies:
     - slack.post_message
 ```
 
+<br>
+
 ---
 
 ### 9.5.2 Ops Pack
@@ -175,8 +199,11 @@ policies:
 
 **Included MCP tools**
 
-* `metrics.query (read)` — query Prometheus for SLOs.
-* `remediation.seq (execute)` — approved, idempotent runbooks (e.g., scale deployment).
+- `metrics.query (read)` - query Prometheus for SLOs.
+
+- `remediation.seq (execute)` - approved, idempotent runbooks (e.g., scale deployment).
+
+<br>
 
 **Remediation descriptor**
 
@@ -198,6 +225,8 @@ approvals:
   required: true
   change_record: "INC-2025-00123"
 ```
+
+<br>
 
 ---
 
@@ -229,14 +258,21 @@ paths:
         "5XX": { description: "Upstream error" }
 ```
 
+<br>
+
 ---
 
 ## 9.7 Rate Limiting & Quotas (design)
 
-* **Hierarchies**: tenant → agent → tool.
-* **Windows**: fixed or token-bucket; per env.
-* **Burst controls**: circuit breaker opens on consecutive failures.
-* **Backoff**: jittered exponential backoff guidance sent to agent.
+- **Hierarchies**: tenant → agent → tool.
+
+- **Windows**: fixed or token-bucket; per env.
+
+- **Burst controls**: circuit breaker opens on consecutive failures.
+
+- **Backoff**: jittered exponential backoff guidance sent to agent.
+
+<br>
 
 ```mermaid
 flowchart LR
@@ -246,28 +282,42 @@ flowchart LR
   RL --> Backoff[Jitter Backoff]
 ```
 
+<br>
+
+<br>
+
 ---
 
 ## 9.8 Security Notes
 
-* All **write/execute** tools must include an **approval_id** or **change_record** in context.
-* **PII flag** propagates from ingress scrubber to Gateway; blocks `external.*` tools.
-* **Schema pinning**: agent includes `schema_hash`; Gateway rejects if mismatch.
+- All **write/execute** tools must include an **approval_id** or **change_record** in context.
+
+- **PII flag** propagates from ingress scrubber to Gateway; blocks `external.*` tools.
+
+- **Schema pinning**: agent includes `schema_hash`; Gateway rejects if mismatch.
+
+<br>
 
 ---
 
 ## 9.9 Operational Dashboards (suggested)
 
-* **Gateway**: RPS, error rate, p95, open circuits, deny reasons by policy rule.
-* **Tools**: success rate by tool version, latency distribution, fallback hits.
-* **Audit**: top write-actions by agent/version; approvals over time.
+- **Gateway**: RPS, error rate, p95, open circuits, deny reasons by policy rule.
+
+- **Tools**: success rate by tool version, latency distribution, fallback hits.
+
+- **Audit**: top write-actions by agent/version; approvals over time.
+
+<br>
 
 ---
 
 ## 9.10 Cross-References
 
-* Next: [10. Future Roadmap](10_future_roadmap.md)
-* Previous: [8. Security & Governance](08_security_governance.md)
-* See also: [7. Monitor & Operate](07_monitor_operate.md), [4. Build Phase](04_build_phase.md)
+- Next: [10. Future Roadmap](10_future_roadmap.md)
+
+- Previous: [8. Security & Governance](08_security_governance.md)
+
+- See also: [7. Monitor & Operate](07_monitor_operate.md), [4. Build Phase](04_build_phase.md)
 
 <br>
