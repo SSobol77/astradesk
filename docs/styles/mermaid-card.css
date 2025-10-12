@@ -1,0 +1,20 @@
+/* Białe tło i „karta” tylko pod diagramem, żeby linie były widoczne w dark mode */
+.mermaid {
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.06);
+}
+
+/* Wymuś ciemne linie na ciemnym motywie Material */
+[data-md-color-scheme="slate"] .mermaid svg path,
+[data-md-color-scheme="slate"] .mermaid svg line,
+[data-md-color-scheme="slate"] .mermaid svg polygon {
+  stroke: #111827 !important;
+}
+
+/* Opcjonalnie: ciemny tekst etykiet w dark mode */
+[data-md-color-scheme="slate"] .mermaid svg text {
+  fill: #0f172a !important;
+}

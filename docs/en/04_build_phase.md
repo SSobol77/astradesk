@@ -1,10 +1,6 @@
----
-lang: en
----
+![AstraDesk](../assets/astradesk-logo.svg)
 
-![AstraDesk](../astradesk-logo.svg)
-
-# 4. Build Phase — Prompts, Memory, Orchestration, MCP
+# 4. Build Phase - Prompts, Memory, Orchestration, MCP
 
 > Goal of this phase: produce a working, instrumented **SupportAgent** with MCP tools, safe defaults, and test hooks.  
 > Output: agent source code, tool schemas, prompt pack, config, and observability wiring.
@@ -108,7 +104,7 @@ If the user asks to create a ticket → propose summary, then request approval.
 
 ---
 
-## 4.4 SupportAgent (Python 3.13.5) — full code with comments
+## 4.4 SupportAgent (Python 3.13.5) - full code with comments
 
 <br>
 

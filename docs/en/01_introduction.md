@@ -1,8 +1,4 @@
----
-lang: en
----
-
-![AstraDesk](astradesk-logo.svg)
+![AstraDesk](../assets/astradesk-logo.svg)
 
 # 1. Introduction - The AstraDesk Vision
 

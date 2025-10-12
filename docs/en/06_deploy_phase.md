@@ -1,10 +1,6 @@
----
-lang: en
----
+![AstraDesk](../assets/astradesk-logo.svg)
 
-![AstraDesk](../astradesk-logo.svg)
-
-# 6. Deploy Phase — CI/CD, Sandboxing, Progressive Delivery
+# 6. Deploy Phase - CI/CD, Sandboxing, Progressive Delivery
 
 > Goal: ship SupportAgent safely to **Kubernetes (EKS/OpenShift/on-prem)** with strong defaults:  
 > non-root, read-only FS, NetworkPolicy, RBAC, SBOM+scan, OPA policies, and progressive rollout.
@@ -326,7 +322,7 @@ spec:
 
 ---
 
-## 6.6 CI/CD — Jenkinsfile
+## 6.6 CI/CD - Jenkinsfile
 
 ```groovy
 // file: ci/Jenkinsfile
@@ -372,7 +368,7 @@ pipeline {
 
 ---
 
-## 6.7 CI/CD — GitHub Actions (alternative)
+## 6.7 CI/CD - GitHub Actions (alternative)
 
 ```yaml
 # file: .github/workflows/ci.yml

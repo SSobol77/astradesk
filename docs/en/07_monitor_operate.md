@@ -1,10 +1,6 @@
----
-lang: en
----
+![AstraDesk](../assets/astradesk-logo.svg)
 
-![AstraDesk](../astradesk-logo.svg)
-
-# 7. Monitor & Operate — AstraOps, SLOs, RCA
+# 7. Monitor & Operate - AstraOps, SLOs, RCA
 
 > Operations for agentic systems must answer two questions:
 > 1) **Is it up?** (infra health)  
@@ -162,7 +158,7 @@ metrics = Metrics()
 
 ```json
 {
-  "title": "AstraDesk — SupportAgent SLOs",
+  "title": "AstraDesk - SupportAgent SLOs",
   "panels": [
     { "type": "graph", "title": "Latency p95 (s)",
       "targets": [{ "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"astradesk\"}[5m])) by (le))" }]
@@ -274,7 +270,7 @@ receivers:
 
 ### 7.6.3 Cost Spike
 
-1. Inspect token logs (LLM Gateway) — prompt bloat or unexpected retries.
+1. Inspect token logs (LLM Gateway) - prompt bloat or unexpected retries.
 
 2. Enable token-caching; add truncation guard.
 

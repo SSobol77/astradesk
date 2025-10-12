@@ -172,6 +172,7 @@ dev = [
 docs = [
     { name = "mkdocs" },
     { name = "mkdocs-material" },
+    { name = "mkdocs-material-extensions" },
     { name = "mkdocs-mermaid2-plugin" },
     { name = "pymdown-extensions" },
 ]
@@ -187,6 +188,7 @@ requires-dist = [
     { name = "kubernetes-asyncio", specifier = ">=20.0,<21.0" },
     { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6.0" },
     { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.5.0" },
+    { name = "mkdocs-material-extensions", marker = "extra == 'docs'" },
     { name = "mkdocs-mermaid2-plugin", marker = "extra == 'docs'", specifier = ">=1.1.1" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11,<1.12" },
     { name = "nats-py", specifier = ">=2.7,<2.8" },

@@ -1,14 +1,10 @@
----
-lang: en
----
-
 <p align="center">
-  <img src="assets/AstraDesktop.png" alt="AstraDesk - AI Framework" width="560"/>
+  <img src="assets/AstraDesktop.png" alt="AstraDesk - Enterprise AI Framework" width="560"/>
 </p>
 
 <br>
 
-# AstraDesk Duo - Internal AI Agents Framework
+# AstraDesk - Enterprise AI Framework
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Python Version](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
@@ -16,8 +12,7 @@ lang: en
 [![Node.js Version](https://img.shields.io/badge/Node.js-22-brightgreen.svg)](https://nodejs.org/en)
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](https://github.com/your-org/astradesk/actions)
 
-<!-- Replace with the real CI link -->
-<!-- Language: EN | PL -->
+
 🌍 **Languages:** 🇺🇸 [English](README.md) | [Polski](README.pl.md) | [中文 (当前文件)](README.zh-CN.md)
 
 <br>

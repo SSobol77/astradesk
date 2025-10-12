@@ -1,10 +1,6 @@
----
-lang: en
----
+![AstraDesk](../assets/astradesk-logo.svg)
 
-![AstraDesk](../astradesk-logo.svg)
-
-# 8. Security & Governance — RBAC, OPA, SBOM, Catalog
+# 8. Security & Governance - RBAC, OPA, SBOM, Catalog
 
 > Security is **built-in**, not bolted-on.  
 > This chapter defines the **control plane**: identity, authorization, policy-as-code, data protection, supply-chain, and audit.
@@ -36,13 +32,17 @@ lang: en
 <br>
 
 ### 8.2.1 Identities
+
 - **Agents**: OIDC client credentials (`client_id`, `client_secret` / workload identity).
+
 - **MCP Tools**: service principals with **scoped tokens** (per environment).
+
 - **Humans**: SSO (OIDC/SAML) mapped to RBAC roles.
 
 <br>
 
 ### 8.2.2 Roles (examples)
+
 | Role              | Purpose                                | Tool Authority             |
 |-------------------|-----------------------------------------|----------------------------|
 | `support.agent`   | Tier-1 support bot                      | `kb.search:read`, `jira.create_issue:write (approval)` |
@@ -50,11 +50,16 @@ lang: en
 | `catalog.owner`   | Registry maintenance                    | Publish/approve artifacts  |
 | `sec.arch`        | Security policy owner                   | Manage OPA bundles         |
 
+<br>
+
 ---
 
 ## 8.3 Policy-as-Code (OPA/Rego)
 
+<br>
+
 ### 8.3.1 Tool Side-Effect Gate (Gateway)
+
 ```rego
 # file: policies/agent_tools.rego
 package astra.gateway
@@ -90,6 +95,8 @@ deny[msg] {
 }
 ````
 
+<br>
+
 ### 8.3.2 Data Classification & Egress
 
 ```rego
@@ -115,9 +122,13 @@ permit {
 
 > Bundle OPA policies and distribute via Gateway; version policies in **AstraCatalog**.
 
+<br>
+
 ---
 
 ## 8.4 Kubernetes Admission (Gatekeeper/PSA)
+
+<br>
 
 ### 8.4.1 Deny Privileged & Enforce Read-Only RootFS
 
@@ -145,9 +156,13 @@ spec:
 
 > On modern clusters prefer **Pod Security Admission (restricted)** namespace labels or **OpenShift SCC** equivalents.
 
+<br>
+
 ---
 
 ## 8.5 Supply Chain: SBOM, Signing, Provenance
+
+<br>
 
 ### 8.5.1 SBOM & Image Scan (CI)
 
@@ -156,6 +171,8 @@ spec:
 syft ghcr.io/org/astradesk/support-agent:${GIT_SHA} -o spdx-json > sbom.spdx.json
 trivy image --exit-code 1 ghcr.io/org/astradesk/support-agent:${GIT_SHA} || true
 ```
+
+<br>
 
 ### 8.5.2 Sign & Verify (cosign)
 
@@ -167,24 +184,37 @@ cosign sign --key $COSIGN_KEY ghcr.io/org/astradesk/support-agent:${GIT_SHA}
 cosign verify --key $COSIGN_PUB ghcr.io/org/astradesk/support-agent:${GIT_SHA}
 ```
 
+<br>
+
 ### 8.5.3 Catalog Certification
 
-* Upload SBOM, scan reports, cosign bundle to **AstraCatalog**.
-* Gate deployment on **Catalog Certified = true**.
+- Upload SBOM, scan reports, cosign bundle to **AstraCatalog**.
+
+- Gate deployment on **Catalog Certified = true**.
+
+<br>
 
 ---
 
 ## 8.6 Secrets & Encryption
 
-* **Secrets Manager** (AWS Secrets Manager/KMS; OpenShift: sealed-secrets).
-* **Never** bake credentials into images or ConfigMaps.
-* **In transit**: mTLS Gateway↔Agent↔MCP; rotate certs.
-* **At rest**: KMS-encrypted volumes/buckets; per-env keys.
-* **Token scope**: narrow, short-lived; audience & TTL checks at Gateway.
+- **Secrets Manager** (AWS Secrets Manager/KMS; OpenShift: sealed-secrets).
+
+- **Never** bake credentials into images or ConfigMaps.
+
+- **In transit**: mTLS Gateway↔Agent↔MCP; rotate certs.
+
+- **At rest**: KMS-encrypted volumes/buckets; per-env keys.
+
+- **Token scope**: narrow, short-lived; audience & TTL checks at Gateway.
+
+<br>
 
 ---
 
 ## 8.7 Data Protection & PII
+
+<br>
 
 ### 8.7.1 Ingress Scrub (Gateway)
 
@@ -199,6 +229,8 @@ actions:
   log_event: true
 ```
 
+<br>
+
 ### 8.7.2 Egress Allow-List
 
 ```yaml
@@ -211,14 +243,21 @@ block_patterns:
   - "https://unknown.*"
 ```
 
+<br>
+
 ---
 
 ## 8.8 Auditing & Forensics
 
-* **Audit event per tool call**: tool name, args schema hash, side-effect, result hash, approval id.
-* **Trace correlation**: `x-astradesk-trace-id`, `x-gateway-audit-id`.
-* **Retention**: ≥ 90d for prod; ≥ 1y for critical approvals (per compliance).
-* **Tamper-evidence**: store hashes in immutable log or append-only object storage.
+- **Audit event per tool call**: tool name, args schema hash, side-effect, result hash, approval id.
+
+- **Trace correlation**: `x-astradesk-trace-id`, `x-gateway-audit-id`.
+
+- **Retention**: ≥ 90d for prod; ≥ 1y for critical approvals (per compliance).
+
+- **Tamper-evidence**: store hashes in immutable log or append-only object storage.
+
+<br>
 
 ```mermaid
 sequenceDiagram
@@ -234,14 +273,23 @@ sequenceDiagram
   GW->>OP: audit_event(audit_id, digests)
 ```
 
+<br>
+
+<br>
+
 ---
 
 ## 8.9 Governance in AstraCatalog
 
-* **Registry**: agents, tools, prompts, datasets, policies (with owners).
-* **Risk Posture**: per agent version (data classes, tool authority, approvals).
-* **Release Artifacts**: eval results, red-team notes, SBOM, signatures.
-* **Kill Switch**: per agent → immediate disable in Gateway.
+- **Registry**: agents, tools, prompts, datasets, policies (with owners).
+
+- **Risk Posture**: per agent version (data classes, tool authority, approvals).
+
+- **Release Artifacts**: eval results, red-team notes, SBOM, signatures.
+
+- **Kill Switch**: per agent → immediate disable in Gateway.
+
+<br>
 
 ```mermaid
 flowchart LR
@@ -251,9 +299,15 @@ flowchart LR
   Catalog -->|no| Block[Block & Notify]
 ```
 
+<br>
+
+<br>
+
 ---
 
 ## 8.10 Threat Model (quick)
+
+<br>
 
 | Threat                     | Control                                                         |       |                       |
 | -------------------------- | --------------------------------------------------------------- | ----- | --------------------- |
@@ -264,31 +318,46 @@ flowchart LR
 | **Image tampering**        | SBOM + scan + cosign verify in admission                        |       |                       |
 | **Policy bypass**          | Centralized Gateway; deny direct tool access; immutable audit   |       |                       |
 
+<br>
+
 ---
 
 ## 8.11 Minimal Compliance Mapping
 
-* **ISO 27001**: A.9 (Access), A.12 (Ops), A.14 (SDLC), A.18 (Compliance).
-* **SOC 2**: Security, Availability, Confidentiality trust criteria.
-* **GDPR**: Data minimization, purpose limitation, access logging, retention.
+- **ISO 27001**: A.9 (Access), A.12 (Ops), A.14 (SDLC), A.18 (Compliance).
+
+- **SOC 2**: Security, Availability, Confidentiality trust criteria.
+
+- **GDPR**: Data minimization, purpose limitation, access logging, retention.
+
+<br>
 
 ---
 
 ## 8.12 Operational Checklists
 
-* [ ] OPA bundles loaded & versioned; deny by default for unknown tools.
-* [ ] Gatekeeper/PSA **restricted** enforced in namespaces.
-* [ ] Images signed & verified; SBOM stored in Catalog.
-* [ ] Secrets pulled at runtime via manager; rotations tested.
-* [ ] PII scrub + egress allow-list live; synthetic tests passing.
-* [ ] Audit trail searchable by `trace_id` and `audit_id`.
+- [ ] OPA bundles loaded & versioned; deny by default for unknown tools.
+
+- [ ] Gatekeeper/PSA **restricted** enforced in namespaces.
+
+- [ ] Images signed & verified; SBOM stored in Catalog.
+
+- [ ] Secrets pulled at runtime via manager; rotations tested.
+
+- [ ] PII scrub + egress allow-list live; synthetic tests passing.
+
+- [ ] Audit trail searchable by `trace_id` and `audit_id`.
+
+<br>
 
 ---
 
 ## 8.13 Cross-References
 
-* Next: [9. MCP Gateway & Domain Packs](09_mcp_gateway_domain_packs.md)
-* Previous: [7. Monitor & Operate](07_monitor_operate.md)
-* See also: [3. Plan Phase](03_plan_phase.md) — acceptable agency & data scope
+- Next: [9. MCP Gateway & Domain Packs](09_mcp_gateway_domain_packs.md)
+
+- Previous: [7. Monitor & Operate](07_monitor_operate.md)
+
+- See also: [3. Plan Phase](03_plan_phase.md) - acceptable agency & data scope
 
 <br>
