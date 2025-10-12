@@ -26,7 +26,7 @@ dependencies = [
   "python-jose[cryptography]>=3.3.0,<3.4.0",
   "jwcrypto>=1.5.6,<1.6.0",
   "aioboto3>=10.0,<11.0",
-  "kubernetes-asyncio>=20.0,<21.0" 
+  "kubernetes-asyncio>=20.0,<21.0"
 ]
 
 [project.optional-dependencies]
@@ -40,10 +40,16 @@ dev = [
   "types-redis>=4.6.0,<5.0",
   "pip-audit>=2.7,<3.0"
 ]
+docs = [
+  "mkdocs>=1.6.0",
+  "mkdocs-material>=9.5.0",
+  "pymdown-extensions>=10.8",
+  "mkdocs-mermaid2-plugin>=1.1.1"
+]
 
 [tool.uv]
-extra-index-url = ["https://download.pytorch.org/whl/cu121"]  # Use PyTorch index for torch to avoid NVIDIA conflicts
-index-strategy = "unsafe-best-match"  # Allow latest versions from all indexes (e.g., requests from PyPI)
+extra-index-url = ["https://download.pytorch.org/whl/cu121"]
+index-strategy = "unsafe-best-match"
 
 [tool.ruff]
 line-length = 100
