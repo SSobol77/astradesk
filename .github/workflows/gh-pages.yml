@@ -40,6 +40,11 @@ jobs:
           # uv pip install mkdocs-mermaid2-plugin
           uv run mkdocs build --strict
 
+      - name: Copy OpenAPI to docs
+        run: |
+          mkdir -p docs/api
+          cp openapi/astradesk-admin.v1.yaml docs/api/openapi.yaml
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

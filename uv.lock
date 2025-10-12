@@ -173,7 +173,8 @@ docs = [
     { name = "mkdocs" },
     { name = "mkdocs-material" },
     { name = "mkdocs-material-extensions" },
-    { name = "mkdocs-mermaid2-plugin" },
+    { name = "mkdocs-redoc-tag" },
+    { name = "mkdocstrings" },
     { name = "pymdown-extensions" },
 ]
 
@@ -189,7 +190,8 @@ requires-dist = [
     { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6.0" },
     { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.5.0" },
     { name = "mkdocs-material-extensions", marker = "extra == 'docs'" },
-    { name = "mkdocs-mermaid2-plugin", marker = "extra == 'docs'", specifier = ">=1.1.1" },
+    { name = "mkdocs-redoc-tag", marker = "extra == 'docs'", specifier = ">=0.2.0" },
+    { name = "mkdocstrings", marker = "extra == 'docs'", specifier = ">=0.23.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11,<1.12" },
     { name = "nats-py", specifier = ">=2.7,<2.8" },
     { name = "opentelemetry-exporter-otlp", specifier = ">=1.26,<1.27" },
@@ -536,15 +538,6 @@ wheels = [
 ]
 
 [[package]]
-name = "editorconfig"
-version = "0.17.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/88/3a/a61d9a1f319a186b05d14df17daea42fcddea63c213bcd61a929fb3a6796/editorconfig-0.17.1.tar.gz", hash = "sha256:23c08b00e8e08cc3adcddb825251c497478df1dada6aefeb01e626ad37303745", size = 14695, upload-time = "2025-06-09T08:21:37.097Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/96/fd/a40c621ff207f3ce8e484aa0fc8ba4eb6e3ecf52e15b42ba764b457a9550/editorconfig-0.17.1-py3-none-any.whl", hash = "sha256:1eda9c2c0db8c16dbd50111b710572a5e6de934e39772de1959d41f64fc17c82", size = 16360, upload-time = "2025-06-09T08:21:35.654Z" },
-]
-
-[[package]]
 name = "fastapi"
 version = "0.115.14"
 source = { registry = "https://pypi.org/simple" }
@@ -794,19 +787,6 @@ wheels = [
 ]
 
 [[package]]
-name = "jsbeautifier"
-version = "1.15.4"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "editorconfig" },
-    { name = "six" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/ea/98/d6cadf4d5a1c03b2136837a435682418c29fdeb66be137128544cecc5b7a/jsbeautifier-1.15.4.tar.gz", hash = "sha256:5bb18d9efb9331d825735fbc5360ee8f1aac5e52780042803943aa7f854f7592", size = 75257, upload-time = "2025-02-27T17:53:53.252Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/2d/14/1c65fccf8413d5f5c6e8425f84675169654395098000d8bddc4e9d3390e1/jsbeautifier-1.15.4-py3-none-any.whl", hash = "sha256:72f65de312a3f10900d7685557f84cb61a9733c50dcc27271a39f5b0051bf528", size = 94707, upload-time = "2025-02-27T17:53:46.152Z" },
-]
-
-[[package]]
 name = "jwcrypto"
 version = "1.5.6"
 source = { registry = "https://pypi.org/simple" }
@@ -929,6 +909,20 @@ wheels = [
 ]
 
 [[package]]
+name = "mkdocs-autorefs"
+version = "1.4.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "markdown" },
+    { name = "markupsafe" },
+    { name = "mkdocs" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/51/fa/9124cd63d822e2bcbea1450ae68cdc3faf3655c69b455f3a7ed36ce6c628/mkdocs_autorefs-1.4.3.tar.gz", hash = "sha256:beee715b254455c4aa93b6ef3c67579c399ca092259cc41b7d9342573ff1fc75", size = 55425, upload-time = "2025-08-26T14:23:17.223Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9f/4d/7123b6fa2278000688ebd338e2a06d16870aaf9eceae6ba047ea05f92df1/mkdocs_autorefs-1.4.3-py3-none-any.whl", hash = "sha256:469d85eb3114801d08e9cc55d102b3ba65917a869b893403b8987b601cf55dc9", size = 25034, upload-time = "2025-08-26T14:23:15.906Z" },
+]
+
+[[package]]
 name = "mkdocs-get-deps"
 version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -974,20 +968,32 @@ wheels = [
 ]
 
 [[package]]
-name = "mkdocs-mermaid2-plugin"
-version = "1.2.2"
+name = "mkdocs-redoc-tag"
+version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
-    { name = "jsbeautifier" },
-    { name = "mkdocs" },
-    { name = "pymdown-extensions" },
-    { name = "requests" },
-    { name = "setuptools" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3c/d4/efbabe9d04252b3007bc79b0d6db2206b40b74e20619cbed23c1e1d03b2a/mkdocs_mermaid2_plugin-1.2.2.tar.gz", hash = "sha256:20a44440d32cf5fd1811b3e261662adb3e1b98be272e6f6fb9a476f3e28fd507", size = 16209, upload-time = "2025-08-27T23:51:51.078Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f7/a4/8f868c441a2be902a44343c349c9d7a4cceefc4141bf18386162d2915478/mkdocs_redoc_tag-0.2.0.tar.gz", hash = "sha256:e50825c19586f2383b97b51d4b225fd83df83556dd2fe27515cb94ee25777897", size = 285868, upload-time = "2025-04-05T14:57:47.621Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8e/d5/15f6eeeb755e57a501fad6dcfb3fe406dea5f6a6347a77c3be114294f7bb/mkdocs_mermaid2_plugin-1.2.2-py3-none-any.whl", hash = "sha256:a003dddd6346ecc0ad530f48f577fe6f8b21ea23fbee09eabf0172bbc1f23df8", size = 17300, upload-time = "2025-08-27T23:51:49.988Z" },
+    { url = "https://files.pythonhosted.org/packages/30/ff/63e91376c6198355246dcb2f78d2cccfea8601de9c53817f9682b622673e/mkdocs_redoc_tag-0.2.0-py3-none-any.whl", hash = "sha256:e15c9d45699a05d182676d5a8baf6bc81579543a562891ff1deb3f1524589ca4", size = 287023, upload-time = "2025-04-05T14:57:46.013Z" },
+]
+
+[[package]]
+name = "mkdocstrings"
+version = "0.30.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "jinja2" },
+    { name = "markdown" },
+    { name = "markupsafe" },
+    { name = "mkdocs" },
+    { name = "mkdocs-autorefs" },
+    { name = "pymdown-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c5/33/2fa3243439f794e685d3e694590d28469a9b8ea733af4b48c250a3ffc9a0/mkdocstrings-0.30.1.tar.gz", hash = "sha256:84a007aae9b707fb0aebfc9da23db4b26fc9ab562eb56e335e9ec480cb19744f", size = 106350, upload-time = "2025-09-19T10:49:26.446Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7b/2c/f0dc4e1ee7f618f5bff7e05898d20bf8b6e7fa612038f768bfa295f136a4/mkdocstrings-0.30.1-py3-none-any.whl", hash = "sha256:41bd71f284ca4d44a668816193e4025c950b002252081e387433656ae9a70a82", size = 36704, upload-time = "2025-09-19T10:49:24.805Z" },
 ]
 
 [[package]]
