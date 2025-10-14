@@ -3,7 +3,7 @@ name = "astradesk-auditor"
 version = "0.1.0"
 dependencies = [
     "nats-py>=2.7,<2.8",
-    "aioboto3>=10.0,<11.0", # Asynchroniczny klient AWS
+    "aioboto3>=10.0,<11.0",
     "httpx>=0.27,<0.28",
-    "python-json-logger>=2.0,<3.0", # Ustrukturyzowane logowanie
+    "python-json-logger>=2.0,<3.0"
 ]

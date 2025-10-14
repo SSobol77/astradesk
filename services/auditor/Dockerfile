@@ -2,14 +2,14 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Iainstalujemy zależności w sposób powtarzalny
+# Install dependencies
 COPY pyproject.toml .
 RUN pip install --no-cache-dir .
 
-# Kopiujemy kod aplikacji
+# Copy the application code
 COPY main.py .
 
-# Ustawienie zmiennej, aby logi były od razu widoczne
+# Set environment variables for Python
 ENV PYTHONUNBUFFERED=1
 
 CMD ["python", "main.py"]
