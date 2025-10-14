@@ -1,0 +1,13 @@
+version: "3.9"
+
+services:
+  admin:
+    container_name: astradesk-admin
+    build:
+      context: .
+      target: runner
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_BASE_URL: "http://backend:8080"
+    ports:
+      - "3000:3000"
