@@ -126,6 +126,9 @@ temp/
 *.bak
 *.backup
 
+# Old version
+_*.*
+
 # Build artifacts
 *.tar.gz
 *.zip
