@@ -26,7 +26,11 @@ dependencies = [
   "python-jose[cryptography]>=3.3.0,<3.4.0",
   "jwcrypto>=1.5.6,<1.6.0",
   "aioboto3>=10.0,<11.0",
-  "kubernetes-asyncio>=20.0,<21.0"
+  "kubernetes-asyncio>=20.0,<21.0",
+
+  # ML stack (CPU by default)
+  "transformers==4.45.2",
+  "torch==2.4.1",
 ]
 
 [project.optional-dependencies]
@@ -48,17 +52,23 @@ docs = [
   "mkdocs-redoc-tag>=0.2.0",
   "mkdocstrings>=0.23.0",
 ]
+# GPU optional – used only on machines with CUDA 12.1
+#cu121 = [
+#  "torch==2.4.1+cu121",
+#]
 
+
+# Remove the global CU121 index to avoid accidental CUDA pulls for CPU installs
 [tool.uv]
-extra-index-url = ["https://download.pytorch.org/whl/cu121"]
-index-strategy = "unsafe-best-match"
+# (empty or remove this section entirely)
+# index-strategy left default (safer than "unsafe-best-match")
 
 [tool.ruff]
 line-length = 100
 target-version = "py311"
 lint.ignore = ["E501", "F841"]
 lint.select = ["E", "F", "W", "I", "N", "D", "UP", "S", "B", "A", "C4", "T20", "RUF"]
-format = {quote-style = "single"}
+format = { quote-style = "single" }
 
 [tool.mypy]
 python_version = "3.11"
