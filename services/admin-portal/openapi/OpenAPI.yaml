@@ -1,8 +1,2624 @@
+# services/admin-portal/OpenAPI.yaml
+# OpenAPI
+
 openapi: 3.1.0
 info:
   title: AstraDesk Admin API
-  version: 1.0.0
-  description: |
-    Replace this stub with the real AstraDesk Admin OpenAPI specification.
-paths: {}
-components: {}
+  version: "1.0.0"
+  description: API for AstraDesk Admin v1.0 - operational and governance panel for agents, data, policies, and audits.
+  contact:
+    name: AstraDesk Operations
+    email: ops@astradesk.com
+servers:
+  - url: http://localhost:8080/api/admin/v1
+    description: Local Development Server
+  - url: https://api.astradesk.com/api/admin/v1
+    description: Production Server
+tags:
+  - name: Dashboard
+    description: System health and usage metrics
+  - name: Agents
+    description: Manage agents (CRUD, test, promote)
+  - name: Intent Graph
+    description: Read-only intent graph operations
+  - name: Flows
+    description: Alpha flows management
+  - name: Datasets
+    description: Manage datasets and reindexing
+  - name: Tools/Connectors
+    description: Manage tools and connectors
+  - name: Keys & Secrets
+    description: Manage secrets (rotate, disable)
+  - name: Runs & Logs
+    description: View runs and logs
+  - name: Jobs & Schedules
+    description: Manage jobs and schedules
+  - name: Users & Roles
+    description: RBAC user and role management
+  - name: Policies
+    description: OPA policy management
+  - name: Audit Trail
+    description: Immutable audit logs
+  - name: Settings
+    description: Platform settings
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    PaginationLimit:
+      name: limit
+      in: query
+      description: Maximum number of items to return per page.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+    PaginationOffset:
+      name: offset
+      in: query
+      description: Number of items to skip for pagination.
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+  schemas:
+    ProblemDetail:
+      type: object
+      description: |
+        A standard error response format compliant with RFC 7807 (Problem Details for HTTP APIs).
+        This ensures consistent and machine-readable error handling.
+      properties:
+        type:
+          type: string
+          format: uri
+          description: A URI identifier for the problem type.
+          example: "https://astradesk.com/errors/authentication-failed"
+        title:
+          type: string
+          description: A short, human-readable summary of the problem type.
+          example: "Authentication Failed"
+        status:
+          type: integer
+          description: The HTTP status code.
+          example: 401
+        detail:
+          type: string
+          description: A human-readable explanation specific to this occurrence of the problem.
+          example: "The provided JWT token has expired."
+        instance:
+          type: string
+          format: uri
+          description: A URI reference that identifies the specific occurrence of the problem.
+          example: "/api/admin/v1/agents/123"
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, down]
+        components:
+          type: object
+          additionalProperties:
+            type: string
+    UsageMetrics:
+      type: object
+      properties:
+        total_requests:
+          type: integer
+        cost_usd:
+          type: number
+        latency_p95_ms:
+          type: number
+    Agent:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        version:
+          type: string
+        env:
+          type: string
+          enum: [draft, dev, staging, prod]
+        status:
+          type: string
+        config:
+          type: object
+    AgentConfigRequest:
+      type: object
+      description: Payload for creating or updating an agent's configuration.
+      required:
+        - name
+        - config
+      properties:
+        name:
+          type: string
+          description: A unique, human-readable name for the agent.
+        config:
+          type: object
+          description: The configuration object for the agent (e.g., model, prompts, tool settings).
+          additionalProperties: true
+    Flow:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        graph:
+          type: object
+    Dataset:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [s3, postgres, git]
+        indexing_status:
+          type: string
+    Connector:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+    Run:
+      type: object
+      properties:
+        id:
+          type: string
+        agent_id:
+          type: string
+        status:
+          type: string
+        latency_ms:
+          type: number
+        cost_usd:
+          type: number
+    Job:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        schedule_expr:
+          type: string
+        status:
+          type: string
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [admin, operator, viewer]
+    Policy:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        rego_text:
+          type: string
+    PolicySimulationRequest:
+      type: object
+      required: [input]
+      properties:
+        input:
+          type: object
+          description: A JSON object representing the input to be evaluated against the policy.
+          additionalProperties: true
+    SettingUpdateRequest:
+      type: object
+      required: [value]
+      properties:
+        value:
+          type: object
+          description: The new value for the setting.
+          additionalProperties: true
+    AuditEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        when_ts:
+          type: string
+          format: date-time
+        user_id:
+          type: string
+        action:
+          type: string
+        resource:
+          type: string
+        signature:
+          type: string
+    Setting:
+      type: object
+      properties:
+        group:
+          type: string
+        key:
+          type: string
+        value:
+          type: object
+    Secret:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        last_used_at:
+          type: string
+          format: date-time
+    SecretCreateRequest:
+      type: object
+      description: Payload for creating a new secret.
+      required:
+        - name
+        - value
+      properties:
+        name:
+          type: string
+          description: A unique, human-readable name for the secret.
+          example: "openai-api-key"
+        value:
+          type: string
+          description: The actual secret value. This value is write-only and never returned by the API.
+          format: password
+          example: "sk-..."
+        type:
+          type: string
+          description: An optional type hint for the secret (e.g., 'api-key', 'db-password').
+          example: "api-key"
+    SecretMetadata:
+      type: object
+      description: Metadata of a secret, without exposing the secret value itself.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The unique identifier of the secret.
+        name:
+          type: string
+          description: The human-readable name of the secret.
+        type:
+          type: string
+          description: The type of the secret.
+        last_used_at:
+          type: string
+          format: date-time
+          description: Timestamp of when the secret was last used.
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp of when the secret was created.
+    GraphNode:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the node.
+        label:
+          type: string
+          description: Human-readable label for the node.
+        type:
+          type: string
+          enum: [intent, entity, tool]
+          description: The type of the node.
+    GraphEdge:
+      type: object
+      properties:
+        source:
+          type: string
+          description: The ID of the source node.
+        target:
+          type: string
+          description: The ID of the target node.
+        label:
+          type: string
+          description: A label describing the relationship.
+    FlowCreateRequest:
+      type: object
+      required:
+        - name
+        - graph
+      properties:
+        name:
+          type: string
+        graph:
+          type: object
+          description: The graph definition for the flow.
+    DatasetCreateRequest:
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+          description: A unique, human-readable name for the dataset.
+        type:
+          type: string
+          enum: [s3, postgres, git]
+          description: The source type of the dataset.
+    EmbeddingMetadata:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the embedded chunk/document.
+        source:
+          type: string
+          description: The original source of the chunk (e.g., file path).
+        created_at:
+          type: string
+          format: date-time
+    ConnectorConfigRequest:
+      type: object
+      required:
+        - name
+        - type
+        - config
+      properties:
+        name:
+          type: string
+          description: A unique, human-readable name for the connector.
+        type:
+          type: string
+          description: The type of the connector (e.g., 'jira', 'prometheus', 'slack').
+        config:
+          type: object
+          description: Configuration object for the connector, containing credentials and settings.
+          additionalProperties: true
+    JobCreateRequest:
+      type: object
+      required: [name, schedule_expr, task_definition]
+      properties:
+        name: { type: string }
+        schedule_expr: { type: string, description: "CRON expression for the schedule." }
+        task_definition: { type: object, description: "The definition of the task to be executed." }
+
+    DLQItem:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        original_message: { type: object }
+        error_message: { type: string }
+        failed_at: { type: string, format: date-time }
+
+    UserCreateRequest:
+      type: object
+      required: [email, role]
+      properties:
+        email: { type: string, format: email }
+        role: { type: string, enum: [admin, operator, viewer] }
+
+    UserRoleUpdateRequest:
+      type: object
+      required: [role]
+      properties:
+        role: { type: string, enum: [admin, operator, viewer] }
+
+    PolicyCreateRequest:
+      type: object
+      required: [name, rego_text]
+      properties:
+        name: { type: string }
+        rego_text: { type: string, description: "The policy content in Rego language." }
+paths:
+  /health:
+    get:
+      tags: [Dashboard]
+      summary: Get system health status
+      description: Retrieves a high-level status of the entire platform and its core components.
+      security:
+        - BearerAuth: []
+      responses:
+          '200':
+            description: System is healthy.
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/HealthStatus'
+          '503':
+            # ZMIANA: Używamy składni `>` dla stringa wieloliniowego
+            # i skracamy tekst, aby uniknąć problemów z parserem.
+            description: >
+              Service is unavailable or in a degraded state.
+            content:
+              application/problem+json:
+                schema:
+                  $ref: '#/components/schemas/ProblemDetail'
+          '401':
+            description: Unauthorized access.
+            content:
+              application/problem+json:
+                schema:
+                  $ref: '#/components/schemas/ProblemDetail'
+  /usage/llm:
+    get:
+      tags: [Dashboard]
+      summary: Get platform-wide LLM usage metrics
+      description: Retrieves aggregated metrics such as total requests, total cost, and latency percentiles.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Aggregated usage metrics.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageMetrics'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /errors/recent:
+    get:
+      tags: [Dashboard]
+      summary: List recent errors and exceptions
+      description: Retrieves a paginated list of the most recent system errors for quick diagnosis.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PaginationLimit' 
+        - $ref: '#/components/parameters/PaginationOffset'
+      responses:
+        '200':
+          description: A paginated list of recent errors.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    timestamp:
+                      type: string
+                      format: date-time
+                    message:
+                      type: string
+                    trace_id:
+                      type: string
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /agents:
+    get:
+      tags: [Agents]
+      summary: List all agents
+      description: Retrieves a paginated list of all configured agents.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PaginationLimit'
+        - $ref: '#/components/parameters/PaginationOffset'
+      responses:
+        '200':
+          description: A paginated list of agents.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Agent'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    post:
+      tags: [Agents]
+      summary: Create a new agent
+      description: Creates a new agent in a 'draft' environment.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentConfigRequest'
+      responses:
+        '201':
+          description: The newly created agent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+        '400':
+          description: Invalid request body.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /agents/{id}:
+    get:
+      tags: [Agents]
+      summary: Get agent details
+      description: Retrieves the full details of a specific agent.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The unique identifier of the agent.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The requested agent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+        '404':
+          description: Agent not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    put:
+      tags: [Agents]
+      summary: Update an agent's configuration
+      description: Updates the name and/or configuration of an existing agent.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The unique identifier of the agent to update.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentConfigRequest' # ZMIANA
+      responses:
+        '200':
+          description: The updated agent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+        '404':
+          description: Agent not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /agents/{id}:test:
+    post:
+      tags: [Agents]
+      summary: Run a test query against an agent
+      description: Executes a dry-run of the agent with a given input to test its behavior.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [input]
+              properties:
+                input:
+                  type: string
+                  example: "Test query for the agent."
+      responses:
+        '200':
+          description: The result of the test run.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  output:
+                    type: string
+                  invoked_tools:
+                    type: array
+                    items:
+                      type: object
+        '404':
+          description: Agent not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /agents/{id}:clone:
+    post:
+      tags: [Agents]
+      summary: Clone agent
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        '201':
+          description: Cloned agent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /agents/{id}:promote:
+    post:
+      tags: [Agents]
+      summary: Promote agent to next env
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Promoted agent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /agents/{id}/metrics:
+    get:
+      tags: [Agents]
+      summary: Get agent performance metrics
+      description: Retrieves key performance indicators (KPIs) like latency percentiles for a specific agent.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: timeWindow
+          in: query
+          description: The time window for calculating metrics (e.g., '1h', '24h').
+          schema:
+            type: string
+            default: '1h'
+      responses:
+        '200':
+          description: Agent performance metrics.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  p95_latency_ms:
+                    type: number
+                  p99_latency_ms:
+                    type: number
+                  request_count:
+                    type: integer
+        '404':
+          description: Agent not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /agents/{id}/io:
+    get:
+      tags: [Agents]
+      summary: Get recent agent input/output pairs
+      description: Retrieves a paginated list of the most recent interactions (input and output) for a specific agent.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/PaginationLimit'
+        - $ref: '#/components/parameters/PaginationOffset'
+      responses:
+        '200':
+          description: A paginated list of I/O logs.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    timestamp:
+                      type: string
+                      format: date-time
+                    input:
+                      type: string
+                    output:
+                      type: string
+        '404':
+          description: Agent not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /intents/graph:
+    get:
+      tags: [Intent Graph]
+      summary: Get the complete intent graph
+      description: Retrieves the entire intent graph, including all nodes and edges, for visualization and analysis.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: The complete intent graph structure.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nodes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/GraphNode'
+                  edges:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/GraphEdge'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /flows:
+    get:
+      tags: [Flows]
+      summary: List flows
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PaginationLimit'
+        - $ref: '#/components/parameters/PaginationOffset'
+      responses:
+        '200':
+          description: List of flows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Flow'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    post:
+      tags: [Flows]
+      summary: Create a new flow
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FlowCreateRequest'
+      responses:
+        '201':
+          description: The newly created flow.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Flow'
+        '400':
+          description: Invalid request body.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /flows/{id}:
+    get:
+      tags: [Flows]
+      summary: Get flow details
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The requested flow.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Flow'
+        '404':
+          description: Flow not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /flows/{id}:validate:
+    post:
+      tags: [Flows]
+      summary: Validate flow
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                  errors:
+                    type: array
+                    items:
+                      type: string
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Flow not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /flows/{id}:dryrun:
+    post:
+      tags: [Flows]
+      summary: Dry run flow
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Dry run result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  steps:
+                    type: array
+                    items:
+                      type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Flow not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /flows/{id}/log:
+    get:
+      tags: [Flows]
+      summary: Get the execution log for a specific flow
+      description: Retrieves a paginated list of log entries for a given flow.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/PaginationLimit'
+        - $ref: '#/components/parameters/PaginationOffset'
+      responses:
+        '200':
+          description: A paginated list of flow log entries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    timestamp:
+                      type: string
+                      format: date-time
+                    level:
+                      type: string
+                      enum: [INFO, WARN, ERROR]
+                    message:
+                      type: string
+        '404':
+          description: Flow not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /datasets:
+    get:
+      tags: [Datasets]
+      summary: List datasets
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PaginationLimit'
+        - $ref: '#/components/parameters/PaginationOffset'
+      responses:
+        '200':
+          description: List of datasets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Dataset'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    post:
+      tags: [Datasets]
+      summary: Create a new dataset
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DatasetCreateRequest'
+      responses:
+        '201':
+          description: The newly created dataset.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dataset'
+        '400':
+          description: Invalid request body.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /datasets/{id}:
+    get:
+      tags: [Datasets]
+      summary: Get dataset details
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The requested dataset.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dataset'
+        '404':
+          description: Dataset not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    delete:
+      tags: [Datasets]
+      summary: Delete a dataset
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: The dataset was successfully deleted.
+        '404':
+          description: Dataset not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /datasets/{id}/schema:
+    get:
+      tags: [Datasets]
+      summary: Get the schema of a dataset
+      description: Retrieves the data schema inferred from the dataset source.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The dataset schema.
+          content:
+            application/json:
+              schema:
+                type: object
+                example:
+                  properties:
+                    column_a: { type: "string" }
+                    column_b: { type: "number" }
+        '404':
+          description: Dataset not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /datasets/{id}/embeddings:
+    get:
+      tags: [Datasets]
+      summary: Get embeddings metadata for a dataset
+      description: Retrieves a paginated list of metadata for all embeddings generated from this dataset.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/PaginationLimit'
+        - $ref: '#/components/parameters/PaginationOffset'
+      responses:
+        '200':
+          description: A paginated list of embeddings metadata.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EmbeddingMetadata'
+        '404':
+          description: Dataset not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /datasets/{id}:reindex:
+    post:
+      tags: [Datasets]
+      summary: Trigger a reindexing job for a dataset
+      description: Starts an asynchronous job to re-process and re-embed all data from the dataset's source.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '202':
+          description: Reindexing job has been accepted and started.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id:
+                    type: string
+                    format: uuid
+        '404':
+          description: Dataset not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '409':
+          description: A reindexing job for this dataset is already in progress.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /connectors:
+    get:
+      tags: [Tools/Connectors]
+      summary: List connectors
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PaginationLimit'
+        - $ref: '#/components/parameters/PaginationOffset'
+      responses:
+        '200':
+          description: List of connectors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Connector'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    post:
+      tags: [Tools/Connectors]
+      summary: Create a new connector
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConnectorConfigRequest'
+      responses:
+        '201':
+          description: The newly created connector.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Connector'
+        '400':
+          description: Invalid request body.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /connectors/{id}:
+    get:
+      tags: [Tools/Connectors]
+      summary: Get connector details
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The requested connector.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Connector'
+        '404':
+          description: Connector not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    put:
+      tags: [Tools/Connectors]
+      summary: Update a connector's configuration
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConnectorConfigRequest'
+      responses:
+        '200':
+          description: The updated connector.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Connector'
+        '404':
+          description: Connector not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    delete:
+      tags: [Tools/Connectors]
+      summary: Delete a connector
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: The connector was successfully deleted.
+        '404':
+          description: Connector not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /connectors/{id}:test:
+    post:
+      tags: [Tools/Connectors]
+      summary: Test a connector's connection
+      description: Performs a live test to verify that the connector can successfully authenticate and connect to the external service.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The result of the connection test.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                    description: A detailed message, especially in case of failure.
+                    example: "Authentication failed: Invalid API key."
+        '404':
+          description: Connector not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /connectors/{id}:probe:
+    post:
+      tags: [Tools/Connectors]
+      summary: Probe a connector's latency
+      description: Sends a lightweight request to the external service to measure connection latency.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The result of the latency probe.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  latency_ms:
+                    type: number
+                    description: The round-trip time in milliseconds.
+        '404':
+          description: Connector not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /secrets:
+    get:
+      tags: [Keys & Secrets]
+      summary: List secret metadata
+      description: Retrieves a paginated list of metadata for all configured secrets. The secret values are never returned.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PaginationLimit'
+        - $ref: '#/components/parameters/PaginationOffset'
+      responses:
+        '200':
+          description: A list of secret metadata objects.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SecretMetadata'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    post:
+      tags: [Keys & Secrets]
+      summary: Create a new secret
+      description: Securely creates a new secret. The provided value is write-only and cannot be retrieved later.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SecretCreateRequest'
+      responses:
+        '201':
+          description: The metadata for the newly created secret.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecretMetadata'
+        '400':
+          description: Invalid request body (e.g., missing name or value).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /secrets/{id}:rotate:
+    post:
+      tags: [Keys & Secrets]
+      summary: Rotate a secret's value
+      description: Generates a new random value for the specified secret and invalidates the old one.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The ID of the secret to rotate.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The metadata of the rotated secret, including its new value.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecretCreateRequest' 
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: The secret with the specified ID was not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /secrets/{id}:disable:
+    delete:
+      tags: [Keys & Secrets]
+      summary: Disable (delete) a secret
+      description: Permanently disables and deletes the specified secret. This action cannot be undone.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The ID of the secret to delete.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: The secret was successfully deleted.
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: The secret with the specified ID was not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /runs:
+    get:
+      tags: [Runs & Logs]
+      summary: List and filter agent runs
+      description: Retrieves a paginated list of historical agent runs, with support for filtering.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: agentId
+          in: query
+          description: Filter runs by a specific agent ID.
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Filter runs by status (e.g., 'success', 'failed').
+          schema:
+            type: string
+        - name: from
+          in: query
+          description: The start of the time range to filter runs (ISO 8601 format).
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          description: The end of the time range to filter runs (ISO 8601 format).
+          schema:
+            type: string
+            format: date-time
+        - $ref: '#/components/parameters/PaginationLimit'
+        - $ref: '#/components/parameters/PaginationOffset'
+      responses:
+        '200':
+          description: A paginated list of agent runs.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Run'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /runs/stream:
+    get:
+      tags: [Runs & Logs]
+      summary: Stream new agent runs in real-time (SSE)
+      description: |
+        Establishes a Server-Sent Events (SSE) connection to stream new agent
+        runs as they are completed. Clients can use filters to subscribe only
+        to relevant events.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: agentId
+          in: query
+          description: Filter stream to only include runs from a specific agent ID.
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Filter stream by final run status.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: An open SSE stream of `Run` objects.
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/Run'
+          headers:
+            Content-Type:
+              description: Must be `text/event-stream`.
+              schema:
+                type: string
+            Cache-Control:
+              description: Must be `no-cache`.
+              schema:
+                type: string
+            Connection:
+              description: Must be `keep-alive`.
+              schema:
+                type: string
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /runs/{id}:
+    get:
+      tags: [Runs & Logs]
+      summary: Get details for a specific run
+      description: Retrieves the complete details of a single agent run, including its status, latency, cost, and associated metadata.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The unique identifier of the agent run.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The detailed information about the requested run.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Run'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: The run with the specified ID was not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /logs/export:
+    get:
+      tags: [Runs & Logs]
+      summary: Export agent run logs
+      description: |
+        Downloads a file containing detailed logs for agent runs based on the provided filters.
+        The data is streamed directly to the client, making it suitable for large datasets.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: format
+          in: query
+          required: true
+          description: The format of the exported file.
+          schema:
+            type: string
+            enum: [json, ndjson, csv]
+            default: ndjson
+        - name: agentId
+          in: query
+          description: Filter logs by a specific agent ID.
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Filter logs by run status (e.g., 'success', 'failed').
+          schema:
+            type: string
+        - name: from
+          in: query
+          description: The start of the time range for the export (ISO 8601 format).
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          description: The end of the time range for the export (ISO 8601 format).
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: The agent run logs export file.
+          content:
+            application/x-ndjson:
+              schema:
+                type: string
+                format: binary
+            application/json:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              description: Suggests a filename for the browser to save the file as.
+              schema:
+                type: string
+                example: 'attachment; filename="astradesk-logs-2025-10-08.ndjson"'
+        '400':
+          description: Invalid filter parameters provided.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /jobs:
+    get:
+      tags: [Jobs & Schedules]
+      summary: List jobs
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PaginationLimit'
+        - $ref: '#/components/parameters/PaginationOffset'
+      responses:
+        '200':
+          description: List of jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Job'
+        '400':
+          description: Invalid filter parameters provided.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    post:
+      tags: [Jobs & Schedules]
+      summary: Create a new scheduled job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JobCreateRequest'
+      responses:
+        '201':
+          description: The newly created job.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Job' }}}
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /jobs/{id}:
+    get:
+      tags: [Jobs & Schedules]
+      summary: Get job details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The requested job.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '404':
+          description: Job not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    put:
+      tags: [Jobs & Schedules]
+      summary: Update a job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JobCreateRequest'
+      responses:
+        '200':
+          description: The updated job.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Job' }}}
+        '404':
+          description: Job not found.
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetail' }}}
+    delete:
+      tags: [Jobs & Schedules]
+      summary: Delete a job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: The job was successfully deleted.
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Job not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  
+  /jobs/{id}:trigger:
+    post:
+      tags: [Jobs & Schedules]
+      summary: Trigger job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        '202':
+          description: Job triggered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  run_id:
+                    type: string
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Job not found.
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetail' }}}
+
+  /jobs/{id}:pause:
+    post:
+      tags: [Jobs & Schedules]
+      summary: Pause job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Paused job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Job not found.
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetail' }}}
+
+  /jobs/{id}:resume:
+    post:
+      tags: [Jobs & Schedules]
+      summary: Resume a paused job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: The resumed job.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Job' }}}
+        '404':
+          description: Job not found.
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetail' }}}
+
+  /dlq:
+    get:
+      tags: [Jobs & Schedules]
+      summary: List items from the Dead-Letter Queue
+      description: Retrieves a paginated list of failed messages or events that could not be processed.
+      parameters:
+        - $ref: '#/components/parameters/PaginationLimit'
+        - $ref: '#/components/parameters/PaginationOffset'
+      responses:
+        '200':
+          description: A list of DLQ items.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DLQItem'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /users:
+    get:
+      tags: [Users & Roles]
+      summary: List users
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PaginationLimit'
+        - $ref: '#/components/parameters/PaginationOffset'
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    post:
+      tags: [Users & Roles]
+      summary: Create or invite a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+      responses:
+        '201':
+          description: The user was created or invited.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid request body (e.g., invalid email or role).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '409':
+          description: A user with this email already exists.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /users/{id}:
+    get:
+      tags: [Users & Roles]
+      summary: Get user details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: The requested user.
+          content: { application/json: { schema: { $ref: '#/components/schemas/User' }}}
+        '401':
+          description: Unauthorized
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetail' }}}
+        '404':
+          description: User not found.
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetail' }}}
+    delete:
+      tags: [Users & Roles]
+      summary: Delete a user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: The user was successfully deleted.
+        '401':
+          description: Unauthorized
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetail' }}}
+        '404':
+          description: User not found.
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetail' }}}
+
+  /users/{id}:reset-mfa:
+    post:
+      tags: [Users & Roles]
+      summary: Reset MFA
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: MFA reset
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: User not found.
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetail' }}}
+
+  /users/{id}/role:
+    put:
+      tags: [Users & Roles]
+      summary: Update a user's role
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRoleUpdateRequest'
+      responses:
+        '200':
+          description: The user with the updated role.
+          content: { application/json: { schema: { $ref: '#/components/schemas/User' }}}
+        '404':
+          description: User not found.
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetail' }}}
+
+  /roles:
+    get:
+      tags: [Users & Roles]
+      summary: List available roles
+      responses:
+        '200':
+          description: A list of available role names.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /policies:
+    get:
+      tags: [Policies]
+      summary: List policies
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PaginationLimit'
+        - $ref: '#/components/parameters/PaginationOffset'
+      responses:
+        '200':
+          description: List of policies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Policy'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    post:
+      tags: [Policies]
+      summary: Create a new policy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyCreateRequest'
+      responses:
+        '201':
+          description: The newly created policy.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Policy' }}}
+        '400':
+          description: Invalid filter parameters provided.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  
+  /policies/{id}:
+    get:
+      tags: [Policies]
+      summary: Get policy details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: The requested policy.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Policy' }}}
+        '404':
+          description: Policy not found.
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetail' }}}
+    put:
+      tags: [Policies]
+      summary: Update a policy
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyCreateRequest'
+      responses:
+        '200':
+          description: The updated policy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Policy'
+        '404':
+          description: Policy not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    delete:
+      tags: [Policies]
+      summary: Delete a policy
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204':
+          description: The policy was successfully deleted.
+        '404':
+          description: Policy not found.
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetail' }}}
+
+  /policies/{id}:simulate:
+    post:
+      tags: [Policies]
+      summary: Simulate a policy against a given input
+      description: Allows for dry-running a policy to see the outcome without enforcing it.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicySimulationRequest' # ZMIANA
+      responses:
+        '200':
+          description: The result of the policy simulation.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  allow:
+                    type: boolean
+                    description: The decision of the policy (true for allow, false for deny).
+                  violations:
+                    type: array
+                    items:
+                      type: string
+                    description: A list of reasons for the denial, if applicable.
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Policy not found.
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetail' }}}
+
+  /audit:
+    get:
+      tags: [Audit Trail]
+      summary: List and filter audit trail entries
+      description: Retrieves a paginated list of immutable audit log entries, with support for filtering.
+      parameters:
+        - name: userId
+          in: query
+          description: Filter audit entries by user ID.
+          schema: { type: string }
+        - name: action
+          in: query
+          description: Filter by a specific action name (e.g., 'agent.run', 'user.login').
+          schema: { type: string }
+        - name: resource
+          in: query
+          description: Filter by the resource that was acted upon.
+          schema: { type: string }
+        - name: from
+          in: query
+          description: The start of the time range to filter entries (ISO 8061 format).
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          description: The end of the time range to filter entries (ISO 8061 format).
+          schema: { type: string, format: date-time }
+        - $ref: '#/components/parameters/PaginationLimit'
+        - $ref: '#/components/parameters/PaginationOffset'
+      responses:
+        '200':
+          description: A paginated list of audit entries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditEntry'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /audit/export:
+    get:
+      tags: [Audit Trail]
+      summary: Export audit trail data
+      description: |
+        Downloads a file containing audit log entries based on the provided filters.
+        The data is streamed directly to the client, making it suitable for large datasets.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: format
+          in: query
+          required: true
+          description: The format of the exported file.
+          schema:
+            type: string
+            enum: [json, ndjson, csv]
+            default: ndjson
+        - name: userId
+          in: query
+          description: Filter audit entries by user ID.
+          schema:
+            type: string
+        - name: action
+          in: query
+          description: Filter by a specific action name (e.g., 'agent.run').
+          schema:
+            type: string
+        - name: from
+          in: query
+          description: The start of the time range for the export (ISO 8601 format).
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          description: The end of the time range for the export (ISO 8601 format).
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: The audit log export file. The filename is suggested in the Content-Disposition header.
+          content:
+            application/x-ndjson:
+              schema:
+                type: string
+                format: binary
+            application/json:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              description: Suggests a filename for the browser to save the file as.
+              schema:
+                type: string
+                example: 'attachment; filename="astradesk-audit-2025-10-08.ndjson"'
+        '400':
+          description: Invalid filter parameters provided.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  /audit/{id}:
+    get:
+      tags: [Audit Trail]
+      summary: Get a single audit entry by its ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The unique identifier of the audit entry.
+          schema:
+            type: string
+            format: uuid
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: The requested audit entry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEntry'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Audit entry not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  
+  /settings/integrations:
+    get:
+      tags: [Settings]
+      summary: Get integrations settings
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PaginationLimit'
+        - $ref: '#/components/parameters/PaginationOffset'
+      responses:
+        '200':
+          description: Integrations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    put:
+      tags: [Settings]
+      summary: Update integrations
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Setting'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  
+  /settings/localization:
+    get:
+      tags: [Settings]
+      summary: Get localization settings
+      parameters:
+        - $ref: '#/components/parameters/PaginationLimit'
+        - $ref: '#/components/parameters/PaginationOffset'
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Localization
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    put:
+      tags: [Settings]
+      summary: Update localization
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Setting'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  
+  /settings/platform:
+    get:
+      tags: [Settings]
+      summary: Get platform settings
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PaginationLimit'
+        - $ref: '#/components/parameters/PaginationOffset'
+      responses:
+        '200':
+          description: Platform
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    put:
+      tags: [Settings]
+      summary: Update platform
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Setting'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+  
+  /settings/{group}:
+    get:
+      tags: [Settings]
+      summary: Get all settings for a specific group
+      description: Retrieves a collection of key-value settings for a given configuration group (e.g., 'integrations', 'platform').
+      parameters:
+        - name: group
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [integrations, localization, platform]
+      responses:
+        '200':
+          description: A list of settings for the specified group.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Setting'
+        '404':
+          description: The settings group was not found.
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetail' }}}
+    put:
+      tags: [Settings]
+      summary: Update a specific setting within a group
+      parameters:
+        - name: group
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [integrations, localization, platform]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key, value]
+              properties:
+                key:
+                  type: string
+                value:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: The updated setting.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+        '400':
+          description: The specified key does not exist in this group or the value is invalid.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: The settings group was not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+security:
+  - BearerAuth: []
