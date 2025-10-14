@@ -1,28 +1,23 @@
-// services/admin-portal/app/layout.tsx
+import type { Metadata } from 'next';
+import type { ReactNode } from 'react';
+import './globals.css';
 
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css"; // Importujemy globalne style
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
-const inter = Inter({ subsets: ["latin"] });
-
-// Definiujemy metadane dla całej aplikacji (np. tytuł w zakładce przeglądarki)
 export const metadata: Metadata = {
-  title: "AstraDesk Admin Portal",
-  description: "Administration and monitoring panel for AstraDesk AI agents.",
+  title: 'AstraDesk Admin',
+  description: 'Operational control center for AstraDesk platform.',
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: {
+  children: ReactNode;
+}) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
-        {/* Tutaj Next.js "wstrzyknie" zawartość Twojej strony (page.tsx) */}
-        {children}
-      </body>
+    <html lang="en" className="h-full bg-slate-50">
+      <body className="min-h-full antialiased text-slate-900">{children}</body>
     </html>
   );
 }
