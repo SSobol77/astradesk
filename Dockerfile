@@ -11,7 +11,6 @@ ENV UV_EXTRA_INDEX_URL="https://download.pytorch.org/whl/cu121" \
 WORKDIR /app
 
 # Instalujemy `uv` wewnątrz obrazu za pomocą `pip`
-# To jest najbardziej niezawodny sposób.
 RUN pip install --no-cache-dir uv
 
 # Instalujemy minimalne zależności systemowe (bez zmian)
@@ -24,7 +23,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY pyproject.toml uv.lock ./
 
 # Instalujemy  zależności projektu za pomocą `uv`
-# Używamy `uv sync` zamiast `uv pip install`, co jest szybsze i bardziej powtarzalne.
 RUN uv sync --all-extras --frozen
 
 # Kopiujemy resztę kodu aplikacji

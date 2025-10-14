@@ -35,7 +35,7 @@ services:
       api:
         condition: service_started
   db:
-    image: postgres:16
+    image: postgres:18
     environment:
       POSTGRES_DB: astradesk
       POSTGRES_USER: astradesk
@@ -66,7 +66,7 @@ services:
       timeout: 5s
       retries: 5
   redis:
-    image: redis:7
+    image: redis:8
     ports:
       - "6379:6379"
     volumes:
@@ -95,22 +95,6 @@ services:
       retries: 5
       start_period: 10s
       
-  # nats:
-  #     image: nats:2
-  #     command: 
-  #       - "--jetstream"
-  #       - "--store_dir=/datastore"
-  #     ports:
-  #       - "4222:4222"
-  #       - "8222:8222"
-  #     volumes:
-  #       - nats_data:/datastore
-  #     healthcheck:
-  #       test: ["CMD", "nc", "-z", "localhost", "4222"]
-  #       interval: 10s
-  #       timeout: 5s
-  #       retries: 5
-  #       start_period: 5s
   auditor:
       build: ./services/auditor
       env_file: .env
