@@ -1,0 +1,36 @@
+name: OpenAPI CI
+on:
+  push:
+  pull_request:
+
+jobs:
+  openapi:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/admin-portal
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Lint spec (optional)
+        run: npx --yes @redocly/cli@latest lint ../../openapi/astradesk-admin.v1.yaml
+
+      - name: Generate TS types
+        env:
+          ASTRA_OPENAPI_SPEC: ../../openapi/astradesk-admin.v1.yaml
+        run: npm run api:generate
+
+      - name: Fail if generated types produce a diff (enforce regeneration)
+        run: |
+          if ! git diff --exit-code -- src/api/types.gen.ts; then
+            echo "::error::Generated types differ. Commit updated src/api/types.gen.ts"
+            exit 1
+          fi

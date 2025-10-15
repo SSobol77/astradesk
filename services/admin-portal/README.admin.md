@@ -28,6 +28,7 @@ Set `NEXT_PUBLIC_SIMULATION_MODE=true` in your environment (see `.env.example`) 
 - `npm run lint` – lint the project with ESLint
 - `npm run typecheck` – perform TypeScript checks
 - `npm test` – run unit tests with Vitest
+- `npm run api:generate` – regenerate the typed Admin API client from the canonical OpenAPI spec
 
 ## Architecture & Conventions
 
@@ -36,6 +37,7 @@ Set `NEXT_PUBLIC_SIMULATION_MODE=true` in your environment (see `.env.example`) 
 - **Data layer**: In-memory datasets are kept in `lib/data.ts`. App routes under `app/api/**` expose filtered JSON responses that mirror likely production contracts (e.g., `/api/tickets` supports filtering and pagination).
 - **Components**: Shared presentational pieces live in `components/` and are composed inside pages. Client-side interactivity (filters, pagination, row actions) is encapsulated in client components that interact with Next.js routing.
 - **Tooling**: ESLint + Prettier enforce code quality; Vitest covers deterministic helpers (`lib/format.ts`). CI (`.github/workflows/ci.yml`) runs install, type-check, build, and tests on pushes/PRs scoped to this service.
+- **API client generation**: `npm run api:generate` can be executed from any working directory (for example `npm run api:generate --prefix services/admin-portal`) and will emit `src/api/types.gen.ts` from `openapi/astradesk-admin.v1.yaml`. Override the spec path with `ASTRA_OPENAPI_SPEC` and ensure CI invokes this script before `npm run build` so the generated client stays in sync with the spec.
 
 ## Docker
 
