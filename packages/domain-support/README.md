@@ -189,7 +189,3 @@ Apache-2.0 (see SPDX in files).
    - Pobierz token z `/secrets/{id}` w init, użyj w probe (headers: Authorization: Bearer {slack_token}).
    - Handle rate limits (1/sec): Add asyncio.sleep if needed, or use retry with backoff.
 
----
-
-### Podsumowanie
-Konfiguracja OAuth dla Asana i Slack jest szczegółowa, z krokami do integracji w kodzie. Kod w `domain-support/` został zaktualizowany o adapters z OAuth refresh. Zgodne z API-only i production-ready. Czas: ~2-3 dni. Daj znać, jeśli potrzeba więcej! 🚀
