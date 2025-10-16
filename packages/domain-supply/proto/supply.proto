@@ -1,0 +1,29 @@
+// SPDX-License-Identifier: Apache-2.0
+// File: packages/domain-supply/proto/supply.proto
+// Description: gRPC service for Supply Domain Pack (SAP S/4HANA integration).
+// Author: Siergej Sobolewski
+// Since: 2025-10-16
+
+syntax = "proto3";
+
+package astradesk.supply;
+
+option java_package = "com.astradesk.supply.grpc";
+option java_multiple_files = true;
+
+message FetchInventoryRequest {
+  string query = 1;  // SAP query (e.g., "SELECT material, stock FROM MM")
+}
+
+message InventoryItem {
+  string material = 1;
+  int32 stock = 2;
+}
+
+message FetchInventoryResponse {
+  repeated InventoryItem items = 1;
+}
+
+service SupplyService {
+  rpc FetchInventory(FetchInventoryRequest) returns (FetchInventoryResponse) {}
+}

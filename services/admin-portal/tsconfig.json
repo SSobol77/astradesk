@@ -21,10 +21,10 @@
       "vitest/globals"
     ],
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/_gen/*": ["src/_gen/*"],
+      "@/*": ["./*"]
     },
+//    "ignoreDeprecations": "5.0",
     "esModuleInterop": true,
     "plugins": [
       {
@@ -44,6 +44,8 @@
     "next-env.d.ts",
     "next.config.ts",
     "openapi/**/*.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
     "scripts/**/*.ts",
     "tests/**/*.ts",
     "vitest.config.ts",

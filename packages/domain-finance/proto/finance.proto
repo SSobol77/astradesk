@@ -1,0 +1,29 @@
+// SPDX-License-Identifier: Apache-2.0
+// File: packages/domain-finance/proto/finance.proto
+// Description: gRPC service for Finance Domain Pack (Oracle ERP integration).
+// Author: Siergej Sobolewski
+// Since: 2025-10-16
+
+syntax = "proto3";
+
+package astradesk.finance;
+
+option java_package = "com.astradesk.finance.grpc";
+option java_multiple_files = true;
+
+message FetchSalesRequest {
+  string query = 1;  // Oracle query (e.g., "SELECT revenue, date FROM sales")
+}
+
+message SalesItem {
+  double revenue = 1;
+  string date = 2;
+}
+
+message FetchSalesResponse {
+  repeated SalesItem items = 1;
+}
+
+service FinanceService {
+  rpc FetchSales(FetchSalesRequest) returns (FetchSalesResponse) {}
+}
