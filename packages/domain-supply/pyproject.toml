@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: Apache-2.0
+[project]
+name = "astradesk-domain-supply"
+version = "2.0.0"
+description = "Supply domain pack for AstraDesk — replenishment and SAP integration via Admin API."
+requires-python = ">=3.14"
+authors = [{name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com"}]
+license = {text = "Apache-2.0"}
+
+dependencies = [
+    "httpx>=0.27,<0.28",
+    "pydantic>=2.8,<2.9",
+    "tenacity>=9.0,<10.0",
+    "grpcio>=1.66,<2.0",
+    "grpcio-tools>=1.66,<2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3,<8.4",
+    "pytest-asyncio>=0.23,<0.24",
+    "respx>=0.20,<1.0",
+]
+
+[tool.uv]
+extra-index-url = ["https://download.pytorch.org/whl/cu121"]
+index-strategy = "first-match"
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+lint.ignore = ["E501", "F841"]
+lint.select = ["E", "F", "W", "I", "N", "D", "UP", "S", "B", "A", "C4", "T20", "RUF"]
+format = {quote-style = "single"}
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+addopts = "--cov=. --cov-report=xml --cov-report=term-missing"

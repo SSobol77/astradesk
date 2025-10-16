@@ -62,7 +62,6 @@ pipeline {
         }
 
         stage('Build & Push All Images') {
-            // ZMIANA: Scentralizowany i jeden etap dla wszystkich operacji Docker
             agent { docker { image 'docker:25' } }
             steps {
                 unstash 'source'
@@ -82,6 +81,16 @@ pipeline {
                     }
                 }
             }
+            
+        }
+
+        stage('Build Java Packs') {
+            sh './gradlew build'
+        }
+
+        stage('Test Python Packs') { 
+            sh 'uv run pytest packages/domain-finance/tests'
+            sh 'uv run pytest packages/domain-supply/tests' 
         }
 
         stage('Deploy to Kubernetes') {

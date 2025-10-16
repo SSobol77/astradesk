@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: Apache-2.0
+flow: support_autoresolve
+version: 2.1
+trigger: { type: cron, expr: "*/5 * * * *" }
+steps:
+  - id: fetch
+    use: tool.jira.list
+    with: { jql: "project=OPS AND status='Open'" }
+  - id: triage
+    use: agent.support.triage
+    input: ${fetch.items}
+  - id: notify
+    use: tool.slack.post
+    input: ${triage.items}
+    params: { channel: "#support-oncall", message: "Critical ticket: ${item.ticket_id}" }
+    when: ${item.priority} == "Critical"
+  - id: asana_create
+    use: tool.asana.create_task
+    input: ${triage.items}
+    params: { project_gid: "your_project_gid", name: "Critical Ticket ${item.ticket_id}", notes: "Priority: ${item.priority}" }
+    when: ${item.priority} == "Critical"
+policies:
+  retry: { max: 5, backoff: "exp_jitter" }
+  pii: "redact_auto"
+  guardrails: [prompt_injection]
+outputs:
+  - type: report
+    format: md
+    target: s3://reports/support/${now}.md

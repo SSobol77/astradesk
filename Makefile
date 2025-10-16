@@ -1,4 +1,5 @@
-# ==============================================================================
+# SPDX-License-Identifier: Apache-2.0
+#
 # Makefile for the AstraDesk Project
 #
 # Ten plik automatyzuje najczęstsze zadania deweloperskie, zapewniając
@@ -27,7 +28,7 @@ HAS_PSQL := $(shell command -v psql 2> /dev/null)
 # --- Definicja Celów ---
 # Używamy .PHONY, aby upewnić się, że `make` zawsze wykonuje komendę,
 # nawet jeśli istnieje plik o tej samej nazwie.
-.PHONY: help sync lint type test test-all build build-all clean migrate ingest up up-deps down run-local
+.PHONY: help sync lint type test test-all build build-all clean migrate ingest up up-deps down run-local api.clients.gen
 
 # Domyślny cel, który jest wykonywany, gdy uruchomimy `make` bez argumentów.
 .DEFAULT_GOAL := help
@@ -84,6 +85,9 @@ test-admin: ## Uruchamia testy dla portalu Admina (npm).
 test-all: test test-java test-admin ## Uruchamia wszystkie testy (Python, Java, Node.js).
 	@echo "All tests completed."
 
+test-support: ## Test domain-support pack
+	cd packages/domain-support && uv run pytest tests
+
 ## -----------------------------------------------------------------------------
 ## Budowanie (bez Dockera)
 ## -----------------------------------------------------------------------------
@@ -132,6 +136,18 @@ endif
 	$(PYTHON_INTERPRETER) -m uvicorn src.gateway.main:app --host 0.0.0.0 --port 8080 --reload --app-dir src
 
 ## -----------------------------------------------------------------------------
+## API Client Generation
+## -----------------------------------------------------------------------------
+api.clients.gen: ## Regenerates Admin API clients from openapi/astradesk-admin.v1.yaml.
+	@echo "→ Regenerating Python client (services/auditor)..."
+	@echo "  openapi-python-client generate --path openapi/astradesk-admin.v1.yaml --output-path services/auditor/src/_gen/admin_api_client --overwrite"
+	@echo "→ Regenerating Java client (services/ticket-adapter-java)..."
+	@echo "  openapi-generator-cli generate -i openapi/astradesk-admin.v1.yaml -g java --library okhttp --additional-properties=apiPackage=admin_api,modelPackage=admin_api.models,hideGenerationTimestamp=true --output services/ticket-adapter-java/src/main/java-gen"
+	@echo "→ Regenerating TypeScript client (services/admin-portal)..."
+	@echo "  npx openapi-typescript openapi/astradesk-admin.v1.yaml --output services/admin-portal/src/_gen/admin_api/index.ts"
+	@echo "Done. Review changes before committing."
+
+## -----------------------------------------------------------------------------
 ## Operacje na Danych
 ## -----------------------------------------------------------------------------
 migrate: ## Inicjalizuje bazę danych Postgres (wymaga `psql` i ustawionej zmiennej DATABASE_URL).
@@ -165,3 +181,13 @@ clean: ## Usuwa wygenerowane pliki i cache (np. .pytest_cache, build, .venv).
 	# Opcjonalnie: usuń .venv, ale to wymaga ponownej instalacji
 	# rm -rf .venv
 	@echo "Cleanup complete."
+
+
+## -----------------------------------------------------------------------------
+## Build all domain packs
+## -----------------------------------------------------------------------------
+build-packs: # Buduje wszystkie pakiety domenowe
+	@echo "Building all domain packages..."
+	for pack in packages/domain-*; do \
+		cd $$pack && uv sync --frozen && cd ../..; \
+	done

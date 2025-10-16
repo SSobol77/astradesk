@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+# File: packages/domain-finance/flows/forecast_mtd.yaml
+# Description: AstraDSL flow for month-to-date financial forecast.
+# Upload via API POST /flows for production integration.
+
+flow: finance_forecast_mtd
+version: 2.1
+trigger: { type: cron, expr: "0 0 * * *" }  # Daily at midnight
+steps:
+  - id: pull
+    use: tool.erp.oracle.fetch_sales
+    with: { query: "SELECT revenue, date FROM sales WHERE month=CURRENT_MONTH" }
+  - id: forecast
+    use: agent.finance.forecast
+    input: ${pull.items}
+  - id: report
+    use: tool.s3.put
+    input: ${forecast.items}
+    params: { bucket: "finance-reports" }
+policies:
+  retry: { max: 3, backoff: "exp_jitter" }
+  pii: "redact_auto"
+  guardrails: [cost_threshold=0.01]
+outputs:
+  - type: report
+  format: json
+  target: s3://finance-reports/${now}.json

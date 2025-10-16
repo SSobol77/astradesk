@@ -17,6 +17,7 @@ services:
         condition: service_healthy
       ticket-adapter:
         condition: service_started
+
   ticket-adapter:
     build: services/ticket-adapter-java
     env_file: .env
@@ -25,6 +26,7 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+
   admin:
     build: services/admin-portal
     environment:
@@ -34,8 +36,9 @@ services:
     depends_on:
       api:
         condition: service_started
+
   db:
-    image: postgres:16
+    image: postgres:18
     environment:
       POSTGRES_DB: astradesk
       POSTGRES_USER: astradesk
@@ -49,6 +52,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
   mysql:
     image: mysql:8
     environment:
@@ -65,8 +69,9 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
   redis:
-    image: redis:7
+    image: redis:8
     ports:
       - "6379:6379"
     volumes:
@@ -76,9 +81,10 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+
   nats:
     image: nats:2-alpine
-    command:
+    command: 
       - "--jetstream"
       - "--store_dir=/datastore"
       - "-m"
@@ -102,6 +108,70 @@ services:
         nats:
           condition: service_healthy
       restart: unless-stopped
+
+  domain-support:
+    build: packages/domain-support
+    depends_on:
+      - api
+      - nats
+      - redis
+    environment:
+      API_URL: http://api:8080/api/admin/v1
+      API_TOKEN: "${API_TOKEN}"
+
+  domain-finance:
+    build: packages/domain-finance
+    depends_on:
+      - api
+    environment:
+      API_URL: http://api:8080/api/admin/v1
+      API_TOKEN: "${API_TOKEN}"
+
+  domain-finance-java:
+    build: packages/domain-finance
+    command: java -jar build/libs/domain-finance.jar
+    depends_on:
+      - api
+    environment:
+      API_URL: http://api:8080/api/admin/v1
+      API_TOKEN: "${API_TOKEN}"
+
+  domain-finance-grpc:
+    build: packages/domain-finance
+    ports:
+      - "50051:50051"
+    depends_on:
+      - api
+    environment:
+      API_URL: http://api:8080/api/admin/v1
+      API_TOKEN: "${API_TOKEN}"
+
+  domain-supply:
+    build: packages/domain-supply
+    depends_on:
+      - api
+    environment:
+      API_URL: http://api:8080/api/admin/v1
+      API_TOKEN: "${API_TOKEN}"
+
+  domain-supply-java:
+    build: packages/domain-supply
+    command: java -jar build/libs/domain-supply.jar
+    depends_on:
+      - api
+    environment:
+      API_URL: http://api:8080/api/admin/v1
+      API_TOKEN: "${API_TOKEN}"
+
+  domain-supply-grpc:
+    build: packages/domain-supply
+    ports:
+      - "50051:50051"
+    depends_on:
+      - api
+    environment:
+      API_URL: http://api:8080/api/admin/v1
+      API_TOKEN: "${API_TOKEN}"
 
 volumes:
   postgres_data:
