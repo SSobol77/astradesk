@@ -85,10 +85,11 @@ Główne cechy:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Set
+from typing import Any, Dict, List, Set  # noqa: UP035
 
-from runtime.models import ToolCall
+from src.runtime.models import ToolCall
 
 # Typ dla funkcji, która generuje argumenty dla narzędzia na podstawie zapytania.
 ArgFactory = Callable[[str], Dict[str, Any]]
@@ -102,6 +103,7 @@ class KeywordRule:
         keywords: Zbiór słów kluczowych, które aktywują regułę.
         tool_name: Nazwa narzędzia do wywołania (zgodna z ToolRegistry).
         arg_factory: Funkcja, która tworzy słownik argumentów dla narzędzia.
+
     """
 
     keywords: Set[str]

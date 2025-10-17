@@ -2621,5 +2621,65 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
 
+
+  /domain-packs:
+    get:
+      tags: [Domain Packs]
+      summary: List installed domain packs
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: List of packs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:   { type: string }
+                    version:{ type: string }
+                    status: { type: string, enum: [installed, error, disabled] }
+
+  /domain-packs/{name}:install:
+    post:
+      tags: [Domain Packs]
+      summary: Install a domain pack by name
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema: { type: string }
+      security: [{ BearerAuth: [] }]
+      responses:
+        '202':
+          description: Install job accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id: { type: string, format: uuid }
+
+  /domain-packs/{name}:uninstall:
+    post:
+      tags: [Domain Packs]
+      summary: Uninstall a domain pack by name
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema: { type: string }
+      security: [{ BearerAuth: [] }]
+      responses:
+        '202':
+          description: Uninstall job accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id: { type: string, format: uuid }
+
 security:
   - BearerAuth: []

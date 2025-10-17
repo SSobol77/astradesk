@@ -18,32 +18,38 @@ dependencies = [
   "sentence-transformers>=3.0,<4.0",
   "pgvector>=0.2,<0.3",
   "python-dotenv>=1.0,<2.0",
-  "opentelemetry-sdk>=1.26,<1.27",
-  "opentelemetry-instrumentation-fastapi>=0.47b0,<0.48",
-  "opentelemetry-exporter-otlp>=1.26,<1.27",
+  "opentelemetry-instrumentation-fastapi>=0.49b0,<1.0",
+  "opentelemetry-semantic-conventions>=0.49b0,<1.0",
   "tenacity>=9.0,<10.0",
+  "opentelemetry-api>=1.30,<2.0",
+  "opentelemetry-sdk>=1.30,<2.0",
+  "opentelemetry-exporter-otlp>=1.30,<2.0",
+  "opentelemetry-exporter-otlp-proto-grpc>=1.30,<2.0",
+  "opentelemetry-proto>=1.30,<2.0",
+  "protobuf>=6.31.1",
   "python-json-logger>=2.0,<3.0",
   "python-jose[cryptography]>=3.3.0,<3.4.0",
   "jwcrypto>=1.5.6,<1.6.0",
   "aioboto3>=10.0,<11.0",
   "kubernetes-asyncio>=20.0,<21.0",
+  "httpx>=0.27,<0.28",
 
   # ML stack (CPU by default)
   "transformers==4.45.2",
-  "torch==2.4.1",
+  "torch==2.9.0",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
-  "ruff>=0.5.7,<0.6.0",
-  "mypy>=1.11,<1.12",
-  "pytest>=8.3,<8.4",
-  "pytest-asyncio>=0.23,<0.24",
-  "pytest-cov>=5.0,<6.0",
-  "httpx>=0.27,<0.28",
-  "types-redis>=4.6.0,<5.0",
-  "pip-audit>=2.7,<3.0"
+    "pytest>=8.3",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=5.0",
+    "ruff>=0.5.7,<0.6.0",
+    "mypy>=1.11,<1.12",
+    "types-redis>=4.6.0,<5.0",
+    "pip-audit>=2.7,<3.0",
 ]
+
 docs = [
   "mkdocs>=1.6.0",
   "mkdocs-material>=9.5.0",
@@ -57,16 +63,23 @@ docs = [
 #  "torch==2.4.1+cu121",
 #]
 
-
 # Remove the global CU121 index to avoid accidental CUDA pulls for CPU installs
 [tool.uv]
+prerelease = "allow"
 # (empty or remove this section entirely)
 # index-strategy left default (safer than "unsafe-best-match")
+
+[tool.uv.workspace]
+members = [
+  "packages/domain-support",
+  "packages/domain-finance",
+  "packages/domain-supply",
+]
 
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-lint.ignore = ["E501", "F841"]
+lint.ignore = ["TC003","E501", "F841"]
 lint.select = ["E", "F", "W", "I", "N", "D", "UP", "S", "B", "A", "C4", "T20", "RUF"]
 format = { quote-style = "single" }
 

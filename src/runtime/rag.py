@@ -110,6 +110,8 @@ Założenia projektowe:
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import logging
 import math
 import unicodedata
@@ -283,7 +285,11 @@ class RAG:
             if chunk is None:
                 continue
 
-            processed_chunk = _normalize_text(chunk) if self.normalize else chunk.strip()
+            if self.normalize:
+                processed_chunk = _normalize_text(chunk)
+            else:
+                # Gdy normalizacja wyłączona, pozostaw spacje usuń tylko znaki końca linii.
+                processed_chunk = chunk.rstrip("\r\n")
 
             if len(processed_chunk) < self.min_chars:
                 continue
@@ -293,6 +299,37 @@ class RAG:
                 seen.add(processed_chunk)
             prepped.append(processed_chunk)
         return prepped
+
+    async def _use_connection(self, fn):
+        """Uruchamia przekazaną asynchroniczną funkcję z połączeniem DB.
+        Obsługuje trzy przypadki:
+          1) pool.acquire() zwraca ASYNC CONTEXT MANAGER → użyj `async with`.
+          2) pool.acquire() zwraca awaitable → `con = await acquire()`, potem (opcjonalne) release.
+          3) pool.acquire() zwraca gotowe połączenie → użyj bezpośrednio.
+        """
+        obj = self.pg_pool.acquire()
+        # 1) Preferuj ścieżkę context-managera (tak jest skonfigurowany Twój mock w testach)
+        if hasattr(obj, "__aenter__") and hasattr(obj, "__aexit__"):
+            async with obj as con:
+                return await fn(con)
+        # 2) Awaitowalny acquire → weź połączenie i spróbuj zwolnić
+        elif asyncio.iscoroutine(obj) or inspect.isawaitable(obj):
+            con = await obj
+            try:
+                return await fn(con)
+            finally:
+                release = getattr(self.pg_pool, "release", None)
+                try:
+                    if asyncio.iscoroutinefunction(release):
+                        await release(con)  # type: ignore[misc]
+                    elif callable(release):
+                        release(con)       # type: ignore[misc]
+                except Exception:
+                    pass
+        # 3) Bezpośrednio obiekt połączenia
+        else:
+            return await fn(obj)
+
 
     async def upsert(self, source: str, chunks: list[str]) -> int:
         """Przetwarza i wstawia fragmenty tekstu (chunks) do bazy danych.
@@ -327,17 +364,18 @@ class RAG:
         vectors = self._embed(prepared_chunks)
 
         try:
-            async with self.pg_pool.acquire() as con:
+            async def _run(con):
                 async with con.transaction():
-                    # Używamy `strict=True` dla bezpieczeństwa
                     for chunk, vec in zip(prepared_chunks, vectors, strict=True):
                         await con.execute(
-                            "INSERT INTO documents(source, chunk, embedding) VALUES ($1, 2, $3)",
+                            "INSERT INTO documents(source, chunk, embedding) VALUES ($1, $2, $3)",
                             source,
                             chunk,
                             vec.tolist(),
                         )
-            return len(prepared_chunks)
+                return len(prepared_chunks)
+
+            return await self._use_connection(_run)
         except (asyncpg.PostgresError, OSError) as e:
             logger.error(
                 f"Nie udało się wstawić dokumentów dla źródła '{source}'. Błąd: {e}",
@@ -479,11 +517,12 @@ class RAG:
             raise ValueError("source must not be empty")
 
         try:
-            async with self.pg_pool.acquire() as con:
-                status = await con.execute(
-                    "DELETE FROM documents WHERE source = $1", source
-                )
+            async def _run(con):
+                status = await con.execute("DELETE FROM documents WHERE source = $1", source)
                 return int(status.split()[1])
+
+            return await self._use_connection(_run)
+
         except (IndexError, ValueError):
             return 0  # Fallback, jeśli format statusu jest nieoczekiwany
         except (asyncpg.PostgresError, OSError) as e:
@@ -496,9 +535,12 @@ class RAG:
     async def count_documents(self) -> int:
         """Zwraca całkowitą liczbę dokumentów w bazie."""
         try:
-            async with self.pg_pool.acquire() as con:
+            async def _run(con):
                 row = await con.fetchrow("SELECT COUNT(*) AS c FROM documents")
                 return int(row["c"]) if row else 0
+
+            return await self._use_connection(_run)
+
         except (asyncpg.PostgresError, OSError) as e:
             logger.error(f"Nie udało się policzyć dokumentów. Błąd: {e}", exc_info=True)
             return 0
@@ -540,10 +582,12 @@ class RAG:
                     LIMIT $2
                 """
 
-            async with self.pg_pool.acquire() as con:
+            async def _run(con):
                 rows = await con.fetch(sql, query_embedding, k)
+                return list(rows)
 
-            return list(rows)
+            return await self._use_connection(_run)
+
         except (asyncpg.PostgresError, OSError) as e:
             logger.error(
                 f"Nie udało się wyszukać dokumentów dla zapytania. Błąd: {e}",
