@@ -1,19 +1,24 @@
 # SPDX-License-Identifier: Apache-2.0
 [project]
 name = "astradesk-domain-supply"
-version = "2.0.0"
+version = "0.1.0"
 description = "Supply domain pack for AstraDesk — replenishment and SAP integration via Admin API."
-requires-python = ">=3.14"
+requires-python = ">=3.11,<3.12"
 authors = [{name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com"}]
 license = {text = "Apache-2.0"}
 
 dependencies = [
+    "astradesk>=0.2.1",
     "httpx>=0.27,<0.28",
     "pydantic>=2.8,<2.9",
     "tenacity>=9.0,<10.0",
     "grpcio>=1.66,<2.0",
     "grpcio-tools>=1.66,<2.0",
 ]
+
+[project.entry-points."astradesk.pack"]
+domain-supply = "domain-supply:Pack"  # klasa/fabryka rejestrująca agentów, tools, flows
+
 
 [project.optional-dependencies]
 dev = [
@@ -25,6 +30,9 @@ dev = [
 [tool.uv]
 extra-index-url = ["https://download.pytorch.org/whl/cu121"]
 index-strategy = "first-match"
+
+[tool.uv.sources]
+astradesk = { workspace = true }
 
 [tool.ruff]
 line-length = 100

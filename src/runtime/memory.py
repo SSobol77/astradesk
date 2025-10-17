@@ -254,9 +254,20 @@ class Memory:
                 f"i akcji '{action}'. Operacja zostanie przerwana. Błąd: {e}",
                 exc_info=True,
             )
-            raise  # Rzuć wyjątek dalej, aby zatrzymać operację.
+            raise  # Rzućamy wyjątek dalej, aby zatrzymać operację.
 
         # 2. Publikacja zdarzenia do NATS (operacja "best-effort")
         event_payload = {"actor": actor, "action": action, "payload": payload}
-        # Moduł `events` ma już wbudowaną logikę "best-effort" i logowanie.
-        await events.publish(AUDIT_SUBJECT, event_payload)
+        # Emisja do NATS nie może zrywać żądania, traktujemy ją jako telemetrię.
+        # Logujemy i kontynuujemy, nawet jeśli NATS jest niedostępny.
+        try:
+            await events.publish(AUDIT_SUBJECT, event_payload)
+        except Exception as e:  # noqa: BLE001 — w tym miejscu chcemy złapać *każdy* błąd transportu
+            logger.warning(
+                "Best-effort NATS publish failed for subject '%s' (actor=%s, action=%s): %s",
+                AUDIT_SUBJECT,
+                actor,
+                action,
+                e,
+                exc_info=True,
+            )

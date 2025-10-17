@@ -14,14 +14,14 @@ Since: 2025-10-07
 What this module exposes
 ------------------------
 - Auth (OIDC/JWT):
-  * `auth_cfg` (singleton), `OIDCConfig`
+  * `oidc_cfg` (singleton), `OIDCConfig`
 - Events (NATS publisher):
   * `events` (singleton), `Events`
 - Policy (RBAC + ABAC):
   * `policy` (facade), `authorize`, `require_role`, `require_any_role`,
     `require_all_roles`, `get_roles`, `AuthorizationError`, `PolicyError`
 - Models (Pydantic v2):
-  * `AstraDeskBaseModel`, `AgentName`, `AgentRequest`, `AgentResponse`, `ToolCall`
+  * `AgentName`, `AgentRequest`, `AgentResponse`, `ToolCall`
 - Planner (deterministic keyword planner):
   * `KeywordPlanner`
 - Tool registry (safe async/sync execution with optional RBAC):
@@ -64,9 +64,8 @@ class MyService:
 from __future__ import annotations
 
 import importlib
-import importlib.metadata as _metadata
-import sys
-from typing import TYPE_CHECKING, Any, Iterable
+from collections.abc import Iterable
+from typing import TYPE_CHECKING, Any
 
 # -----------------------------------------------------------------------------
 # Metadane Pakietu
@@ -82,7 +81,8 @@ __license__ = "Apache-2.0"
 __all__ = (
     # --- Z modułu `auth` ---
     "oidc_cfg",
-    
+    "OIDCConfig",
+
     # --- Z modułu `events` ---
     "events",
 
@@ -90,6 +90,7 @@ __all__ = (
     "Memory",
 
     # --- Z modułu `models` ---
+    "AgentName",
     "AgentRequest",
     "AgentResponse",
     "ToolCall",
@@ -119,14 +120,20 @@ __all__ = (
 # Importy tylko dla Analizatorów Typów
 # -----------------------------------------------------------------------------
 if TYPE_CHECKING:  # pragma: no cover
-    from .auth import cfg as oidc_cfg
+    from .auth import cfg as oidc_cfg, OIDCConfig
     from .events import events
     from .memory import Memory
-    from .models import AgentRequest, AgentResponse, ToolCall
+    from .models import AgentName, AgentRequest, AgentResponse, ToolCall
     from .planner import KeywordPlanner
     from .policy import (
-        AuthorizationError, PolicyError, authorize, get_roles, policy,
-        require_all_roles, require_any_role, require_role,
+        AuthorizationError,
+        PolicyError,
+        authorize,
+        get_roles,
+        policy,
+        require_all_roles,
+        require_any_role,
+        require_role,
     )
     from .rag import RAG
     from .registry import ToolInfo, ToolRegistry
@@ -136,8 +143,10 @@ if TYPE_CHECKING:  # pragma: no cover
 # -----------------------------------------------------------------------------
 _LAZY_MAPPING = {
     "oidc_cfg": ".auth",
+    "OIDCConfig": ".auth",
     "events": ".events",
     "Memory": ".memory",
+    "AgentName": ".models",
     "AgentRequest": ".models",
     "AgentResponse": ".models",
     "ToolCall": ".models",
@@ -148,22 +157,29 @@ _LAZY_MAPPING = {
     **{
         symbol: ".policy"
         for symbol in (
-            "AuthorizationError", "PolicyError", "authorize", "get_roles",
-            "policy", "require_all_roles", "require_any_role", "require_role",
+            "AuthorizationError",
+            "PolicyError",
+            "authorize",
+            "get_roles",
+            "policy",
+            "require_all_roles",
+            "require_any_role",
+            "require_role",
         )
     },
 }
+
 
 def __getattr__(name: str) -> Any:
     """Ładuje eksportowane symbole w sposób leniwy przy pierwszym dostępie."""
     if name in _LAZY_MAPPING:
         module_path = _LAZY_MAPPING[name]
         module = importlib.import_module(module_path, __name__)
-        
+
         # Dla `oidc_cfg` musimy pobrać atrybut `cfg`
         attr_name = "cfg" if name == "oidc_cfg" else name
         obj = getattr(module, attr_name)
-        
+
         globals()[name] = obj
         return obj
 

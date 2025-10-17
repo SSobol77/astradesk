@@ -191,3 +191,18 @@ build-packs: # Buduje wszystkie pakiety domenowe
 	for pack in packages/domain-*; do \
 		cd $$pack && uv sync --frozen && cd ../..; \
 	done
+
+.PHONY: build-packs test-packs install-pack
+
+build-packs:
+\tfor pack in packages/domain-*; do \\
+\t\tcd $$pack && uv sync --frozen && cd - >/dev/null; \\
+\tdone
+
+test-packs:
+\tfor pack in packages/domain-*; do \\
+\t\tcd $$pack && uv run pytest -q && cd - >/dev/null; \\
+\tdone
+
+install-pack:
+\tuv pip install "packages/$(PACK)"

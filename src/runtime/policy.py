@@ -152,8 +152,9 @@ from __future__ import annotations
 import json
 import os
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Optional
 
 # ---------------------------
 # Wyjątki specyficzne polityk

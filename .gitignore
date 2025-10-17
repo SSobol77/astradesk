@@ -151,3 +151,6 @@ grafana/data/
 **/bin/
 **/out/
 target/
+
+# Test artifacts
+coverage.xml
