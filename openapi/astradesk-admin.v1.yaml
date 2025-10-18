@@ -1,12 +1,11 @@
 # openapi/astradesk-admin.v1.yaml
-# OpenAPI v1
-
+# OpenAPI v3
 
 openapi: 3.1.0
 info:
   title: AstraDesk Admin API
-  version: "1.0.0"
-  description: API for AstraDesk Admin v1.0 - operational and governance panel for agents, data, policies, and audits.
+  version: "1.2.0" 
+  description: API for AstraDesk Admin v1.2 - operational and governance panel for agents, data, policies, and audits.
   contact:
     name: AstraDesk Operations
     email: ops@astradesk.com
@@ -20,8 +19,10 @@ tags:
     description: System health and usage metrics
   - name: Agents
     description: Manage agents (CRUD, test, promote)
+  - name: Domain Packs
+    description: Manage pluggable domain packs
   - name: Intent Graph
-    description: Read-only intent graph operations
+    description: Read-only intent graph operation
   - name: Flows
     description: Alpha flows management
   - name: Datasets
@@ -391,21 +392,33 @@ components:
           type: object
           description: Configuration object for the connector, containing credentials and settings.
           additionalProperties: true
+
     JobCreateRequest:
       type: object
       required: [name, schedule_expr, task_definition]
       properties:
-        name: { type: string }
-        schedule_expr: { type: string, description: "CRON expression for the schedule." }
-        task_definition: { type: object, description: "The definition of the task to be executed." }
+        name:
+          type: string
+        schedule_expr:
+          type: string
+          description: "CRON expression for the schedule."
+        task_definition:
+          type: object
+          description: "The definition of the task to be executed."
 
     DLQItem:
       type: object
       properties:
-        id: { type: string, format: uuid }
-        original_message: { type: object }
-        error_message: { type: string }
-        failed_at: { type: string, format: date-time }
+        id:
+          type: string
+          format: uuid
+        original_message:
+          type: object
+        error_message:
+          type: string
+        failed_at:
+          type: string
+          format: date-time
 
     UserCreateRequest:
       type: object
@@ -424,8 +437,23 @@ components:
       type: object
       required: [name, rego_text]
       properties:
-        name: { type: string }
-        rego_text: { type: string, description: "The policy content in Rego language." }
+        name:
+          type: string
+        rego_text:
+          type: string
+          description: "The policy content in Rego language."
+
+    DomainPack:
+      type: object
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        status:
+          type: string
+          enum: [installed, error, disabled]
+
 paths:
   /health:
     get:
@@ -1822,7 +1850,9 @@ paths:
         - name: id
           in: path
           required: true
-          schema: { type: string, format: uuid }
+          schema:
+            type: string
+            format: uuid
       requestBody:
         required: true
         content:
@@ -1849,7 +1879,7 @@ paths:
       responses:
         '204':
           description: The job was successfully deleted.
-        '401':
+        '401': # ZMIANA: Dodano brakujące błędy
           description: Unauthorized
           content:
             application/problem+json:
@@ -1872,6 +1902,7 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
       security:
         - BearerAuth: []
       responses:
@@ -1892,7 +1923,10 @@ paths:
                 $ref: '#/components/schemas/ProblemDetail'
         '404':
           description: Job not found.
-          content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetail' }}}
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
 
   /jobs/{id}:pause:
     post:
@@ -1904,6 +1938,7 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
       security:
         - BearerAuth: []
       responses:
@@ -1921,7 +1956,10 @@ paths:
                 $ref: '#/components/schemas/ProblemDetail'
         '404':
           description: Job not found.
-          content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetail' }}}
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
 
   /jobs/{id}:resume:
     post:
@@ -1931,11 +1969,19 @@ paths:
         - name: id
           in: path
           required: true
-          schema: { type: string, format: uuid }
+          schema:
+            type: string
+            format: uuid
       responses:
         '200':
           description: The resumed job.
           content: { application/json: { schema: { $ref: '#/components/schemas/Job' }}}
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
         '404':
           description: Job not found.
           content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetail' }}}
@@ -2094,7 +2140,9 @@ paths:
         - name: id
           in: path
           required: true
-          schema: { type: string, format: uuid }
+          schema:
+            type: string
+            format: uuid
       requestBody:
         required: true
         content:
@@ -2105,6 +2153,12 @@ paths:
         '200':
           description: The user with the updated role.
           content: { application/json: { schema: { $ref: '#/components/schemas/User' }}}
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
         '404':
           description: User not found.
           content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetail' }}}
@@ -2175,7 +2229,8 @@ paths:
         - name: id
           in: path
           required: true
-          schema: { type: string }
+          schema:
+            type: string
       responses:
         '200':
           description: The requested policy.
@@ -2205,6 +2260,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Policy'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
         '404':
           description: Policy not found.
           content:
@@ -2222,6 +2283,12 @@ paths:
       responses:
         '204':
           description: The policy was successfully deleted.
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
         '404':
           description: Policy not found.
           content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetail' }}}
@@ -2235,7 +2302,8 @@ paths:
         - name: id
           in: path
           required: true
-          schema: { type: string }
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -2266,7 +2334,10 @@ paths:
                 $ref: '#/components/schemas/ProblemDetail'
         '404':
           description: Policy not found.
-          content: { application/problem+json: { schema: { $ref: '#/components/schemas/ProblemDetail' }}}
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
 
   /audit:
     get:
@@ -2416,144 +2487,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
   
-  /settings/integrations:
-    get:
-      tags: [Settings]
-      summary: Get integrations settings
-      security:
-        - BearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/PaginationLimit'
-        - $ref: '#/components/parameters/PaginationOffset'
-      responses:
-        '200':
-          description: Integrations
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Setting'
-        '401':
-          description: Unauthorized
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-    put:
-      tags: [Settings]
-      summary: Update integrations
-      security:
-        - BearerAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Setting'
-      responses:
-        '200':
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Setting'
-        '401':
-          description: Unauthorized
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-  
-  /settings/localization:
-    get:
-      tags: [Settings]
-      summary: Get localization settings
-      parameters:
-        - $ref: '#/components/parameters/PaginationLimit'
-        - $ref: '#/components/parameters/PaginationOffset'
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Localization
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Setting'
-        '401':
-          description: Unauthorized
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-    put:
-      tags: [Settings]
-      summary: Update localization
-      security:
-        - BearerAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Setting'
-      responses:
-        '200':
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Setting'
-        '401':
-          description: Unauthorized
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-  
-  /settings/platform:
-    get:
-      tags: [Settings]
-      summary: Get platform settings
-      security:
-        - BearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/PaginationLimit'
-        - $ref: '#/components/parameters/PaginationOffset'
-      responses:
-        '200':
-          description: Platform
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Setting'
-        '401':
-          description: Unauthorized
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-    put:
-      tags: [Settings]
-      summary: Update platform
-      security:
-        - BearerAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Setting'
-      responses:
-        '200':
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Setting'
-        '401':
-          description: Unauthorized
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-  
   /settings/{group}:
     get:
       tags: [Settings]
@@ -2581,6 +2514,7 @@ paths:
     put:
       tags: [Settings]
       summary: Update a specific setting within a group
+      description: Updates the value of a single setting identified by its key within a group.
       parameters:
         - name: group
           in: path
@@ -2614,6 +2548,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
         '404':
           description: The settings group was not found.
           content:
@@ -2621,12 +2561,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
 
-
   /domain-packs:
     get:
       tags: [Domain Packs]
       summary: List installed domain packs
-      security: [{ BearerAuth: [] }]
+      security:
+        - BearerAuth: []
       responses:
         '200':
           description: List of packs
@@ -2635,11 +2575,7 @@ paths:
               schema:
                 type: array
                 items:
-                  type: object
-                  properties:
-                    name:   { type: string }
-                    version:{ type: string }
-                    status: { type: string, enum: [installed, error, disabled] }
+                  $ref: '#/components/schemas/DomainPack'
 
   /domain-packs/{name}:install:
     post:
@@ -2649,8 +2585,10 @@ paths:
         - name: name
           in: path
           required: true
-          schema: { type: string }
-      security: [{ BearerAuth: [] }]
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
       responses:
         '202':
           description: Install job accepted
@@ -2659,7 +2597,9 @@ paths:
               schema:
                 type: object
                 properties:
-                  job_id: { type: string, format: uuid }
+                  job_id:
+                    type: string
+                    format: uuid
 
   /domain-packs/{name}:uninstall:
     post:
@@ -2669,8 +2609,10 @@ paths:
         - name: name
           in: path
           required: true
-          schema: { type: string }
-      security: [{ BearerAuth: [] }]
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
       responses:
         '202':
           description: Uninstall job accepted
@@ -2679,7 +2621,9 @@ paths:
               schema:
                 type: object
                 properties:
-                  job_id: { type: string, format: uuid }
+                  job_id:
+                    type: string
+                    format: uuid
 
 security:
   - BearerAuth: []
