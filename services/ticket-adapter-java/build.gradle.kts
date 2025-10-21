@@ -1,30 +1,91 @@
+// services/ticket-adapter-java/build.gradle.kts
+// Module: Ticket Adapter (Spring Boot WebFlux + R2DBC MySQL), Gradle 8+, JDK 21.
+
+import org.gradle.jvm.toolchain.JavaLanguageVersion
+import org.springframework.boot.gradle.tasks.bundling.BootJar
+import org.springframework.boot.gradle.tasks.run.BootRun
+
 plugins {
-  id("java")
-  id("org.springframework.boot") version "3.3.2"
-  id("io.spring.dependency-management") version "1.1.5"
-}
-java { toolchain { languageVersion.set(JavaLanguageVersion.of(21)) } }
-repositories { mavenCentral() }
-dependencies {
-  implementation("org.springframework.boot:spring-boot-starter-webflux")
-  implementation("org.springframework.boot:spring-boot-starter-validation")
-  implementation("org.springframework.boot:spring-boot-starter-actuator")
-  implementation("org.springframework.boot:spring-boot-starter-json")
-  implementation("org.springframework.data:spring-data-r2dbc")
-  implementation("org.springframework.boot:spring-boot-starter-security")
-  implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
-  runtimeOnly("io.asyncer:r2dbc-mysql:1.1.3")
-  runtimeOnly("mysql:mysql-connector-java:8.0.33")
-  testImplementation("org.springframework.boot:spring-boot-starter-test")
-  testImplementation("org.springframework.security:spring-security-test")
+    id("java")
+    id("org.springframework.boot")            // wersja przypięta w root build.gradle.kts
+    id("io.spring.dependency-management")     // zarządzanie wersjami zależności przez BOM SB
 }
 
-tasks.withType<org.springframework.boot.gradle.tasks.run.BootRun> {
-    systemProperties = mapOf(
-        "spring.profiles.active" to "dev",
-        "spring.r2dbc.url" to (System.getenv("MYSQL_URL_R2DBC") ?: "r2dbc:mysql://localhost:3306/tickets"),
-        "spring.r2dbc.username" to (System.getenv("MYSQL_USER") ?: "tickets"),
-        "spring.r2dbc.password" to (System.getenv("MYSQL_PASSWORD") ?: "tickets"),
-        "spring.security.oauth2.resourceserver.jwt.issuer-uri" to (System.getenv("OIDC_ISSUER") ?: "https://dummy-issuer.com")
-    )
+group = "com.astradesk"
+version = "0.2.1"
+description = "AstraDesk Ticket Adapter Service"
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }
+    // Lepsze wsparcie dla refleksji (np. Jackson, Spring Validation)
+    withJavadocJar()
+    withSourcesJar()
+}
+
+
+configurations {
+    compileOnly {
+        extendsFrom(configurations.annotationProcessor.get())
+    }
+}
+
+dependencies {
+    // --- Web / Actuator / Security ---
+    implementation("org.springframework.boot:spring-boot-starter-webflux")
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation("org.springframework.boot:spring-boot-starter-validation")
+    implementation("org.springframework.boot:spring-boot-starter-security")
+    implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
+
+    // --- R2DBC (Reactive MySQL) ---
+    implementation("org.springframework.boot:spring-boot-starter-data-r2dbc")
+    // Driver R2DBC dla MySQL (Asyncer)
+    runtimeOnly("io.asyncer:r2dbc-mysql")
+    // (opcjonalnie) Pula połączeń R2DBC:
+    // implementation("io.r2dbc:r2dbc-pool")
+
+    // --- Compile-only & annotation processing ---
+    compileOnly("org.projectlombok:lombok")
+    annotationProcessor("org.projectlombok:lombok")
+    annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
+
+    // --- Testy ---
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.security:spring-security-test")
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    options.encoding = "UTF-8"
+    // Przekazuje nazwy parametrów do bytecode; ułatwia bindowanie/serializację
+    options.compilerArgs.add("-parameters")
+}
+
+tasks.withType<Test>().configureEach {
+    useJUnitPlatform()
+}
+
+tasks.withType<BootJar>().configureEach {
+    // Jawnie włączamy layery, żeby obraz/artefakt był warstwowy
+    layered {
+    // Opcjonalnie możemy dodać własne reguły warstw:
+    // layers {
+    //     includeLayer("dependencies") { intoLayer("dependencies") }
+    //     includeLayer("spring-boot-loader") { intoLayer("spring-boot-loader") }
+    //     includeLayer("snapshot-dependencies") { intoLayer("snapshot-dependencies") }
+    //     includeLayer("application") { intoLayer("application") }
+    }
+}
+
+tasks.withType<BootRun>().configureEach {
+    // Ustawienia profili/DSN przez system properties (czytelne w Kotlin DSL)
+    fun env(name: String, fallback: String) = System.getenv(name) ?: fallback
+
+    systemProperty("spring.profiles.active", "dev")
+    systemProperty("spring.r2dbc.url",      env("MYSQL_URL_R2DBC", "r2dbc:mysql://localhost:3306/tickets"))
+    systemProperty("spring.r2dbc.username", env("MYSQL_USER", "tickets"))
+    systemProperty("spring.r2dbc.password", env("MYSQL_PASSWORD", "tickets"))
+    systemProperty("spring.security.oauth2.resourceserver.jwt.issuer-uri",
+                   env("OIDC_ISSUER", "https://dummy-issuer.com"))
 }

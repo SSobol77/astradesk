@@ -1,208 +1,185 @@
-# SPDX-License-Identifier: Apache-2.0
+# ==============================================================================
+# Makefile for the AstraDesk Monorepo Project
 #
-# Makefile for the AstraDesk Project
+# Ten plik służy jako centralne "centrum dowodzenia" dla całego, wielojęzycznego
+# projektu AstraDesk. Jego celem jest automatyzacja i standaryzacja
+# najczęstszych zadań deweloperskich, od instalacji zależności, przez
+# testowanie, aż po zarządzanie środowiskiem Docker.
 #
-# Ten plik automatyzuje najczęstsze zadania deweloperskie, zapewniając
-# spójne i powtarzalne środowisko pracy dla wszystkich członków zespołu.
-# 
-#  Polecenia:
-#  ----------
-# make help: Wyświetli Ci pięknie sformatowaną listę wszystkich dostępnych komend z ich opisami.
-# make test-all: Uruchomi wszystkie testy w projekcie za jednym razem.
-# make run-local: Automatycznie uruchomi najpierw zależności (make up-deps), a potem serwer Uvicorn.
-# make clean: Przydatne, gdy chcesz mieć pewność, że zaczynasz od "czystego stołu".
+# Używanie tego pliku zapewnia, że wszyscy członkowie zespołu pracują
+# w spójny i powtarzalny sposób.
+#
+# ------------------------------------------------------------------------------
+# Szybki Start (Najważniejsze Komendy):
+# ------------------------------------------------------------------------------
+#
+# 1. Uruchomienie całego systemu w Dockerze (zalecane do pełnych testów):
+#    $ make up
+#
+# 2. Uruchomienie środowiska do pracy nad kodem Python (tryb hybrydowy):
+#    # W pierwszym terminalu (uruchamia bazy danych, etc.):
+#    $ make up-deps
+#    # W drugim terminalu (uruchamia API z auto-przeładowaniem):
+#    $ make run-local
+#
+# 3. Uruchomienie wszystkich testów w projekcie:
+#    $ make test
+#
+# 4. Sprawdzenie jakości kodu (linter i typy):
+#    $ make lint
+#    $ make type
+#
+# 5. Zatrzymanie i wyczyszczenie środowiska Docker:
+#    $ make down
+#
+# 6. Wyświetlenie pełnej listy dostępnych komend:
+#    $ make help
+#
 # ==============================================================================
 
 # --- Zmienne Konfiguracyjne ---
+
 # Używamy `:=` aby zmienna była obliczana tylko raz.
-PYTHON_INTERPRETER := python3
 DOCKER_COMPOSE := docker compose
 
 # --- Sprawdzanie Zależności ---
-# Sprawdzamy, czy kluczowe komendy są dostępne w systemie.
-# Jeśli nie, `make` zakończy działanie z czytelnym błędem.
+# Sprawdza, czy kluczowe komendy są dostępne w systemie.
 HAS_DOCKER := $(shell command -v $(DOCKER_COMPOSE) 2> /dev/null)
 HAS_UV := $(shell command -v uv 2> /dev/null)
-HAS_PSQL := $(shell command -v psql 2> /dev/null)
+HAS_GRADLEW := $(shell test -f ./gradlew && echo 1)
 
 # --- Definicja Celów ---
-# Używamy .PHONY, aby upewnić się, że `make` zawsze wykonuje komendę,
-# nawet jeśli istnieje plik o tej samej nazwie.
-.PHONY: help sync lint type test test-all build build-all clean migrate ingest up up-deps down run-local api.clients.gen
+.PHONY: help all sync lint type test build clean up down run-local logs logs-api logs-auditor
 
-# Domyślny cel, który jest wykonywany, gdy uruchomimy `make` bez argumentów.
+# Domyślny cel: `make` bez argumentów pokaże pomoc.
 .DEFAULT_GOAL := help
 
 ## -----------------------------------------------------------------------------
-## Pomoc i Dokumentacja
+## Główne Cele
 ## -----------------------------------------------------------------------------
-help:
+help: ## Pokazuje tę pomoc.
+	@echo "AstraDesk Monorepo Makefile"
+	@echo ""
 	@echo "Usage: make <target>"
 	@echo ""
-	@echo "Available targets:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
+	@echo "Główne cele:"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep -v '## Pomocniczy' | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
+	@echo ""
+	@echo "Cele pomocnicze:"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep '## Pomocniczy' | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
+
+
+all: lint test build ## Uruchamia lintery, testy i buduje wszystkie artefakty.
 
 ## -----------------------------------------------------------------------------
-## Zarządzanie Zależnościami i Jakością Kodu
+## Zarządzanie Środowiskiem Python (uv workspace)
 ## -----------------------------------------------------------------------------
-sync: ## Synchronizuje zależności Pythona za pomocą `uv`.
+sync: ## Synchronizuje zależności Pythona dla całego workspace.
 ifndef HAS_UV
-	@echo "Error: 'uv' command not found. Please install uv: https://github.com/astral-sh/uv"
-	@exit 1
+	@echo "Błąd: Komenda 'uv' nie znaleziona. Zainstaluj: https://github.com/astral-sh/uv" >&2; exit 1
 endif
 	uv sync --all-extras --frozen
 
-lint: ## Uruchamia linter (ruff) na kodzie źródłowym.
+lint: ## Uruchamia linter (ruff) na całym projekcie.
 ifndef HAS_UV
-	@echo "Error: 'uv' command not found."
-	@exit 1
+	@echo "Błąd: Komenda 'uv' nie znaleziona." >&2; exit 1
 endif
-	uv run ruff check src tests
+	uv run ruff check .
 
-type: ## Uruchamia statyczną analizę typów (mypy).
+type: ## Uruchamia statyczną analizę typów (mypy) na całym projekcie.
 ifndef HAS_UV
-	@echo "Error: 'uv' command not found."
-	@exit 1
+	@echo "Błąd: Komenda 'uv' nie znaleziona." >&2; exit 1
 endif
-	uv run mypy src
+	uv run mypy .
 
 ## -----------------------------------------------------------------------------
-## Testowanie
+## Testowanie (Wielojęzyczne)
 ## -----------------------------------------------------------------------------
-test: ## Uruchamia testy jednostkowe dla Pythona (pytest).
-ifndef HAS_UV
-	@echo "Error: 'uv' command not found."
-	@exit 1
+test: test-python test-java test-admin ## Uruchamia WSZYSTKIE testy w projekcie.
+
+test-python: sync ## Uruchamia testy Pythona (rdzeń + paczki).
+	@echo "Running Python tests for the entire workspace..."
+	uv run pytest -v --cov
+
+test-java: ## Uruchamia testy dla wszystkich modułów Javy.
+ifndef HAS_GRADLEW
+	@echo "Błąd: Plik './gradlew' nie znaleziony. Wygeneruj go najpierw." >&2; exit 1
 endif
-	uv run pytest -v --cov=src
+	./gradlew test
 
-test-java: ## Uruchamia testy dla serwisu Javy (Gradle).
-	cd services/ticket-adapter-java && ./gradlew test --no-daemon
-
-test-admin: ## Uruchamia testy dla portalu Admina (npm).
+test-admin: ## Uruchamia testy dla portalu Admina.
 	cd services/admin-portal && npm ci && npm test
 
-test-all: test test-java test-admin ## Uruchamia wszystkie testy (Python, Java, Node.js).
-	@echo "All tests completed."
-
-test-support: ## Test domain-support pack
-	cd packages/domain-support && uv run pytest tests
-
 ## -----------------------------------------------------------------------------
-## Budowanie (bez Dockera)
+## Budowanie (Wielojęzyczne)
 ## -----------------------------------------------------------------------------
-build-java: ## Buduje plik .jar dla serwisu Javy.
-	cd services/ticket-adapter-java && ./gradlew bootJar --no-daemon
+build: build-python build-java build-admin ## Buduje WSZYSTKIE artefakty (bez Dockera).
+
+build-python: sync  ## Instaluje zależności Pythona.
+	@echo "Zależności Pythona są zsynchronizowane."
+
+build-java:  ## Buduje wszystkie moduły Javy.
+ifndef HAS_GRADLEW
+	@echo "Błąd: Plik './gradlew' nie znaleziony." >&2; exit 1
+endif
+	./gradlew build -x test # Buduj, ale pomiń testy (już je uruchomiliśmy)
 
 build-admin: ## Buduje produkcyjną wersję portalu Admina.
 	cd services/admin-portal && npm ci && npm run build
-
-build-all: sync build-java build-admin ## Buduje wszystkie serwisy (bez Dockera).
-	@echo "All services built successfully."
 
 ## -----------------------------------------------------------------------------
 ## Zarządzanie Środowiskiem Docker
 ## -----------------------------------------------------------------------------
 up: ## Buduje i uruchamia wszystkie serwisy w Docker Compose.
 ifndef HAS_DOCKER
-	@echo "Error: 'docker compose' command not found. Is Docker running?"
-	@exit 1
+	@echo "Błąd: Komenda 'docker compose' nie znaleziona. Czy Docker jest uruchomiony?" >&2; exit 1
 endif
 	$(DOCKER_COMPOSE) up --build -d
 
-up-deps: ## Uruchamia tylko zewnętrzne zależności (DBs, NATS, etc.) w Dockerze.
+down: ## Zatrzymuje i usuwa wszystkie kontenery, sieci i wolumeny.
 ifndef HAS_DOCKER
-	@echo "Error: 'docker compose' command not found."
-	@exit 1
-endif
-	$(DOCKER_COMPOSE) up -d db mysql redis nats ticket-adapter
-
-down: ## Zatrzymuje i usuwa wszystkie kontenery oraz wolumeny.
-ifndef HAS_DOCKER
-	@echo "Error: 'docker compose' command not found."
-	@exit 1
+	@echo "Błąd: Komenda 'docker compose' nie znaleziona." >&2; exit 1
 endif
 	$(DOCKER_COMPOSE) down -v
 
-## -----------------------------------------------------------------------------
-## Uruchamianie Lokalnego Developmentu
-## -----------------------------------------------------------------------------
-run-local: up-deps ## Uruchamia serwer API (uvicorn) lokalnie (wymaga `make up-deps`).
+up-deps:  ## Uruchamia tylko zewnętrzne zależności w Dockerze.
+ifndef HAS_DOCKER
+	@echo "Błąd: Komenda 'docker compose' nie znaleziona." >&2; exit 1
+endif
+	$(DOCKER_COMPOSE) up -d db mysql redis nats ticket-adapter
+
+run-local: up-deps ## Uruchamia API lokalnie, z zależnościami w Dockerze.
 ifndef HAS_UV
-	@echo "Error: 'uv' command not found."
-	@exit 1
+	@echo "Błąd: Komenda 'uv' nie znaleziona." >&2; exit 1
 endif
-	@echo "Starting local API server... Make sure dependencies are running (make up-deps)."
-	$(PYTHON_INTERPRETER) -m uvicorn src.gateway.main:app --host 0.0.0.0 --port 8080 --reload --app-dir src
+	@echo "Uruchamianie serwera API lokalnie na porcie 8000..."
+	python -m uvicorn src.gateway.main:app --host 0.0.0.0 --port 8000 --reload --app-dir src
+
+logs: ## Pokazuje logi wszystkich kontenerów na żywo.
+	$(DOCKER_COMPOSE) logs -f
+
+logs-api: ## Pokazuje logi tylko dla serwisu 'api'.
+	$(DOCKER_COMPOSE) logs -f api
+
+logs-auditor: ## Pokazuje logi tylko dla serwisu 'auditor'.
+	$(DOCKER_COMPOSE) logs -f auditor
 
 ## -----------------------------------------------------------------------------
-## API Client Generation
+## Operacje na Danych i Narzędzia
 ## -----------------------------------------------------------------------------
-api.clients.gen: ## Regenerates Admin API clients from openapi/astradesk-admin.v1.yaml.
-	@echo "→ Regenerating Python client (services/auditor)..."
-	@echo "  openapi-python-client generate --path openapi/astradesk-admin.v1.yaml --output-path services/auditor/src/_gen/admin_api_client --overwrite"
-	@echo "→ Regenerating Java client (services/ticket-adapter-java)..."
-	@echo "  openapi-generator-cli generate -i openapi/astradesk-admin.v1.yaml -g java --library okhttp --additional-properties=apiPackage=admin_api,modelPackage=admin_api.models,hideGenerationTimestamp=true --output services/ticket-adapter-java/src/main/java-gen"
-	@echo "→ Regenerating TypeScript client (services/admin-portal)..."
-	@echo "  npx openapi-typescript openapi/astradesk-admin.v1.yaml --output services/admin-portal/src/_gen/admin_api/index.ts"
-	@echo "Done. Review changes before committing."
-
-## -----------------------------------------------------------------------------
-## Operacje na Danych
-## -----------------------------------------------------------------------------
-migrate: ## Inicjalizuje bazę danych Postgres (wymaga `psql` i ustawionej zmiennej DATABASE_URL).
+migrate: ## Inicjalizuje bazę danych Postgres (wymaga `psql` i `DATABASE_URL`).
 ifndef HAS_PSQL
-	@echo "Error: 'psql' command not found. Please install PostgreSQL client tools."
-	@exit 1
+	@echo "Błąd: Komenda 'psql' nie znaleziona." >&2; exit 1
 endif
-	@echo "Applying database migrations..."
 	psql "$$DATABASE_URL" -f migrations/0001_init_pgvector.sql
 
-ingest: ## Przetwarza dokumenty z katalogu ./docs i zasila RAG.
-ifndef HAS_UV
-	@echo "Error: 'uv' command not found."
-	@exit 1
-endif
-	@echo "Ingesting documents into RAG..."
+ingest: sync ## Przetwarza dokumenty z `./docs` i zasila bazę RAG.
 	uv run python scripts/ingest_docs.py ./docs
 
-## -----------------------------------------------------------------------------
-## Czyszczenie
-## -----------------------------------------------------------------------------
-clean: ## Usuwa wygenerowane pliki i cache (np. .pytest_cache, build, .venv).
-	@echo "Cleaning up generated files and caches..."
-	rm -rf .pytest_cache
-	rm -rf .mypy_cache
-	rm -rf src/**/__pycache__
-	rm -rf tests/**/__pycache__
-	rm -rf services/ticket-adapter-java/build
-	rm -rf services/admin-portal/.next
-	rm -rf services/admin-portal/node_modules
-	# Opcjonalnie: usuń .venv, ale to wymaga ponownej instalacji
-	# rm -rf .venv
-	@echo "Cleanup complete."
-
-
-## -----------------------------------------------------------------------------
-## Build all domain packs
-## -----------------------------------------------------------------------------
-build-packs: # Buduje wszystkie pakiety domenowe
-	@echo "Building all domain packages..."
-	for pack in packages/domain-*; do \
-		cd $$pack && uv sync --frozen && cd ../..; \
-	done
-
-.PHONY: build-packs test-packs install-pack
-
-build-packs:
-\tfor pack in packages/domain-*; do \\
-\t\tcd $$pack && uv sync --frozen && cd - >/dev/null; \\
-\tdone
-
-test-packs:
-\tfor pack in packages/domain-*; do \\
-\t\tcd $$pack && uv run pytest -q && cd - >/dev/null; \\
-\tdone
-
-install-pack:
-\tuv pip install "packages/$(PACK)"
+clean: ## Usuwa wygenerowane pliki i cache.
+	@echo "Czyszczenie projektu..."
+	rm -rf .pytest_cache .mypy_cache
+	find . -type d -name "__pycache__" -exec rm -r {} +
+	./gradlew clean
+	cd services/admin-portal && rm -rf .next node_modules
+	@echo "Czyszczenie zakończone."

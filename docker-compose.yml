@@ -9,49 +9,99 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      # db:   #postgres
+      #   condition: service_healthy
+      # redis:
+      #   condition: service_healthy
       nats:
         condition: service_healthy
       ticket-adapter:
         condition: service_started
+      prometheus:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./dev/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
   ticket-adapter:
     build: services/ticket-adapter-java
     env_file: .env
     ports:
-      - "8081:8081"
+      - "8082:8081"
     depends_on:
       mysql:
         condition: service_healthy
 
   admin:
     build: services/admin-portal
-    environment:
-      NEXT_PUBLIC_API_URL: http://api:8080
+    env_file: .env # Przekazujemy env, aby NEXT_PUBLIC_API_URL mógł być konfigurowalny
+    #environment:
+    #  NEXT_PUBLIC_API_URL: http://api:8080
     ports:
       - "3000:3000"
     depends_on:
       api:
         condition: service_started
 
-  db:
-    image: postgres:18
-    environment:
-      POSTGRES_DB: astradesk
-      POSTGRES_USER: astradesk
-      POSTGRES_PASSWORD: astrapass
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U astradesk"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+  auditor:
+      build: ./services/auditor
+      env_file: .env
+      depends_on:
+        nats:
+          condition: service_healthy
+      restart: unless-stopped
+
+
+  # db:
+  #   image: pgvector/pgvector:pg16
+  #   environment:
+  #     POSTGRES_DB: astradesk
+  #     POSTGRES_USER: astradesk
+  #     POSTGRES_PASSWORD: astrapass
+  #   ports: ["5432:5432"]
+  #   volumes: [postgres_data:/var/lib/postgresql/data]
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U astradesk"]
+
+    # image: postgres:16
+    # environment:
+    #   POSTGRES_DB: astradesk
+    #   POSTGRES_USER: astradesk
+    #   POSTGRES_PASSWORD: astrapass
+    # ports:
+    #   - "5432:5432"
+    # volumes:
+    #   - postgres_data:/var/lib/postgresql/data
+    # healthcheck:
+    #   test: ["CMD-SHELL", "pg_isready -U astradesk"]
+    #   interval: 5s
+    #   timeout: 5s
+    #   retries: 5
+
+
+  # redis:
+  #   image: redis:8
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis_data:/data
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 5s
+  #     timeout: 3s
+  #     retries: 5
 
   mysql:
     image: mysql:8
@@ -70,21 +120,9 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:8
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
   nats:
     image: nats:2-alpine
-    command: 
+    command:
       - "--jetstream"
       - "--store_dir=/datastore"
       - "-m"
@@ -101,31 +139,22 @@ services:
       retries: 5
       start_period: 10s
 
-  auditor:
-      build: ./services/auditor
-      env_file: .env
-      depends_on:
-        nats:
-          condition: service_healthy
-      restart: unless-stopped
-
   domain-support:
     build: packages/domain-support
     depends_on:
       - api
       - nats
-      - redis
     environment:
-      API_URL: http://api:8080/api/admin/v1
+      API_URL: http://api:8000/api/admin/v1
       API_TOKEN: "${API_TOKEN}"
 
   domain-finance:
-    build: packages/domain-finance
-    depends_on:
-      - api
-    environment:
-      API_URL: http://api:8080/api/admin/v1
-      API_TOKEN: "${API_TOKEN}"
+      build: packages/domain-finance
+      depends_on:
+        - api
+      environment:
+        API_URL: http://api:8000/api/admin/v1
+        API_TOKEN: "${API_TOKEN}"
 
   domain-finance-java:
     build: packages/domain-finance
@@ -133,7 +162,7 @@ services:
     depends_on:
       - api
     environment:
-      API_URL: http://api:8080/api/admin/v1
+      API_URL: http://api:8000/api/admin/v1
       API_TOKEN: "${API_TOKEN}"
 
   domain-finance-grpc:
@@ -143,7 +172,7 @@ services:
     depends_on:
       - api
     environment:
-      API_URL: http://api:8080/api/admin/v1
+      API_URL: http://api:8000/api/admin/v1
       API_TOKEN: "${API_TOKEN}"
 
   domain-supply:
@@ -151,7 +180,7 @@ services:
     depends_on:
       - api
     environment:
-      API_URL: http://api:8080/api/admin/v1
+      API_URL: http://api:8000/api/admin/v1
       API_TOKEN: "${API_TOKEN}"
 
   domain-supply-java:
@@ -160,21 +189,21 @@ services:
     depends_on:
       - api
     environment:
-      API_URL: http://api:8080/api/admin/v1
+      API_URL: http://api:8000/api/admin/v1
       API_TOKEN: "${API_TOKEN}"
 
   domain-supply-grpc:
     build: packages/domain-supply
     ports:
-      - "50051:50051"
+      - "50052:50051"
     depends_on:
       - api
     environment:
-      API_URL: http://api:8080/api/admin/v1
+      API_URL: http://api:8000/api/admin/v1
       API_TOKEN: "${API_TOKEN}"
 
 volumes:
-  postgres_data:
+  # postgres_data:
+  # redis_data:
   mysql_data:
-  redis_data:
   nats_data:

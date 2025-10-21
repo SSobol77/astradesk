@@ -1,0 +1,8 @@
+# dev/prometheus/prometheus.yml
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'webapp'
+    static_configs:
+      - targets: ['host.docker.internal:9100']  # na Linuxie użyć IP hosta; ew. inny exporter

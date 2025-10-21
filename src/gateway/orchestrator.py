@@ -123,7 +123,8 @@ class AgentOrchestrator:
             return AgentResponse(
                 output=output,
                 reasoning_trace_id=request_id,
-                invoked_tools=invoked_tools,
+                # Konwertujemy każdy obiekt ToolCall na słownik
+                invoked_tools=[tool.model_dump() for tool in invoked_tools],
             )
         except Exception as e:
             logger.warning(
@@ -147,5 +148,5 @@ class AgentOrchestrator:
         return AgentResponse(
             output=output,
             reasoning_trace_id=request_id,
-            invoked_tools=invoked_tools,
+            invoked_tools=[tool.model_dump() for tool in invoked_tools],
         )

@@ -14,7 +14,7 @@ This pack provides modular support logic for AstraDesk, including ticket triage 
 - Tests: Pytest with API mocking (respx).
 
 ### Prerequisites
-- Python 3.14+
+- Python 3.11+
 - UV for dependency management
 - Access to Admin API (/api/admin/v1) with JWT token
 - Asana PAT/OAuth token in config

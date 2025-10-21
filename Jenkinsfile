@@ -1,11 +1,12 @@
+// Jenkinsfile (Wersja Produkcyjna)
+
 pipeline {
     agent none
 
     environment {
-        // Używamy zmiennej globalnej dla rejestru, łatwej do zmiany
-        REGISTRY_URL = "docker.io/youruser" 
-        // Tagujemy obrazy unikalnym ID builda dla lepszego śledzenia
-        IMAGE_TAG = env.BUILD_NUMBER
+        REGISTRY_URL = "docker.io/youruser"
+        // Użyłem skrótu z commita jako tagu
+        IMAGE_TAG = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
     }
 
     stages {
@@ -17,88 +18,82 @@ pipeline {
             }
         }
 
-        stage('Run Tests') {
-            // Uruchamiamy wszystkie testy równolegle, aby skrócić czas
+        stage('Code Analysis & Tests') {
+            // Uruchamiamy wszystkie testy i analizy równolegle
             parallel {
-                stage('Test Python') {
-                    agent {
-                        // ZMIANA: Używamy oficjalnego obrazu Pythona
-                        docker { image 'python:3.11-slim' }
-                    }
+                stage('Analyze & Test Python') {
+                    agent { docker { image 'python:3.11-slim' } }
                     steps {
                         unstash 'source'
-                        // ZMIANA: Instalujemy uv i zależności
-                        sh 'pip install --no-cache-dir uv'
+                        // Używamy cache dla .venv
+                        cache(path: '.venv', key: "venv-py-${checksum 'uv.lock'}") {
+                            sh 'pip install --no-cache-dir uv'
+                            sh 'uv sync --all-extras --frozen'
+                        }
                         sh 'uv sync --all-extras --frozen'
-                        sh '''
-                            uv run ruff check src
-                            uv run mypy src
-                            uv run pytest --cov=src --cov-report=xml
-                        '''
-                        stash name: 'coverage', includes: 'coverage.xml'
+                        sh 'uv run ruff check .'
+                        sh 'uv run mypy .'
+                        sh 'uv run pytest --cov --cov-report=xml'
+                        stash name: 'coverage-py', includes: 'coverage.xml'
                     }
                 }
-                stage('Test Java') {
-                    agent {
-                        // ZMIANA: Używamy obrazu Gradle z JDK 21
-                        docker { image 'gradle:jdk21' }
-                    }
+                stage('Analyze & Test Java') {
+                    agent { docker { image 'gradle:jdk21' } }
                     steps {
                         unstash 'source'
-                        sh 'cd services/ticket-adapter-java && gradle test'
+                        // Używamy cache dla zależności Gradle
+                        cache(path: '.gradle/caches', key: "gradle-caches-${checksum '**/*.gradle.kts'}") {
+                            // Uruchamiamy `check`, które zawiera `test` i lintery (Checkstyle)
+                            sh './gradlew check'
+                        }
                     }
                 }
-                stage('Test Node.js') {
-                    agent {
-                        // Używamy obrazu Node.js zgodnego z projektem
-                        docker { image 'node:22-alpine' }
-                    }
+                stage('Analyze & Test Node.js') {
+                    agent { docker { image 'node:22-alpine' } }
                     steps {
                         unstash 'source'
-                        sh 'cd services/admin-portal && npm ci && npm test'
+                        // Cache: Używamy cache dla node_modules
+                        cache(path: 'services/admin-portal/node_modules', key: "npm-modules-${checksum 'services/admin-portal/package-lock.json'}") {
+                            sh 'cd services/admin-portal && npm ci'
+                        }
+                        // Linter: Dodajemy linter (jeśli skonfigurowany w package.json)
+                        sh 'cd services/admin-portal && npm run lint && npm test'
                     }
                 }
             }
         }
 
-        stage('Build & Push All Images') {
+        stage('Build & Push Docker Images') {
             agent { docker { image 'docker:25' } }
             steps {
                 unstash 'source'
                 script {
-                    withDockerRegistry(credentialsId: 'docker-credentials', url: "https://${REGISTRY_URL}") {
-                        // Budujemy wszystkie obrazy
-                        sh "docker build -t ${REGISTRY_URL}/astradesk-api:${IMAGE_TAG} ."
-                        sh "docker build -t ${REGISTRY_URL}/astradesk-ticket:${IMAGE_TAG} services/ticket-adapter-java"
-                        sh "docker build -t ${REGISTRY_URL}/astradesk-admin:${IMAGE_TAG} services/admin-portal"
-                        sh "docker build -t ${REGISTRY_URL}/astradesk-auditor:${IMAGE_TAG} services/auditor"
-
-                        // Wysyłamy wszystkie obrazy
-                        sh "docker push ${REGISTRY_URL}/astradesk-api:${IMAGE_TAG}"
-                        sh "docker push ${REGISTRY_URL}/astradesk-ticket:${IMAGE_TAG}"
-                        sh "docker push ${REGISTRY_URL}/astradesk-admin:${IMAGE_TAG}"
-                        sh "docker push ${REGISTRY_URL}/astradesk-auditor:${IMAGE_TAG}"
+                    withDockerRegistry(credentialsId: 'docker-credentials', url: "https://index.docker.io/v1/") {
+                        // Budujemy i wysyłamy wszystkie obrazy
+                        def images = [
+                            "api": ".",
+                            "ticket": "services/ticket-adapter-java",
+                            "admin": "services/admin-portal",
+                            "auditor": "services/auditor"
+                        ]
+                        images.each { name, path ->
+                            def imageName = "${REGISTRY_URL}/astradesk-${name}:${IMAGE_TAG}"
+                            sh "docker build -t ${imageName} ${path}"
+                            sh "docker push ${imageName}"
+                        }
                     }
                 }
             }
-            
-        }
-
-        stage('Build Java Packs') {
-            sh './gradlew build'
-        }
-
-        stage('Test Python Packs') { 
-            sh 'uv run pytest packages/domain-finance/tests'
-            sh 'uv run pytest packages/domain-supply/tests' 
         }
 
         stage('Deploy to Kubernetes') {
             agent { docker { image 'alpine/helm:3.15.3' } }
+            // Uwaga: Dodalem tu warunek `when`, aby deploy był uruchamiany tylko dla gałęzi `main`
+            when { branch 'main' }
             steps {
                 unstash 'source'
                 // Tutaj powinny być wstrzyknięte credentials do klastra K8s
-                sh '''
+                sh """
                     helm upgrade --install astradesk deploy/chart \\
                         --set api.image.repository=${REGISTRY_URL}/astradesk-api \\
                         --set api.image.tag=${IMAGE_TAG} \\
@@ -108,18 +103,19 @@ pipeline {
                         --set ticketAdapter.image.tag=${IMAGE_TAG} \\
                         --set auditor.image.repository=${REGISTRY_URL}/astradesk-auditor \\
                         --set auditor.image.tag=${IMAGE_TAG} \\
-                        --namespace astradesk \\
+                        --namespace astradesk-prod \\
                         --create-namespace \\
                         --wait --timeout 5m
-                '''
+                """
             }
         }
     }
 
     post {
         always {
+            // Zbieranie artefaktów
             archiveArtifacts artifacts: 'coverage.xml', allowEmptyArchive: true
-            junit '**/build/test-results/test/TEST-*.xml' // Zbieranie wyników testów Javy
+            junit '**/build/test-results/test/TEST-*.xml'
         }
     }
 }

@@ -182,7 +182,7 @@ flowchart LR
 
 ### Data & Tools
 
-- **PostgreSQL 16→18**: system of record (read/write via governed tools).
+- **PostgreSQL 17→18**: system of record (read/write via governed tools).
 
 - **Vector/Graph DB**: retrieval & relations; read-only in v1.0 by default.
 

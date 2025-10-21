@@ -11,7 +11,7 @@ module "eks" {
 module "rds_postgres" {
   source     = "./modules/rds-postgres"
   db_name    = "astradesk"
-  engine_ver = "16"
+  engine_ver = "17"
 }
 module "rds_mysql" {
   source     = "./modules/rds-mysql"
