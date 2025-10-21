@@ -181,7 +181,7 @@ flowchart LR
 
 ### Dane i Narzędzia
 
-- **PostgreSQL 16→18**: system referencyjny (odczyt/zapis przez zarządzane narzędzia).
+- **PostgreSQL 17→18**: system referencyjny (odczyt/zapis przez zarządzane narzędzia).
 
 - **Vector/Graph DB**: wyszukiwanie i relacje; domyślnie tylko odczyt w v1.0.
 

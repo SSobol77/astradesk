@@ -115,7 +115,7 @@ down:
 
 ## 4) Baza danych i migracje
 
-- **Postgres 16 + pgvector**: wymagane rozszerzenie `pgvector`.
+- **Postgres 17 + pgvector**: wymagane rozszerzenie `pgvector`.
 - Pliki migracji:
   - `migrations/0001_init_pgvector.sql` - `CREATE EXTENSION IF NOT EXISTS vector;`
   - `migrations/0002_tables.sql` - `dialogues`, `audits`, `documents`.
@@ -388,7 +388,7 @@ jobs:
 
 ---
 
-## 16) Standard wydania (Release)
+## 17) Standard wydania (Release)
 
 - Zasady semver: `MAJOR.MINOR.PATCH` (tag w repo).
 - Każde wydanie: changelog, SBOM, wyniki skanu, numer buildu w obrazie.

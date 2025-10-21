@@ -100,7 +100,7 @@ Komunikacja: HTTP (między komponentami), NATS (eventy/audyty), Redis (pamięć 
 - **Kubernetes** z Helm (do deploymentu).
 - **AWS CLI** i **Terraform** (do chmury).
 - **Node.js 22**, **JDK 21**, **Python 3.11** (do buildów).
-- **Postgres 16**, **MySQL 8**, **Redis 7**, **NATS 2** (serwisy bazowe).
+- **Postgres 17**, **MySQL 8**, **Redis 7**, **NATS 2** (serwisy bazowe).
 - **Opcjonalnie:** Istio, cert-manager (do mTLS/TLS).
 
 ## Instalacja

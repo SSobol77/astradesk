@@ -16,7 +16,6 @@ Notes (PL):
   * Globalnej obsługi wyjątków i logowania.
 - Logika biznesowa agentów jest delegowana do modułu `orchestrator`.
 """  # noqa: D205
-
 from __future__ import annotations
 
 from dotenv import load_dotenv
@@ -25,6 +24,7 @@ load_dotenv()
 import logging
 import os
 import uuid
+import ssl
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
 
@@ -46,12 +46,12 @@ from runtime.models import AgentRequest, AgentResponse
 from runtime.planner import KeywordPlanner
 from runtime.rag import RAG
 from runtime.registry import ToolRegistry
-from tools.metrics import get_metrics
+from tools.metrics import metrics
 from tools.ops_actions import restart_service
 from tools.tickets_proxy import create_ticket
 from tools.weather import get_weather
 
-# --- ZMIANA: Poprawiony opcjonalny import dla typowania ---
+
 if TYPE_CHECKING:
     from model_gateway.llm_planner import LLMPlanner
 
@@ -59,6 +59,10 @@ try:
     from model_gateway.llm_planner import LLMPlanner
 except ImportError:
     LLMPlanner = None
+
+dotenv_path = os.path.join(os.path.dirname(__file__), '..', '..', '.env')
+load_dotenv(dotenv_path=dotenv_path)
+print(f"DEBUG: DATABASE_URL wczytany jako: {os.getenv('DATABASE_URL')}")
 
 # --- Konfiguracja i Logowanie ---
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
@@ -90,17 +94,27 @@ app_state = AppState()
 async def lifespan(app: FastAPI):
     """Zarządza cyklem życia zasobów aplikacji (startup i shutdown)."""
     logger.info("Uruchamianie aplikacji i inicjalizacja zasobów...")
-    
-    # --- Inicjalizacja połączeń ---
-    app_state.pg_pool = await asyncpg.create_pool(dsn=DB_URL, min_size=2, max_size=10)
-    app_state.redis = redis.from_url(REDIS_URL, encoding="utf-8", decode_responses=False)
+    # Tworzymy kontekst SSL, który nie weryfikuje certyfikatu serwera
+    # (prostsze dla developmentu, w produkcji można użyć certyfikatu CA).
+    ssl_context = ssl.create_default_context()
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+
+    app_state.pg_pool = await asyncpg.create_pool(
+        dsn=DB_URL,
+        min_size=2,
+        max_size=10,
+        ssl=ssl_context # <-- DODAJEMY KONFIGURACJĘ SSL
+    )
+
+    app_state.redis = await redis.from_url(REDIS_URL, encoding="utf-8", decode_responses=False)
     
     # --- Inicjalizacja komponentów ---
     app_state.rag = RAG(app_state.pg_pool)
     
     tools = ToolRegistry()
     await tools.register("create_ticket", create_ticket, description="Tworzy nowe zgłoszenie w systemie.")
-    await tools.register("get_metrics", get_metrics, description="Pobiera metryki dla podanej usługi.")
+    await tools.register("metrics", metrics, description="Pobiera metryki dla podanej usługi.")
     await tools.register("restart_service", restart_service, allowed_roles={"sre"}, description="Restartuje wskazaną usługę.")
     await tools.register("get_weather", get_weather, description="Pobiera pogodę dla wskazanego miasta.")
     app_state.tools = tools
@@ -211,18 +225,24 @@ async def healthz_deep(state: AppState = Depends(get_app_state)) -> dict[str, st
         raise HTTPException(status_code=503, detail={"postgres": "unavailable"})
 
 
+# --- Endpoint /v1/agents/run ---
+# --- Endpoint /v1/agents/run ---
 @app.post("/v1/agents/run", response_model=AgentResponse, tags=["Agents"])
 async def run_agent(
     req: AgentRequest,
-    # Pamiętaj odkomentować tę linię z powrotem zanim wdrożymy kod na produkcję
-    #claims: dict[str, Any] = Depends(auth_guard),   # <-- ZAKOMENTOWANA tymczasowo do testów
+    # ZMIANA: Przywracamy `request: Request`, ale bez domyślnej wartości.
+    # FastAPI wie, jak wstrzyknąć ten obiekt.
+    request: Request,
+    # UWAGA: Poniższa linia jest wyłączona na potrzeby lokalnego developmentu.
+    # Należy ją odkomentować przed wdrożeniem na produkcję.
+    # claims: dict[str, Any] = Depends(auth_guard),
     state: AppState = Depends(get_app_state),
-    request: Request = None,
 ) -> AgentResponse:
     """Uruchamia wskazanego agenta i zwraca jego odpowiedź."""
     request_id = str(uuid.uuid4())
-    if request:
-        request.state.request_id = request_id
+    # Ustawiamy request_id w stanie żądania, aby był dostępny
+    # w handlerach błędów i potencjalnym middleware.
+    request.state.request_id = request_id
     
     logger.info(f"Rozpoczęto przetwarzanie żądania {request_id} dla agenta '{req.agent.value}'")
     
@@ -233,12 +253,12 @@ async def run_agent(
         pg_pool=state.pg_pool,
         redis=state.redis,
     )
-    # Pamiętaj odkomentować tę linię z powrotem zanim wdrożymy kod na produkcję
-    #response = await orchestrator.run(req, claims, request_id) # <-- ZAKOMENTOWANE tymczasowo
     
-    # Do testów zakomentowane powyzej. Ponieważ claims już nie istnieje, musimy 
-    # przekazać pusty słownik do orchestratora.Wiec przekazujemy pusty słownik jako `claims`
-    response = await orchestrator.run(req, {}, request_id)   # <-- wykasowac przed produkcją
+    # Używamy pustego słownika `claims` na potrzeby testów lokalnych.
+    # W środowisku produkcyjnym, `claims` będzie pochodzić z `auth_guard`.
+    claims = {} 
+    
+    response = await orchestrator.run(req, claims, request_id)
     
     logger.info(f"Zakończono przetwarzanie żądania {request_id}")
     return response

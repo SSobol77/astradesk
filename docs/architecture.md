@@ -23,7 +23,7 @@ API Gateway (FastAPI, Python 3.11)
     │             ├─ Guardrails (cenzor treści / max length / JSON schema)
     │             └─ Tokenization / Usage / Retry-Backoff
     │
-    ├────────► Postgres 16 + pgvector  (RAG: documents; dialogues; audits)
+    ├────────► Postgres 17 + pgvector  (RAG: documents; dialogues; audits)
     ├────────► Redis (worklists, TTL, locks)
     └────────► NATS (publish "astradesk.audit")
                         │

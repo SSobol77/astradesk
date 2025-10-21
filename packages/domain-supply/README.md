@@ -20,7 +20,7 @@ This pack provides modular supply chain logic for AstraDesk, including inventory
 
 ### Prerequisites
 
-- Python 3.14+
+- Python 3.11+
 
 - UV for dependency management
 

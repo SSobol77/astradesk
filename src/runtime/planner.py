@@ -81,129 +81,187 @@ Główne cechy:
   sformatowane odpowiedzi dla użytkownika na podstawie wyników narzędzi i RAG.
 - **Bezpieczeństwo**: Unika wstrzykiwania niesprawdzonych danych użytkownika
   do argumentów narzędzi, stosując bezpieczne domyślne wartości i ograniczenia długości.
-"""  # noqa: D205
 
+Lekki KeywordPlanner:
+- make_plan(): prosta heurystyka → lista wywołań narzędzi.
+- finalize(): składa końcową odpowiedź z wyników wywołanych narzędzi (lub daje fallback).
+"""
 from __future__ import annotations
 
-from collections.abc import Callable
+import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Set  # noqa: UP035
+from typing import Any, Dict, List, Set, Iterable
 
-from src.runtime.models import ToolCall
-
-# Typ dla funkcji, która generuje argumenty dla narzędzia na podstawie zapytania.
-ArgFactory = Callable[[str], Dict[str, Any]]
+# Jeśli masz ten typ w runtime.models — ok. Jeśli nie, trzymamy lokalny @dataclass o takim kształcie.
+try:
+    from runtime.models import ToolCall  # type: ignore
+except Exception:
+    @dataclass(frozen=True)
+    class ToolCall:
+        name: str
+        arguments: Dict[str, Any]
 
 
 @dataclass(frozen=True)
 class KeywordRule:
-    """Definiuje regułę dopasowania słów kluczowych do wywołania narzędzia.
-
-    Attributes:
-        keywords: Zbiór słów kluczowych, które aktywują regułę.
-        tool_name: Nazwa narzędzia do wywołania (zgodna z ToolRegistry).
-        arg_factory: Funkcja, która tworzy słownik argumentów dla narzędzia.
-
-    """
-
     keywords: Set[str]
     tool_name: str
-    arg_factory: ArgFactory
+    arg_factory: callable
 
 
 class KeywordPlanner:
-    """Deterministyczny planer oparty na predefiniowanych regułach słów kluczowych.
-
-    Jego zadaniem jest analiza zapytania użytkownika i, na podstawie
-    prostych heurystyk, stworzenie planu składającego się z jednego
-    wywołania narzędzia (`ToolCall`). Jeśli żadna reguła nie pasuje,
-    zwraca pusty plan, sygnalizując potrzebę użycia RAG.
+    """
+    Minimalny planer słów kluczowych.
+    API oczekiwane przez BaseAgent:
+      - make_plan(query: str) -> List[ToolCall]
+      - finalize(query: str, tool_results: Any, context: Dict[str, Any]) -> str
     """
 
     __slots__ = ("_rules",)
 
     def __init__(self) -> None:
-        """Inicjalizuje planer z predefiniowanym zestawem reguł."""
         self._rules: List[KeywordRule] = [
-            # Reguła 1: Tworzenie zgłoszeń (ticketów)
+            # Ticket / zgłoszenia
             KeywordRule(
-                keywords={"ticket", "bilet", "zgłoś", "zgłoszenie", "incident", "incydent"},
+                keywords={"ticket", "bilet", "zgłoszen", "zgłoszenie", "incident", "incydent", "utwórz zgłoszenie", "create ticket"},
                 tool_name="create_ticket",
-                arg_factory=lambda query: {
-                    "title": query.strip()[:80],  # Bezpieczne obcięcie tytułu
-                    "body": query.strip(),
+                arg_factory=lambda q: {
+                    "title": q.strip()[:80],
+                    "body": q.strip(),
                 },
             ),
-            # Reguła 2: Pobieranie metryk
+            # Metryki (ważne: nazwa narzędzia = "metrics", nie "get_metrics")
             KeywordRule(
-                keywords={"metryki", "metryk", "cpu", "pamięć", "latency", "p95", "p99"},
-                tool_name="get_metrics",
-                arg_factory=lambda _: {
-                    "service": "webapp",  # Domyślna usługa
-                    "window": "15m",      # Domyślne okno czasowe
+                keywords={"metryki", "metryk", "metrics", "get_metrics", "cpu", "pamięć", "memory", "latency", "p95", "p99"},
+                tool_name="metrics",
+                arg_factory=lambda q: {
+                    "service": _extract_service(q) or "webapp",
+                    "window": _extract_window(q) or "15m",
                 },
             ),
-            # Dodaj kolejne reguły tutaj, np. dla restartu usług.
-            # KeywordRule(
-            #     keywords={"restart", "zrestartuj", "uruchom ponownie"},
-            #     tool_name="ops.restart_service",
-            #     arg_factory=...
-            # ),
+            # Restart usługi (jeśli masz zarejestrowane narzędzie restart_service)
+            KeywordRule(
+                keywords={"restart", "zrestartuj", "ponownie uruchom", "rollout"},
+                tool_name="restart_service",
+                arg_factory=lambda q: {
+                    "service": _extract_service(q) or "webapp",
+                },
+            ),
         ]
 
+    # ---------- PLAN ----------
     def make_plan(self, query: str) -> List[ToolCall]:
-        """Tworzy plan wykonania na podstawie zapytania użytkownika.
-
-        Iteruje przez zdefiniowane reguły i zwraca plan dla pierwszej
-        pasującej reguły.
-
-        Args:
-            query: Zapytanie użytkownika.
-
-        Returns:
-            Lista zawierająca jeden `ToolCall` lub pusta lista, jeśli
-            żadna reguła nie została dopasowana.
-        """
-        if not query or not query.strip():
-            return []
-
-        normalized_query = query.lower()
-
+        q = query.strip()
+        low = q.lower()
         for rule in self._rules:
-            if any(keyword in normalized_query for keyword in rule.keywords):
-                arguments = rule.arg_factory(query)
-                return [ToolCall(name=rule.tool_name, arguments=arguments)]
-
-        # Jeśli żadna reguła nie pasuje, zwróć pusty plan.
+            if any(k in low for k in rule.keywords):
+                args = rule.arg_factory(q)
+                return [ToolCall(name=rule.tool_name, arguments=args)]
+        # Fallback: jeśli wiadomość jest konkretna/długa, potraktuj jako prośbę o utworzenie zgłoszenia
+        if len(q) > 12:
+            return [ToolCall(name="create_ticket", arguments={"title": q[:80], "body": q})]
+        # W innym wypadku — brak planu (wyższe warstwy często mają swój własny fallback)
         return []
 
-    def finalize(
-        self, query: str, tool_results: List[str], rag_context: List[str]
-    ) -> str:
-        """Tworzy finalną, sformatowaną odpowiedź dla użytkownika.
-
-        Priorytetyzuje wyniki narzędzi. Jeśli ich nie ma, używa kontekstu z RAG.
-        Jeśli brak jakichkolwiek danych, zwraca grzeczną informację.
-
-        Args:
-            query: Oryginalne zapytanie użytkownika.
-            tool_results: Lista wyników (jako stringi) zwróconych przez narzędzia.
-            rag_context: Lista fragmentów tekstu (kontekst) z systemu RAG.
-
-        Returns:
-            Sformatowana, czytelna odpowiedź tekstowa dla użytkownika.
+    # ---------- FINALIZACJA ----------
+    def finalize(self, query: str, tool_results: Any, context: Dict[str, Any] | None = None) -> str:
         """
-        if tool_results:
-            header = "✅ **Wyniki Działania Narzędzi**"
-            body = "\n".join(f"- {res}" for res in tool_results)
-            return f"{header}\n{body}"
+        Składa końcową odpowiedź z wyników narzędzi. Zaprojektowane tak, by działać z różnymi
+        kształtami `tool_results`, bo implementacje agentów bywały różne.
 
-        if rag_context:
-            header = f"ℹ️ **Informacje z Bazy Wiedzy na temat:** *{query.strip()}*"
-            body = "\n\n---\n\n".join(rag_context)
-            return f"{header}\n\n{body}"
+        Obsługiwane formy:
+          - str -> zwracamy jak jest
+          - List[str] -> łączymy z nagłówkami
+          - Dict[name -> str] -> ładny listing
+          - List[Tuple[name, output]] lub List[Dict{name, output}] -> ładny listing
+        Gdy nic nie ma: przyjazny fallback zależny od treści zapytania.
+        """
+        if tool_results is None:
+            return _fallback_for(query)
 
-        return (
-            "Przepraszam, nie udało mi się znaleźć konkretnej odpowiedzi ani "
-            "wykonać odpowiedniej akcji na podstawie Twojego zapytania."
-        )
+        # 1) Pojedynczy string
+        if isinstance(tool_results, str):
+            return tool_results.strip() or _fallback_for(query)
+
+        # 2) Lista stringów
+        if isinstance(tool_results, list) and all(isinstance(x, str) for x in tool_results):
+            lines = ["Oto wyniki akcji:", ""]
+            for i, s in enumerate(tool_results, start=1):
+                s = (s or "").strip()
+                if s:
+                    lines.append(f"{i}) {s}")
+            return "\n".join(lines) if len(lines) > 2 else _fallback_for(query)
+
+        # 3) Słownik {narzędzie: wynik}
+        if isinstance(tool_results, dict) and all(isinstance(k, str) for k in tool_results.keys()):
+            if all(isinstance(v, str) for v in tool_results.values()):
+                lines = ["Podsumowanie wykonanych kroków:", ""]
+                for name, out in tool_results.items():
+                    pretty = (out or "").strip()
+                    if not pretty:
+                        continue
+                    lines.append(f"• {name}:")
+                    lines.append(pretty)
+                    lines.append("")  # odstęp między sekcjami
+                txt = "\n".join(lines).strip()
+                return txt or _fallback_for(query)
+
+        # 4) Lista z elementami typu (name, output) lub {"name": ..., "output": ...}
+        if isinstance(tool_results, list):
+            normalized: List[tuple[str, str]] = []
+            for item in tool_results:
+                if isinstance(item, tuple) and len(item) == 2 and isinstance(item[0], str):
+                    normalized.append((item[0], str(item[1] or "")))
+                elif isinstance(item, dict) and "name" in item and ("output" in item or "result" in item):
+                    name = str(item.get("name"))
+                    out = str(item.get("output") or item.get("result") or "")
+                    normalized.append((name, out))
+                # inne kształty pomijamy cicho
+            if normalized:
+                lines = ["Podsumowanie wykonanych kroków:", ""]
+                for name, out in normalized:
+                    out = (out or "").strip()
+                    if not out:
+                        continue
+                    lines.append(f"• {name}:")
+                    lines.append(out)
+                    lines.append("")
+                txt = "\n".join(lines).strip()
+                return txt or _fallback_for(query)
+
+        # 5) Cokolwiek innego — spróbuj to zrzutować do tekstu
+        try:
+            return str(tool_results) or _fallback_for(query)
+        except Exception:
+            return _fallback_for(query)
+
+
+# ---------- Pomocnicze: ekstrakcje i fallback ----------
+
+_svc_pat = re.compile(r"\b(webapp|payments[- ]?api|search[- ]?service|database|db)\b", re.I)
+_win_pat = re.compile(r"\b(\d+)([smhd])\b", re.I)
+
+def _extract_service(q: str) -> str | None:
+    m = _svc_pat.search(q)
+    if not m:
+        return None
+    svc = m.group(1).lower().replace(" ", "-")
+    if "payments" in svc:
+        return "payments-api"
+    if "search" in svc:
+        return "search-service"
+    if svc in ("database", "db"):
+        return "database"
+    return svc
+
+def _extract_window(q: str) -> str | None:
+    m = _win_pat.search(q)
+    return (m.group(0).lower() if m else None)
+
+def _fallback_for(q: str) -> str:
+    low = q.lower()
+    if any(k in low for k in ("ticket", "zgłoszen", "zgłoszenie", "incydent", "incident")):
+        return "Nie udało się jednoznacznie złożyć odpowiedzi, ale zgłoszenie możesz utworzyć poleceniem: „utwórz zgłoszenie <tytuł>”."
+    if any(k in low for k in ("metrics", "metryk", "cpu", "p95", "p99", "latency", "pamięć", "memory")):
+        return "Nie udało się pobrać czytelnych metryk. Spróbuj: „pokaż metryki dla webapp z ostatnich 15m”."
+    return "Nie znalazłem pasującej akcji do wykonania. Opisz proszę, co chcesz osiągnąć."
