@@ -51,8 +51,11 @@ The framework supports scalability, enterprise-grade security (OIDC/JWT, RBAC, m
   - [Jenkins](#jenkins)
   - [GitLab CI](#gitlab-ci)
 - [Monitoring and Observability](#monitoring-and-observability)
-  - [OpenTelemetry](#opentelemetry)
-  - [Grafana Dashboards and Alerts](#grafana-dashboards-and-alerts)
+  - [Quick Start (Docker Compose)](#quick-start-docker-compose)
+  - [Prometheus Configuration](#prometheus-configuration)
+  - [Metrics Endpoints Integrations](#metrics-endpoints-integrations)
+  - [Grafana (Quick Setup)](#grafana-quick-setup)
+  - [Handy Commands (Makefile)](#handy-commands-makefile)
 - [Developer Guide](#developer-guide)
 - [Testing](#testing)
 - [Security](#security)
@@ -291,19 +294,328 @@ curl -X POST http://localhost:8080/v1/agents/run \
 
 * `.gitlab-ci.yml`: stages for build/test/docker/deploy (manual).
 
+<br>
+
+---
+
 ## Monitoring and Observability
 
-### OpenTelemetry
+**(Prometheus, Grafana, OpenTelemetry)**
 
-* Built into FastAPI (instrumentation).
-* Export: to OTLP (Prometheus/Grafana).
+This section explains how to enable full observability for the AstraDesk platform using **Prometheus** (metrics), **Grafana** (dashboards), and **OpenTelemetry** (instrumentation).
 
-### Grafana Dashboards and Alerts
+### Goals
+- Collect metrics from the **Python API Gateway** (`/metrics`) and the **Java Ticket Adapter** (`/actuator/prometheus`).
+- Get a quick health view in **Grafana**.
+- Alerting (e.g., high 5xx error rate) in Prometheus.
 
-* Dashboard: `grafana/dashboard-astradesk.json` (latency, DB calls).
-* Alerts: `grafana/alerts.yaml` (high latency, errors) — load into Prometheus.
+---
+
+### Quick Start (Docker Compose)
+
+Below is a minimal snippet to add Prometheus + Grafana services to `docker-compose.yml`.
+> **Note:** We assume `api` and `ticket-adapter` services run with: `api:8080`, `ticket-adapter:8081`.
+
+```yaml
+services:
+  # --- Observability stack ---
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: astradesk-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"        # allows hot-reload of the config
+    volumes:
+      - ./dev/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    depends_on:
+      - api
+      - ticket-adapter
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: astradesk-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_DEFAULT_THEME=dark
+    volumes:
+      - grafana-data:/var/lib/grafana
+      # (optional) automatic provisioning for data sources / dashboards:
+      # - ./dev/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+volumes:
+  prometheus-data:
+  grafana-data:
+```
 
 <br>
+
+### Prometheus Configuration 
+
+`dev/prometheus/prometheus.yml`
+
+Create `dev/prometheus/prometheus.yml` with the following content:
+
+```yaml
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+  # optional: external_labels: { env: "dev" }
+
+scrape_configs:
+  # FastAPI Gateway (Python)
+  - job_name: "api"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:8080"]
+
+  # Java Ticket Adapter (Spring Boot + Micrometer)
+  - job_name: "ticket-adapter"
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["ticket-adapter:8081"]
+
+  # (optional) NATS Exporter
+  # - job_name: "nats"
+  #   static_configs:
+  #     - targets: ["nats-exporter:7777"]
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+```
+
+*(Optional) Add `dev/prometheus/alerts.yml` and mount it similarly into the container (e.g., via an extra volume or fold it into `prometheus.yml`).*
+
+<br>
+
+Sample alert rules:
+
+```yaml
+groups:
+  - name: astradesk-alerts
+    rules:
+      - alert: HighErrorRate_API
+        expr: |
+          rate(http_requests_total{job="api",status=~"5.."}[5m])
+          /
+          rate(http_requests_total{job="api"}[5m]) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API high 5xx error rate (>5% for 10m)"
+          description: "Investigate FastAPI gateway logs and upstream dependencies."
+
+      - alert: TicketAdapterDown
+        expr: up{job="ticket-adapter"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Ticket Adapter is down"
+          description: "Spring service not responding on /actuator/prometheus."
+```
+
+> **Reload configuration** without restart:
+>
+> `curl -X POST http://localhost:9090/-/reload`
+
+<br>
+
+### Metrics Endpoints Integrations
+
+#### 1) Python FastAPI (Gateway)
+
+The simplest way to expose `/metrics` is with `prometheus_client`:
+
+```python
+# src/gateway/observability.py
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from starlette.responses import Response
+from fastapi import APIRouter, Request
+import time
+
+router = APIRouter()
+
+REQUEST_COUNT = Counter(
+    "http_requests_total",
+    "Total HTTP requests",
+    ["method", "path", "status"]
+)
+REQUEST_LATENCY = Histogram(
+    "http_request_duration_seconds",
+    "HTTP request latency",
+    ["method", "path"]
+)
+
+@router.get("/metrics")
+def metrics():
+    # Expose Prometheus metrics in plaintext format
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+# (optional) simple middleware for latency and counts
+async def metrics_middleware(request: Request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    elapsed = time.perf_counter() - start
+    path = request.url.path
+    method = request.method
+    REQUEST_LATENCY.labels(method=method, path=path).observe(elapsed)
+    REQUEST_COUNT.labels(method=method, path=path, status=str(response.status_code)).inc()
+    return response
+```
+
+Register in `main.py`:
+
+```python
+from fastapi import FastAPI
+from src.gateway.observability import router as metrics_router, metrics_middleware
+
+app = FastAPI()
+app.middleware("http")(metrics_middleware)
+app.include_router(metrics_router, tags=["observability"])
+```
+
+> **Alternative (recommended):** use **OpenTelemetry** + an `otlp` exporter, then scrape metrics via **otel-collector** → Prometheus. This gives you unified metrics, traces, and logs.
+
+<br>
+
+#### 2) Java Ticket Adapter (Spring Boot)
+
+`application.yml`:
+
+```yaml
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, prometheus
+  endpoint:
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: astradesk-ticket-adapter
+  observations:
+    key-values:
+      env: dev
+```
+
+Micrometer Prometheus dependency:
+
+```xml
+<!-- pom.xml -->
+<dependency>
+  <groupId>io.micrometer</groupId>
+  <artifactId>micrometer-registry-prometheus</artifactId>
+</dependency>
+```
+
+After startup, the endpoint is available at:
+`http://localhost:8081/actuator/prometheus` (or `ticket-adapter:8081` in Docker).
+
+<br>
+
+### Grafana (Quick Setup)
+
+After Grafana starts ([http://localhost:3000](http://localhost:3000), default `admin`/`admin`):
+
+1. **Add data source → Prometheus**
+   URL: `http://prometheus:9090` (inside Docker Compose network) or `http://localhost:9090` (if adding from your host).
+2. **Import a dashboard** (e.g., “Prometheus / Overview” or your custom one).
+   You can also keep descriptors in the repo (`grafana/dashboard-astradesk.json`) and enable provisioning:
+
+   ```
+   dev/grafana/provisioning/datasources/prometheus.yaml
+   dev/grafana/provisioning/dashboards/dashboards.yaml
+   grafana/dashboard-astradesk.json
+   ```
+
+Example data source (provisioning):
+
+```yaml
+# dev/grafana/provisioning/datasources/prometheus.yaml
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+```
+
+Example dashboards provider:
+
+```yaml
+# dev/grafana/provisioning/dashboards/dashboards.yaml
+apiVersion: 1
+providers:
+  - name: "AstraDesk"
+    orgId: 1
+    folder: "AstraDesk"
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards
+```
+
+<br>
+
+### Handy Commands (Makefile)
+
+Add these shortcuts to `Makefile` to speed up your workflow:
+
+```Makefile
+.PHONY: up-observability down-observability logs-prometheus logs-grafana
+
+up-observability:
+\tdocker compose up -d prometheus grafana
+
+down-observability:
+\tdocker compose rm -sfv prometheus grafana
+
+logs-prometheus:
+\tdocker logs -f astradesk-prometheus
+
+logs-grafana:
+\tdocker logs -f astradesk-grafana
+```
+
+<br>
+
+### Validation Checklist
+
+* Prometheus UI: **[http://localhost:9090](http://localhost:9090)**
+
+  * Check that `api` and `ticket-adapter` jobs are **UP** (Status → Targets).
+* Grafana UI: **[http://localhost:3000](http://localhost:3000)**
+
+  * Connect the Prometheus data source, import a dashboard, and watch key metrics (latency, request count, 5xx errors).
+* Quick test:
+
+  ```bash
+  curl -s http://localhost:8080/metrics | head
+  curl -s http://localhost:8081/actuator/prometheus | head
+  ```
+
+> If the endpoints don’t return metrics, make sure:
+> 1) the paths (`/metrics`, `/actuator/prometheus`) are enabled,
+> 2) services are reachable by the Compose network names `api` / `ticket-adapter`,
+> 3) `prometheus.yml` points at the correct `targets`.
+
+<br>
+
+---
 
 ## Developer Guide
 
