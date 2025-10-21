@@ -53,8 +53,6 @@
   - [Jenkins](#jenkins)
   - [GitLab CI](#gitlab-ci)
 - [监控与可观测性](#监控与可观测性)
-  - [OpenTelemetry](#opentelemetry)
-  - [Grafana 仪表盘与告警](#grafana-仪表盘与告警)
 - [开发者指南](#开发者指南)
 - [测试](#测试)
 - [安全](#安全)
@@ -796,87 +794,316 @@ deploy:
 
 <br>
 
+---
+
 ## 📊 监控与可观测性 (Monitoring and Observability)
 
-AstraDesk 原生集成 **OpenTelemetry**、**Prometheus**、**Grafana**、**Loki** 与 **Tempo**，  
-可实现端到端的日志、指标与追踪监控。
+**（Prometheus、Grafana、OpenTelemetry）**
+
+本节说明如何为 AstraDesk 启用完整的可观测性：使用 **Prometheus**（指标）、**Grafana**（仪表盘）与 **OpenTelemetry**（代码埋点/自动化检测）。
+
+### 目标
+- 从 **Python API 网关**（`/metrics`）与 **Java 工单适配器**（`/actuator/prometheus`）采集指标。
+- 在 **Grafana** 中快速查看系统健康状况。
+- 在 Prometheus 中配置告警（例如 5xx 错误率过高）。
 
 <br>
 
-### 🧭 OpenTelemetry 集成 (OpenTelemetry)
+### 快速开始（Docker Compose）
 
-AstraDesk 的 FastAPI 网关已内置 **OpenTelemetry 自动化检测 (Instrumentation)**，  
-可在不修改业务逻辑的情况下收集关键指标。
+下面是添加 Prometheus 与 Grafana 的最小 `docker-compose.yml` 片段。
+> **注意：** 假设 `api` 与 `ticket-adapter` 服务分别运行在 `api:8080`、`ticket-adapter:8081`。
 
-**主要特性：**
-- 自动追踪 API 请求（HTTP、SQL、Redis、NATS 调用）；
-- 导出指标到 **Prometheus** 或 **OTLP** 接收端；
-- 与 **Grafana Tempo** 集成以可视化调用链。
+```yaml
+services:
+  # --- Observability stack ---
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: astradesk-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"        # 允许热加载配置
+    volumes:
+      - ./dev/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    depends_on:
+      - api
+      - ticket-adapter
 
-配置方式：
-```bash
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-export OTEL_SERVICE_NAME=astradesk-api
-uv run uvicorn gateway.main:app --port 8080
+  grafana:
+    image: grafana/grafana:latest
+    container_name: astradesk-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_DEFAULT_THEME=dark
+    volumes:
+      - grafana-data:/var/lib/grafana
+      # （可选）自动配置数据源/仪表盘：
+      # - ./dev/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+volumes:
+  prometheus-data:
+  grafana-data:
 ````
 
-**示例指标：**
+<br>
 
-* 请求延迟 (`http.server.duration`)
-* 数据库查询时间 (`db.query.duration`)
-* 工具调用计数 (`agent.tools.count`)
-* 内存与 CPU 使用率 (`runtime.memory.usage`)
+### Prometheus 配置（`dev/prometheus/prometheus.yml`）
 
-> 📘 **提示**：
-> 如使用 Docker Compose 部署，OpenTelemetry 收集器 (otel-collector) 将自动启动并转发数据至 Prometheus 与 Grafana。
+创建 `dev/prometheus/prometheus.yml`，内容如下：
+
+```yaml
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+  # 可选: external_labels: { env: "dev" }
+
+scrape_configs:
+  # FastAPI 网关（Python）
+  - job_name: "api"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:8080"]
+
+  # Java 工单适配器（Spring Boot + Micrometer）
+  - job_name: "ticket-adapter"
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["ticket-adapter:8081"]
+
+  # （可选）NATS Exporter
+  # - job_name: "nats"
+  #   static_configs:
+  #     - targets: ["nats-exporter:7777"]
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+```
+
+*（可选）新建 `dev/prometheus/alerts.yml`，并以类似方式挂载到容器；也可直接把规则合并进 `prometheus.yml`。*
+
+示例告警规则：
+
+```yaml
+groups:
+  - name: astradesk-alerts
+    rules:
+      - alert: HighErrorRate_API
+        expr: |
+          rate(http_requests_total{job="api",status=~"5.."}[5m])
+          /
+          rate(http_requests_total{job="api"}[5m]) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API 5xx 错误率过高（10 分钟内 > 5%）"
+          description: "请检查 FastAPI 网关日志与上游依赖。"
+
+      - alert: TicketAdapterDown
+        expr: up{job="ticket-adapter"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "工单适配器不可用"
+          description: "Spring 服务未在 /actuator/prometheus 响应。"
+```
+
+> **无重启热加载配置：**
+> `curl -X POST http://localhost:9090/-/reload`
 
 <br>
 
-### 📈 Grafana 仪表盘与告警 (Grafana Dashboards and Alerts)
+### 指标端点集成
 
-AstraDesk 提供可直接导入的 Grafana 仪表盘与告警规则：
+#### 1）Python FastAPI（网关）
 
-* 仪表盘文件:
-  `grafana/dashboard-astradesk.json`
-  包含：
+使用 `prometheus_client` 暴露 `/metrics` 最为简单：
 
-  * API 请求延迟与吞吐量；
-  * 数据库查询性能；
-  * Redis 命中率；
-  * NATS 消息速率；
-  * 工具调用频率；
-  * 错误率与异常追踪。
+```python
+# src/gateway/observability.py
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from starlette.responses import Response
+from fastapi import APIRouter, Request
+import time
 
-* 告警配置文件:
-  `grafana/alerts.yaml`
-  预定义以下规则：
+router = APIRouter()
 
-  * API 延迟超过阈值；
-  * 错误率过高；
-  * 数据库连接超时；
-  * 服务副本数量异常。
+REQUEST_COUNT = Counter(
+    "http_requests_total",
+    "Total HTTP requests",
+    ["method", "path", "status"]
+)
+REQUEST_LATENCY = Histogram(
+    "http_request_duration_seconds",
+    "HTTP request latency",
+    ["method", "path"]
+)
 
-示例加载命令：
+@router.get("/metrics")
+def metrics():
+    # 以 Prometheus 纯文本格式导出指标
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
-```bash
-kubectl apply -f grafana/alerts.yaml
+# （可选）简单中间件：记录延迟与请求计数
+async def metrics_middleware(request: Request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    elapsed = time.perf_counter() - start
+    path = request.url.path
+    method = request.method
+    REQUEST_LATENCY.labels(method=method, path=path).observe(elapsed)
+    REQUEST_COUNT.labels(method=method, path=path, status=str(response.status_code)).inc()
+    return response
 ```
 
-在 Grafana 中配置 Prometheus 数据源：
+在 `main.py` 中注册：
 
+```python
+from fastapi import FastAPI
+from src.gateway.observability import router as metrics_router, metrics_middleware
+
+app = FastAPI()
+app.middleware("http")(metrics_middleware)
+app.include_router(metrics_router, tags=["observability"])
 ```
-http://prometheus:9090
+
+> **（推荐）替代方案：** 使用 **OpenTelemetry** + `otlp` 导出器，然后通过 **otel-collector** → Prometheus 采集。这样可以统一指标、链路追踪与日志。
+
+#### 2）Java 工单适配器（Spring Boot）
+
+在 `application.yml` 中启用：
+
+```yaml
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, prometheus
+  endpoint:
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: astradesk-ticket-adapter
+  observations:
+    key-values:
+      env: dev
+```
+
+引入 Micrometer Prometheus 依赖：
+
+```xml
+<!-- pom.xml -->
+<dependency>
+  <groupId>io.micrometer</groupId>
+  <artifactId>micrometer-registry-prometheus</artifactId>
+</dependency>
+```
+
+启动后指标端点为：
+`http://localhost:8081/actuator/prometheus`（Docker 网络中为 `ticket-adapter:8081`）。
+
+<br>
+
+### Grafana —— 快速配置
+
+Grafana 启动后（[http://localhost:3000，默认账号](http://localhost:3000，默认账号) `admin`/`admin`）：
+
+1. **添加数据源 → Prometheus**
+   URL：`http://prometheus:9090`（在 Docker Compose 网络内）或 `http://localhost:9090`（从宿主浏览器连接）。
+2. **导入仪表盘**（如官方「Prometheus / Overview」或自定义仪表盘）。
+   也可将仪表盘描述文件放入仓库并启用 provisioning：
+
+   ```
+   dev/grafana/provisioning/datasources/prometheus.yaml
+   dev/grafana/provisioning/dashboards/dashboards.yaml
+   grafana/dashboard-astradesk.json
+   ```
+
+示例数据源（provisioning）：
+
+```yaml
+# dev/grafana/provisioning/datasources/prometheus.yaml
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+```
+
+示例仪表盘提供者：
+
+```yaml
+# dev/grafana/provisioning/dashboards/dashboards.yaml
+apiVersion: 1
+providers:
+  - name: "AstraDesk"
+    orgId: 1
+    folder: "AstraDesk"
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards
 ```
 
 <br>
 
-🧠 **最佳实践 (Best Practices)**
+### 常用命令（Makefile）
 
-* 为每个微服务设置独立的 `service.name` 标签；
-* 统一追踪 ID (`trace_id`) 贯穿所有日志与事件；
-* 使用 Loki 进行集中化日志收集，结合 Tempo 追踪；
-* 在生产环境中配置告警 Webhook（Slack、Email、PagerDuty）；
-* 每周审查指标趋势，持续优化延迟与错误率。
+建议在 `Makefile` 中加入以下快捷命令：
+
+```Makefile
+.PHONY: up-observability down-observability logs-prometheus logs-grafana
+
+up-observability:
+\tdocker compose up -d prometheus grafana
+
+down-observability:
+\tdocker compose rm -sfv prometheus grafana
+
+logs-prometheus:
+\tdocker logs -f astradesk-prometheus
+
+logs-grafana:
+\tdocker logs -f astradesk-grafana
+```
+
+<br>
+
+### 验证清单
+
+* Prometheus UI：**[http://localhost:9090](http://localhost:9090)**
+
+  * 在「Status → Targets」确认 `api`、`ticket-adapter` 的 job 状态为 **UP**。
+* Grafana UI：**[http://localhost:3000](http://localhost:3000)**
+
+  * 连接 Prometheus 数据源，导入仪表盘，观察关键指标（延迟、请求数、5xx 错误等）。
+* 快速测试：
+
+  ```bash
+  curl -s http://localhost:8080/metrics | head
+  curl -s http://localhost:8081/actuator/prometheus | head
+  ```
+
+> 若端点未返回指标，请检查：
+> (1) 路径（`/metrics`、`/actuator/prometheus`）是否启用；
+> (2) 在 Compose 网络内，`api`/`ticket-adapter` 服务名是否可达；
+> (3) `prometheus.yml` 的 `targets` 是否填写正确。
+
 
 <br>
 
