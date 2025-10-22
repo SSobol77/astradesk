@@ -4,8 +4,9 @@
 //     Production Jenkins pipeline for AstraDesk.
 //     Handles checkout, code analysis, testing (Python 3.14, Java 25, Node.js 22),
 //     Docker build/push, Terraform infrastructure deployment (VPC, EKS, RDS, S3),
-//     Istio configuration, Admin API secrets, and Helm deployment.
-//     Integrates with infra/, deploy/istio/, deploy/chart/, and Admin API (/secrets).
+//     configuration management (Ansible/Puppet/Salt), Istio configuration,
+//     Admin API secrets, and Helm deployment.
+//     Integrates with infra/, ansible/, puppet/, salt/, deploy/istio/, deploy/chart/, and Admin API (/secrets).
 // Author: Siergej Sobolewski
 // Since: 2025-10-22
 
@@ -20,6 +21,9 @@ pipeline {
         ADMIN_API_JWT = credentials('admin-api-jwt')  // Admin API JWT
         TERRAFORM_DIR = 'infra'
         TF_VAR_file = "${TERRAFORM_DIR}/terraform.tfvars"
+        ANSIBLE_INVENTORY = 'ansible/inventories/dev/hosts.ini'
+        PUPPET_MANIFEST = 'puppet/manifests/astradesk.pp'
+        SALT_STATE = 'astradesk'
     }
 
     stages {
@@ -126,6 +130,68 @@ pipeline {
             }
         }
 
+        stage('Config Management Deployment') {
+            parallel {
+                stage('Test Config Management') {
+                    steps {
+                        unstash 'source'
+                        script {
+                            parallel(
+                                'Ansible Test': {
+                                    agent { docker { image 'python:3.14-slim' } }
+                                    steps {
+                                        sh 'pip install ansible'
+                                        sh "ansible-playbook -i ${ANSIBLE_INVENTORY} ansible/playbook.yml --check > ansible-test.log 2>&1"
+                                        stash name: 'ansible-test-log', includes: 'ansible-test.log'
+                                    }
+                                },
+                                'Puppet Test': {
+                                    agent { docker { image 'ubuntu:24.04' } }
+                                    steps {
+                                        sh 'apt-get update && apt-get install -y puppet-agent'
+                                        sh "puppet apply ${PUPPET_MANIFEST} --noop > puppet-test.log 2>&1"
+                                        stash name: 'puppet-test-log', includes: 'puppet-test.log'
+                                    }
+                                },
+                                'Salt Test': {
+                                    agent { docker { image 'ubuntu:24.04' } }
+                                    steps {
+                                        sh 'apt-get update && apt-get install -y salt-minion'
+                                        sh "salt '*' state.apply ${SALT_STATE} test=True > salt-test.log 2>&1"
+                                        stash name: 'salt-test-log', includes: 'salt-test.log'
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+                stage('Ansible Deploy') {
+                    agent { docker { image 'python:3.14-slim' } }
+                    steps {
+                        unstash 'source'
+                        sh 'pip install ansible'
+                        sh "ansible-playbook -i ${ANSIBLE_INVENTORY} ansible/playbook.yml"
+                    }
+                }
+                stage('Puppet Deploy') {
+                    agent { docker { image 'ubuntu:24.04' } }
+                    steps {
+                        unstash 'source'
+                        sh 'apt-get update && apt-get install -y puppet-agent'
+                        sh "puppet apply ${PUPPET_MANIFEST}"
+                    }
+                }
+                stage('Salt Deploy') {
+                    agent { docker { image 'ubuntu:24.04' } }
+                    steps {
+                        unstash 'source'
+                        sh 'apt-get update && apt-get install -y salt-minion'
+                        sh "salt '*' state.apply ${SALT_STATE}"
+                    }
+                }
+            }
+        }
+
         stage('Build & Push Docker Images') {
             agent { docker { image 'docker:25' } }
             steps {
@@ -208,7 +274,7 @@ pipeline {
 
     post {
         always {
-            archiveArtifacts artifacts: 'coverage.xml,**/jacocoTestReport.xml,services/admin-portal/coverage/**,infra/plan.out', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'coverage.xml,**/jacocoTestReport.xml,services/admin-portal/coverage/**,infra/plan.out,ansible-test.log,puppet-test.log,salt-test.log', allowEmptyArchive: true
             junit '**/build/test-results/test/TEST-*.xml,pytest-report.xml'
         }
     }

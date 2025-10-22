@@ -1,12 +1,53 @@
----
+# SPDX-License-Identifier: Apache-2.0
+# File: ansible/roles/astradesk_docker/tasks/main.yml
+# Description:
+#     Ansible tasks for deploying AstraDesk with Docker Compose.
+#     Installs Docker, copies repo, applies docker-compose.yml, and handles mTLS/TLS certs from /secrets.
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+
 - name: Install Docker
-  apt: { name: [docker.io], state: present, update_cache: yes }
-- name: Ensure Docker service
-  service: { name: docker, state: started, enabled: yes }
-- name: Copy compose file
+  apt:
+    name: docker.io
+    state: present
+  become: true
+
+- name: Install Docker Compose
+  apt:
+    name: docker-compose
+    state: present
+  become: true
+
+- name: Copy AstraDesk repo to target host
   copy:
-    src: "{{ playbook_dir }}/../../docker-compose.yml"
-    dest: /opt/astradesk/docker-compose.yml
-- name: Bring up stack
-  command: docker compose up -d
-  args: { chdir: /opt/astradesk }
+    src: /path/to/astradesk  # Local repo path
+    dest: /opt/astradesk
+  become: true
+
+- name: Fetch mTLS/TLS certificates from Admin API
+  uri:
+    url: http://localhost:8080/api/admin/v1/secrets/astradesk_mtls
+    method: GET
+    headers:
+      Authorization: "Bearer {{ api_token }}"  # From inventory vars
+    return_content: yes
+  register: mtls_cert
+  become: true
+
+- name: Create secrets directory and write certs
+  file:
+    path: /opt/astradesk/secrets
+    state: directory
+    mode: '0700'
+  become: true
+
+- name: Write mTLS cert
+  copy:
+    content: "{{ mtls_cert.content.value }}"
+    dest: /opt/astradesk/secrets/mtls-cert.pem
+    mode: '0600'
+  become: true
+
+- name: Deploy with Docker Compose
+  command: docker compose -f /opt/astradesk/docker-compose.yml up -d
+  become: true

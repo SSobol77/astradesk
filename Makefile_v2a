@@ -2,23 +2,31 @@
 # File: Makefile v.2 alfa   --refactoring--
 # Description:
 #     Central Makefile for the AstraDesk monorepo project.
-#     Automates common development tasks including dependency management,
-#     linting, testing, building, Docker management, Istio configuration, and certificate handling.
+#     Automates development tasks including dependency management, linting, testing,
+#     building, Docker management, Terraform infrastructure, configuration management
+#     (Ansible/Puppet/Salt), Istio configuration, and certificate handling.
 #     Supports polyglot stack: Python 3.14+, Java 25+, Node.js 22, Postgres 18+.
 # Author: Siergej Sobolewski
 # Since: 2025-10-22
 
 # --- Configuration Variables ---
-
 DOCKER_COMPOSE := docker compose
 KUBECTL := kubectl
 ISTIOCTL := istioctl
 UV := uv
 GRADLEW := ./gradlew
 NPM := npm
+TERRAFORM := terraform
+ANSIBLE := ansible-playbook
+PUPPET := puppet
+SALT := salt
 PYTHON_VERSION := 3.14
 JAVA_VERSION := 25
 NODE_VERSION := 22
+TERRAFORM_DIR := infra
+ANSIBLE_INVENTORY := ansible/inventories/dev/hosts.ini
+PUPPET_MANIFEST := puppet/manifests/astradesk.pp
+SALT_STATE := astradesk
 
 # --- Dependency Checks ---
 HAS_DOCKER := $(shell command -v $(DOCKER_COMPOSE) 2> /dev/null)
@@ -28,9 +36,13 @@ HAS_ISTIOCTL := $(shell command -v $(ISTIOCTL) 2> /dev/null)
 HAS_GRADLEW := $(shell test -f $(GRADLEW) && echo 1)
 HAS_NPM := $(shell command -v $(NPM) 2> /dev/null)
 HAS_PSQL := $(shell command -v psql 2> /dev/null)
+HAS_TERRAFORM := $(shell command -v $(TERRAFORM) 2> /dev/null)
+HAS_ANSIBLE := $(shell command -v $(ANSIBLE) 2> /dev/null)
+HAS_PUPPET := $(shell command -v $(PUPPET) 2> /dev/null)
+HAS_SALT := $(shell command -v $(SALT) 2> /dev/null)
 
 # --- Phony Targets ---
-.PHONY: help all sync lint type test test-python test-java test-admin build build-python build-java build-admin docker-build docker-push up down up-deps run-local logs logs-api logs-auditor migrate ingest clean apply-istio verify-istio store-secrets helm-deploy
+.PHONY: help all sync lint type test test-python test-java test-admin build build-python build-java build-admin docker-build docker-push up down up-deps run-local logs logs-api logs-auditor migrate ingest clean apply-istio verify-istio store-secrets helm-deploy terraform-init terraform-validate terraform-plan terraform-apply ansible-deploy puppet-deploy salt-deploy test-config-mgmt test-packs build-packs
 
 # --- Default Goal ---
 .DEFAULT_GOAL := help
@@ -48,7 +60,7 @@ help: ## Display this help message
 	@echo "Helper Targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep '## Helper' | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-all: lint test build apply-istio ## Run lint, tests, build, and apply Istio configurations
+all: lint test build apply-istio terraform-apply ## Run lint, tests, build, Istio, and Terraform apply
 
 # --- Python Environment Management (uv workspace) ---
 
@@ -183,7 +195,7 @@ verify-istio: ## Verify Istio configurations
 ifndef HAS_ISTIOCTL
 	@echo "Error: 'istioctl' not found." >&2; exit 1
 endif
-	$(ISTIOCTL) analyze -n astradesk
+	$(ISTIOCTL) analyze -n astradesk-prod
 
 store-secrets: ## Store mTLS certificate in Admin API
 ifndef HAS_KUBECTL
@@ -192,9 +204,74 @@ endif
 ifndef JWT_TOKEN
 	@echo "Error: 'JWT_TOKEN' not set." >&2; exit 1
 endif
-	$(KUBECTL) get secret -n astradesk astradesk-mtls-secret -o jsonpath='{.data.tls\.crt}' | base64 -d > mtls-cert.pem
+	$(KUBECTL) get secret -n astradesk-prod astradesk-mtls-secret -o jsonpath='{.data.tls\.crt}' | base64 -d > mtls-cert.pem
 	curl -X POST http://localhost:8080/api/admin/v1/secrets -H "Authorization: Bearer $(JWT_TOKEN)" -d '{"name": "astradesk_mtls", "type": "certificate", "value": "'"$$(cat mtls-cert.pem)"'"}'
 	rm -f mtls-cert.pem
+
+# --- Terraform Management ---
+
+terraform-init: ## Initialize Terraform
+ifndef HAS_TERRAFORM
+	@echo "Error: 'terraform' not found. Install: https://www.terraform.io/downloads.html" >&2; exit 1
+endif
+	$(TERRAFORM) -chdir=$(TERRAFORM_DIR) init
+
+terraform-validate: ## Validate Terraform configuration
+ifndef HAS_TERRAFORM
+	@echo "Error: 'terraform' not found." >&2; exit 1
+endif
+	$(TERRAFORM) -chdir=$(TERRAFORM_DIR) validate
+
+terraform-plan: ## Plan Terraform changes
+ifndef HAS_TERRAFORM
+	@echo "Error: 'terraform' not found." >&2; exit 1
+endif
+	$(TERRAFORM) -chdir=$(TERRAFORM_DIR) plan -var-file="$(TERRAFORM_DIR)/terraform.tfvars" -out=plan.out
+
+terraform-apply: ## Apply Terraform changes
+ifndef HAS_TERRAFORM
+	@echo "Error: 'terraform' not found." >&2; exit 1
+endif
+	$(TERRAFORM) -chdir=$(TERRAFORM_DIR) apply -auto-approve plan.out
+
+# --- Configuration Management (Ansible/Puppet/Salt) ---
+
+ansible-deploy: ## Deploy with Ansible
+ifndef HAS_ANSIBLE
+	@echo "Error: 'ansible-playbook' not found. Install: https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html" >&2; exit 1
+endif
+	$(ANSIBLE) -i $(ANSIBLE_INVENTORY) ansible/playbook.yml
+
+puppet-deploy: ## Deploy with Puppet
+ifndef HAS_PUPPET
+	@echo "Error: 'puppet' not found. Install: https://puppet.com/docs/puppet/latest/install_puppet.html" >&2; exit 1
+endif
+	$(PUPPET) apply $(PUPPET_MANIFEST)
+
+salt-deploy: ## Deploy with Salt
+ifndef HAS_SALT
+	@echo "Error: 'salt' not found. Install: https://docs.saltproject.io/en/latest/topics/installation/index.html" >&2; exit 1
+endif
+	$(SALT) '*' state.apply $(SALT_STATE)
+
+test-config-mgmt: ## Test configuration management (Ansible/Puppet/Salt) ## Helper
+ifndef HAS_ANSIBLE
+	@echo "Warning: 'ansible-playbook' not found, skipping Ansible test." >&2
+else
+	$(ANSIBLE) -i $(ANSIBLE_INVENTORY) ansible/playbook.yml --check
+endif
+ifndef HAS_PUPPET
+	@echo "Warning: 'puppet' not found, skipping Puppet test." >&2
+else
+	$(PUPPET) apply $(PUPPET_MANIFEST) --noop
+endif
+ifndef HAS_SALT
+	@echo "Warning: 'salt' not found, skipping Salt test." >&2
+else
+	$(SALT) '*' state.apply $(SALT_STATE) test=True
+endif
+
+# --- Helm Deployment ---
 
 helm-deploy: ## Deploy to Kubernetes using Helm
 ifndef HAS_KUBECTL
@@ -203,13 +280,15 @@ endif
 	helm upgrade --install astradesk deploy/chart \
 		--namespace astradesk-prod \
 		--create-namespace \
-		--wait --timeout 5m
+		--wait --timeout 5m \
+		--set database.postgres.host=$(shell $(TERRAFORM) -chdir=$(TERRAFORM_DIR) output -raw rds_postgres_endpoint) \
+		--set database.mysql.host=$(shell $(TERRAFORM) -chdir=$(TERRAFORM_DIR) output -raw rds_mysql_endpoint)
 
 # --- Cleanup ---
 
 clean: ## Remove generated files and cache
 	@echo "Cleaning project..."
-	rm -rf .pytest_cache .mypy_cache coverage.xml pytest-report.xml
+	rm -rf .pytest_cache .mypy_cache coverage.xml pytest-report.xml $(TERRAFORM_DIR)/plan.out
 	find . -type d -name "__pycache__" -exec rm -r {} +
 	$(GRADLEW) clean || true
 	cd services/admin-portal && rm -rf .next node_modules || true

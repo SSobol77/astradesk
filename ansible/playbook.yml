@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+# File: ansible/playbook.yml
+# Description:
+#     Ansible playbook for deploying AstraDesk with Docker Compose.
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+
+- hosts: dev
+  roles:
+    - astradesk_docker
