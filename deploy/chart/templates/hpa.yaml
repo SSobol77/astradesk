@@ -1,20 +1,30 @@
-{{- if .Values.autoscaling.enabled }}
+# SPDX-License-Identifier: Apache-2.0
+# File: templates/hpa.yaml
+# Description:
+#     Helm template for HorizontalPodAutoscaler for AstraDesk services.
+#     Autoscales based on 60% CPU utilization.
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+
+{{- range $service := list "api" "ticketAdapter" "admin" "auditor" }}
+---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ .Release.Name }}-api
+  name: astradesk-{{ $service }}-hpa
+  namespace: {{ .Release.Namespace }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ .Release.Name }}-api
-  minReplicas: {{ .Values.autoscaling.minReplicas }}
-  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+    name: astradesk-{{ $service }}
+  minReplicas: {{ index $.Values $service "autoscaling" "minReplicas" }}
+  maxReplicas: {{ index $.Values $service "autoscaling" "maxReplicas" }}
   metrics:
   - type: Resource
     resource:
       name: cpu
       target:
         type: Utilization
-        averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+        averageUtilization: {{ index $.Values $service "autoscaling" "targetCPUUtilizationPercentage" }}
 {{- end }}

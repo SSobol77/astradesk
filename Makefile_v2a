@@ -10,6 +10,7 @@
 # Since: 2025-10-22
 
 # --- Configuration Variables ---
+
 DOCKER_COMPOSE := docker compose
 KUBECTL := kubectl
 ISTIOCTL := istioctl
@@ -20,6 +21,7 @@ TERRAFORM := terraform
 ANSIBLE := ansible-playbook
 PUPPET := puppet
 SALT := salt
+HELM := helm
 PYTHON_VERSION := 3.14
 JAVA_VERSION := 25
 NODE_VERSION := 22
@@ -40,9 +42,10 @@ HAS_TERRAFORM := $(shell command -v $(TERRAFORM) 2> /dev/null)
 HAS_ANSIBLE := $(shell command -v $(ANSIBLE) 2> /dev/null)
 HAS_PUPPET := $(shell command -v $(PUPPET) 2> /dev/null)
 HAS_SALT := $(shell command -v $(SALT) 2> /dev/null)
+HAS_HELM := $(shell command -v $(HELM) 2> /dev/null)
 
 # --- Phony Targets ---
-.PHONY: help all sync lint type test test-python test-java test-admin build build-python build-java build-admin docker-build docker-push up down up-deps run-local logs logs-api logs-auditor migrate ingest clean apply-istio verify-istio store-secrets helm-deploy terraform-init terraform-validate terraform-plan terraform-apply ansible-deploy puppet-deploy salt-deploy test-config-mgmt test-packs build-packs
+.PHONY: help all sync lint type test test-python test-java test-admin build build-python build-java build-admin docker-build docker-push up down up-deps run-local logs logs-api logs-auditor migrate ingest clean apply-istio verify-istio store-secrets helm-deploy terraform-init terraform-validate terraform-plan terraform-apply ansible-deploy puppet-deploy salt-deploy test-config-mgmt test-packs build-packs helm-lint helm-test
 
 # --- Default Goal ---
 .DEFAULT_GOAL := help
@@ -60,7 +63,7 @@ help: ## Display this help message
 	@echo "Helper Targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep '## Helper' | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-all: lint test build apply-istio terraform-apply ## Run lint, tests, build, Istio, and Terraform apply
+all: lint test build apply-istio terraform-apply helm-deploy ## Run lint, tests, build, Istio, Terraform, and Helm deploy
 
 # --- Python Environment Management (uv workspace) ---
 
@@ -271,13 +274,25 @@ else
 	$(SALT) '*' state.apply $(SALT_STATE) test=True
 endif
 
-# --- Helm Deployment ---
+# --- Helm Management ---
+
+helm-lint: ## Lint Helm chart
+ifndef HAS_HELM
+	@echo "Error: 'helm' not found. Install: https://helm.sh/docs/intro/install/" >&2; exit 1
+endif
+	$(HELM) lint deploy/chart
+
+helm-test: ## Run Helm tests
+ifndef HAS_HELM
+	@echo "Error: 'helm' not found. Install: https://helm.sh/docs/intro/install/" >&2; exit 1
+endif
+	$(HELM) test astradesk --namespace astradesk-prod
 
 helm-deploy: ## Deploy to Kubernetes using Helm
 ifndef HAS_KUBECTL
 	@echo "Error: 'kubectl' not found." >&2; exit 1
 endif
-	helm upgrade --install astradesk deploy/chart \
+	$(HELM) upgrade --install astradesk deploy/chart \
 		--namespace astradesk-prod \
 		--create-namespace \
 		--wait --timeout 5m \

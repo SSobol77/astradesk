@@ -1,11 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+# File: templates/service.yaml
+# Description:
+#     Helm template for AstraDesk services (api, ticket-adapter, admin, auditor).
+#     Exposes services with Istio-compatible ports.
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+
+{{- range $service := list "api" "ticketAdapter" "admin" "auditor" }}
+---
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Release.Name }}-api
+  name: astradesk-{{ $service }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: astradesk-{{ $service }}
 spec:
-  type: {{ .Values.service.type }}
-  ports:
-  - port: {{ .Values.service.port }}
-    targetPort: 8080
   selector:
-    app: {{ .Release.Name }}-api
+    app: astradesk-{{ $service }}
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: {{ if eq $service "api" }}8080{{ else if eq $service "admin" }}3000{{ else }}8080{{ end }}
+    name: http
+{{- end }}

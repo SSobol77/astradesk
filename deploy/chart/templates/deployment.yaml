@@ -1,34 +1,48 @@
+# SPDX-License-Identifier: Apache-2.0
+# File: templates/deployment.yaml
+# Description:
+#     Helm template for AstraDesk services deployment (api, ticket-adapter, admin, auditor).
+#     Configures Istio sidecar, mTLS, and environment variables from Admin API (/secrets).
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+
+{{- range $service := list "api" "ticketAdapter" "admin" "auditor" }}
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-api
+  name: astradesk-{{ $service }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: astradesk-{{ $service }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: {{ index $.Values $service "replicas" }}
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-api
+      app: astradesk-{{ $service }}
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}-api
+        app: astradesk-{{ $service }}
+      annotations:
+        sidecar.istio.io/inject: "true"
     spec:
       containers:
-      - name: api
-        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-        ports:
-        - containerPort: 8080
-        env:
-        - name: DATABASE_URL
-          value: {{ .Values.env.DATABASE_URL | quote }}
-        - name: REDIS_URL
-          value: {{ .Values.env.REDIS_URL | quote }}
-        - name: TICKETS_BASE_URL
-          value: {{ .Values.env.TICKETS_BASE_URL | quote }}
-        - name: OIDC_ISSUER
-          value: {{ .Values.env.OIDC_ISSUER | quote }}
-        - name: OIDC_AUDIENCE
-          value: {{ .Values.env.OIDC_AUDIENCE | quote }}
-        - name: OIDC_JWKS_URL
-          value: {{ .Values.env.OIDC_JWKS_URL | quote }}
+      - name: {{ $service }}
+        image: {{ index $.Values $service "image" "repository" }}:{{ index $.Values $service "image" "tag" }}
         resources:
-{{ toYaml .Values.resources | indent 10 }}
+          {{- toYaml (index $.Values $service "resources") | nindent 12 }}
+        env:
+        {{- range $key, $value := index $.Values $service "env" }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
+        ports:
+        - containerPort: {{ if eq $service "api" }}8080{{ else if eq $service "admin" }}3000{{ else }}8080{{ end }}
+        readinessProbe:
+          httpGet:
+            path: {{ if eq $service "api" }}/api/admin/v1/health{{ else if eq $service "admin" }}/health{{ else }}/health{{ end }}
+            port: {{ if eq $service "api" }}8080{{ else if eq $service "admin" }}3000{{ else }}8080{{ end }}
+          initialDelaySeconds: 5
+          periodSeconds: 10
+{{- end }}
