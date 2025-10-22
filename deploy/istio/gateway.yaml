@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+# File: deploy/istio/gateway.yaml
+# Description:
+#     Istio Gateway for AstraDesk services.
+#     Configures HTTPS on port 443 with cert-manager certificates.
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: astradesk-gateway
+  namespace: astradesk-prod
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      credentialName: astradesk-tls
+    hosts:
+    - "*.astradesk.local"

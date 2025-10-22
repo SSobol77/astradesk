@@ -4,13 +4,12 @@
 #     Central Makefile for the AstraDesk monorepo project.
 #     Automates development tasks including dependency management, linting, testing,
 #     building, Docker management, Terraform infrastructure, configuration management
-#     (Ansible/Puppet/Salt), Istio configuration, and certificate handling.
+#     (Ansible/Puppet/Salt), Istio configuration, Helm deployment, and certificate handling.
 #     Supports polyglot stack: Python 3.14+, Java 25+, Node.js 22, Postgres 18+.
 # Author: Siergej Sobolewski
 # Since: 2025-10-22
 
 # --- Configuration Variables ---
-
 DOCKER_COMPOSE := docker compose
 KUBECTL := kubectl
 ISTIOCTL := istioctl
@@ -45,7 +44,7 @@ HAS_SALT := $(shell command -v $(SALT) 2> /dev/null)
 HAS_HELM := $(shell command -v $(HELM) 2> /dev/null)
 
 # --- Phony Targets ---
-.PHONY: help all sync lint type test test-python test-java test-admin build build-python build-java build-admin docker-build docker-push up down up-deps run-local logs logs-api logs-auditor migrate ingest clean apply-istio verify-istio store-secrets helm-deploy terraform-init terraform-validate terraform-plan terraform-apply ansible-deploy puppet-deploy salt-deploy test-config-mgmt test-packs build-packs helm-lint helm-test
+.PHONY: help all sync lint type test test-python test-java test-admin build build-python build-java build-admin docker-build docker-push up down up-deps run-local logs logs-api logs-auditor migrate ingest clean apply-istio verify-istio store-secrets helm-deploy terraform-init terraform-validate terraform-plan terraform-apply ansible-deploy puppet-deploy salt-deploy test-config-mgmt test-packs build-packs helm-lint helm-test verify-mtls
 
 # --- Default Goal ---
 .DEFAULT_GOAL := help
@@ -63,7 +62,7 @@ help: ## Display this help message
 	@echo "Helper Targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep '## Helper' | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-all: lint test build apply-istio terraform-apply helm-deploy ## Run lint, tests, build, Istio, Terraform, and Helm deploy
+all: lint test build apply-istio terraform-apply helm-deploy verify-mtls ## Run lint, tests, build, Istio, Terraform, Helm deploy, and mTLS verification
 
 # --- Python Environment Management (uv workspace) ---
 
@@ -200,6 +199,13 @@ ifndef HAS_ISTIOCTL
 endif
 	$(ISTIOCTL) analyze -n astradesk-prod
 
+verify-mtls: ## Verify mTLS configuration
+ifndef HAS_KUBECTL
+	@echo "Error: 'kubectl' not found." >&2; exit 1
+endif
+	$(KUBECTL) get peerauthentication -n astradesk-prod -o jsonpath='{.items[*].spec.mtls.mode}' | grep -q STRICT && echo "mTLS is STRICT" || exit 1
+	$(HELM) test astradesk --namespace astradesk-prod
+
 store-secrets: ## Store mTLS certificate in Admin API
 ifndef HAS_KUBECTL
 	@echo "Error: 'kubectl' not found." >&2; exit 1
@@ -207,7 +213,7 @@ endif
 ifndef JWT_TOKEN
 	@echo "Error: 'JWT_TOKEN' not set." >&2; exit 1
 endif
-	$(KUBECTL) get secret -n astradesk-prod astradesk-mtls-secret -o jsonpath='{.data.tls\.crt}' | base64 -d > mtls-cert.pem
+	$(KUBECTL) get secret -n astradesk-prod astradesk-tls -o jsonpath='{.data.tls\.crt}' | base64 -d > mtls-cert.pem
 	curl -X POST http://localhost:8080/api/admin/v1/secrets -H "Authorization: Bearer $(JWT_TOKEN)" -d '{"name": "astradesk_mtls", "type": "certificate", "value": "'"$$(cat mtls-cert.pem)"'"}'
 	rm -f mtls-cert.pem
 
@@ -303,7 +309,7 @@ endif
 
 clean: ## Remove generated files and cache
 	@echo "Cleaning project..."
-	rm -rf .pytest_cache .mypy_cache coverage.xml pytest-report.xml $(TERRAFORM_DIR)/plan.out
+	rm -rf .pytest_cache .mypy_cache coverage.xml pytest-report.xml $(TERRAFORM_DIR)/plan.out mtls-cert.pem
 	find . -type d -name "__pycache__" -exec rm -r {} +
 	$(GRADLEW) clean || true
 	cd services/admin-portal && rm -rf .next node_modules || true

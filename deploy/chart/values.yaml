@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# File: values.yaml
+# File: deploy/chart/values.yaml
 # Description:
 #     Helm values for AstraDesk deployment.
 #     Configures images, replicas, autoscaling (CPU 60%), and database connections.
