@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+# File: templates/tests/test-hpa.yaml
+# Description:
+#     Helm test for validating HPA configurations for AstraDesk services.
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ .Release.Name }}-hpa-test"
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": test
+spec:
+  containers:
+  - name: test
+    image: bitnami/kubectl:latest
+    command: ["kubectl"]
+    args:
+    - "get"
+    - "hpa"
+    - "-n"
+    - "{{ .Release.Namespace }}"
+    - "-o"
+    - "jsonpath={.items[*].spec.metrics[0].resource.target.averageUtilization}"
+    - "--ignore-not-found"
+  restartPolicy: Never
