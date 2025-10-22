@@ -1,6 +1,13 @@
-# Włącza *obowiązkowe* mTLS (STRICT) dla całego namespace'u.
-# Dzięki temu *każdy* ruch pomiędzy Podami w tej przestrzeni nazw
-# musi odbywać się z wzajemną autentykacją TLS (mTLS).
+# SPDX-License-Identifier: Apache-2.0
+# File: deploy/istio/10-peer-authentication.yaml
+# Description:
+#     Configures mandatory mutual TLS (mTLS) for the astradesk namespace.
+#     Ensures all traffic between Pods in the namespace uses mutual TLS authentication.
+#     Compatible with Istio 1.18+ and cert-manager for certificate management.
+#     Applies to workloads like domain-support, domain-finance, domain-supply, and ticket-adapter-java.
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+
 apiVersion: security.istio.io/v1beta1
 kind: PeerAuthentication
 metadata:
@@ -8,4 +15,7 @@ metadata:
   namespace: astradesk
 spec:
   mtls:
-    mode: STRICT
+    mode: STRICT  # Enforces mutual TLS for all traffic in the namespace
+  selector:  # Optional: Restrict mTLS to specific workloads (uncomment if needed)
+    matchLabels:
+      app: astradesk  # Matches Pods with label app=astradesk (e.g., domain-support, ticket-adapter-java)

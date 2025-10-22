@@ -1,0 +1,92 @@
+# SPDX-License-Identifier: Apache-2.0
+# File: admin-portal-template.yaml
+# Description:
+#     OpenShift Template for deploying the AstraDesk Admin Portal (Node.js).
+#     Includes DeploymentConfig, Service, and Route with Istio sidecar.
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: astradesk-admin-portal
+objects:
+- apiVersion: apps.openshift.io/v1
+  kind: DeploymentConfig
+  metadata:
+    name: astradesk-admin-portal
+    namespace: ${NAMESPACE}
+  spec:
+    replicas: 2
+    selector:
+      app: astradesk-admin-portal
+    template:
+      metadata:
+        labels:
+          app: astradesk-admin-portal
+          sidecar.istio.io/inject: "true"
+      spec:
+        containers:
+        - name: admin-portal
+          image: ${ADMIN_IMAGE}:${TAG}
+          ports:
+          - containerPort: 3000
+          env:
+          - name: NEXT_PUBLIC_API_URL
+            value: http://astradesk-api:8080
+          - name: OIDC_ISSUER
+            value: ${OIDC_ISSUER}
+          - name: OIDC_AUDIENCE
+            value: ${OIDC_AUDIENCE}
+          - name: OIDC_JWKS_URL
+            value: ${OIDC_JWKS_URL}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: astradesk-admin-portal
+    namespace: ${NAMESPACE}
+  spec:
+    selector:
+      app: astradesk-admin-portal
+    ports:
+    - port: 80
+      targetPort: 3000
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    name: astradesk-admin-portal
+    namespace: ${NAMESPACE}
+  spec:
+    to:
+      kind: Service
+      name: astradesk-admin-portal
+    port:
+      targetPort: 3000
+    tls:
+      termination: edge
+      insecureEdgeTerminationPolicy: Redirect
+parameters:
+- name: ADMIN_IMAGE
+  value: docker.io/astradesk/astradesk-admin  # Update to your registry
+- name: TAG
+  value: latest
+- name: NAMESPACE
+  value: astradesk-prod
+- name: OIDC_ISSUER
+  value: https://your-keycloak-or-auth0-issuer.com/
+- name: OIDC_AUDIENCE
+  value: astradesk-api
+- name: OIDC_JWKS_URL
+  value: https://your-keycloak-or-auth0-issuer.com/.well-known/jwks.json

@@ -1,40 +1,115 @@
+# SPDX-License-Identifier: Apache-2.0
+# File: astradesk-template.yaml
+# Description:
+#     OpenShift Template for deploying the AstraDesk API service.
+#     Includes DeploymentConfig, Service, and Route with Istio sidecar injection and mTLS/TLS support.
+#     Integrates with deploy/istio/, /secrets (Admin API), and polyglot stack (Python 3.14+).
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+
 apiVersion: template.openshift.io/v1
 kind: Template
-metadata: { name: astradesk }
+metadata:
+  name: astradesk-api
 objects:
-- kind: DeploymentConfig
-  apiVersion: v1
-  metadata: { name: astradesk-api }
+- apiVersion: apps.openshift.io/v1
+  kind: DeploymentConfig
+  metadata:
+    name: astradesk-api
+    namespace: ${NAMESPACE}
   spec:
     replicas: 2
-    selector: { app: astradesk-api }
+    selector:
+      app: astradesk-api
     template:
-      metadata: { labels: { app: astradesk-api } }
+      metadata:
+        labels:
+          app: astradesk-api
+          sidecar.istio.io/inject: "true"  # Enable Istio sidecar
       spec:
         containers:
         - name: api
           image: ${API_IMAGE}:${TAG}
-          ports: [{containerPort: 8080}]
+          ports:
+          - containerPort: 8080
           env:
-          - {name: DATABASE_URL, value: "${DATABASE_URL}"}
-          - {name: REDIS_URL, value: "${REDIS_URL}"}
-- kind: Service
-  apiVersion: v1
-  metadata: { name: astradesk-api }
+          - name: DATABASE_URL
+            value: ${DATABASE_URL}
+          - name: REDIS_URL
+            value: ${REDIS_URL}
+          - name: NATS_URL
+            value: ${NATS_URL}
+          - name: OIDC_ISSUER
+            value: ${OIDC_ISSUER}
+          - name: OIDC_AUDIENCE
+            value: ${OIDC_AUDIENCE}
+          - name: OIDC_JWKS_URL
+            value: ${OIDC_JWKS_URL}
+          - name: MTLS_CERT_PATH
+            value: /secrets/mtls-cert.pem
+          - name: TLS_CERT_PATH
+            value: /secrets/tls-cert.pem
+          volumeMounts:
+          - name: secrets
+            mountPath: /secrets
+            readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /api/admin/v1/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /api/admin/v1/health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+        volumes:
+        - name: secrets
+          secret:
+            secretName: astradesk-mtls-secret
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: astradesk-api
+    namespace: ${NAMESPACE}
   spec:
-    selector: { app: astradesk-api }
-    ports: [{ port: 80, targetPort: 8080 }]
-- kind: Route
-  apiVersion: route.openshift.io/v1
-  metadata: { name: astradesk }
+    selector:
+      app: astradesk-api
+    ports:
+    - port: 80
+      targetPort: 8080
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    name: astradesk-api
+    namespace: ${NAMESPACE}
   spec:
-    to: { kind: Service, name: astradesk-api }
+    to:
+      kind: Service
+      name: astradesk-api
+    port:
+      targetPort: 8080
+    tls:
+      termination: edge
+      insecureEdgeTerminationPolicy: Redirect
 parameters:
 - name: API_IMAGE
-  value: docker.io/youruser/astradesk-api
+  value: docker.io/astradesk/astradesk-api  # Update to your registry
 - name: TAG
-  value: "latest"
+  value: latest
+- name: NAMESPACE
+  value: astradesk-prod
 - name: DATABASE_URL
   value: postgresql://astradesk:astrapass@postgres:5432/astradesk
 - name: REDIS_URL
   value: redis://redis:6379/0
+- name: NATS_URL
+  value: nats://nats:4222
+- name: OIDC_ISSUER
+  value: https://your-keycloak-or-auth0-issuer.com/
+- name: OIDC_AUDIENCE
+  value: astradesk-api
+- name: OIDC_JWKS_URL
+  value: https://your-keycloak-or-auth0-issuer.com/.well-known/jwks.json

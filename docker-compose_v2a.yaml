@@ -1,0 +1,333 @@
+# SPDX-License-Identifier: Apache-2.0
+# File: docker-compose.yml v.2 alfa --refactoring--
+# Description:
+#     Defines services for the AstraDesk project in a local development environment.
+#     Includes API, Prometheus, ticket-adapter (Java), admin-portal (Node.js), auditor,
+#     MySQL, Postgres, Redis, NATS, and domain packs (Python, Java, gRPC).
+#     Supports polyglot stack (Python 3.14+, Java 25+, Node.js 22, Postgres 18+).
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+
+version: "3.9"
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PYTHON_VERSION: 3.14  # Matches style guide
+    env_file: .env
+    environment:
+      UV_EXTRA_INDEX_URL: "https://download.pytorch.org/whl/cu121"
+      UV_INDEX_STRATEGY: "unsafe-best-match"
+      API_PORT: 8080
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./secrets:/secrets:ro  # Mount mTLS/TLS certificates
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      ticket-adapter:
+        condition: service_started
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/admin/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./dev/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  ticket-adapter:
+    build:
+      context: services/ticket-adapter-java
+      dockerfile: Dockerfile
+      args:
+        JAVA_VERSION: 25  # Matches style guide
+    env_file: .env
+    ports:
+      - "8082:8081"
+    volumes:
+      - ./secrets:/secrets:ro  # Mount mTLS certificates
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  admin:
+    build:
+      context: services/admin-portal
+      dockerfile: Dockerfile
+      args:
+        NODE_VERSION: 22  # Matches style guide
+    env_file: .env
+    environment:
+      NEXT_PUBLIC_API_URL: http://api:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  auditor:
+    build:
+      context: ./services/auditor
+      dockerfile: Dockerfile
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  db:
+    image: pgvector/pgvector:pg18  # Updated to Postgres 18
+    environment:
+      POSTGRES_DB: astradesk
+      POSTGRES_USER: astradesk
+      POSTGRES_PASSWORD: astrapass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U astradesk"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:8
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8
+    environment:
+      MYSQL_DATABASE: tickets
+      MYSQL_USER: tickets
+      MYSQL_PASSWORD: tickets
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "tickets", "-ptickets"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  nats:
+    image: nats:2-alpine
+    command:
+      - "--jetstream"
+      - "--store_dir=/datastore"
+      - "-m"
+      - "8222"
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats_data:/datastore
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  domain-support:
+    build:
+      context: packages/domain-support
+      dockerfile: Dockerfile
+    depends_on:
+      api:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    environment:
+      API_URL: http://api:8080/api/admin/v1
+      API_TOKEN: "${API_TOKEN}"
+    volumes:
+      - ./secrets:/secrets:ro  # Mount mTLS certificates
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  domain-finance:
+    build:
+      context: packages/domain-finance
+      dockerfile: Dockerfile.python
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      API_URL: http://api:8080/api/admin/v1
+      API_TOKEN: "${API_TOKEN}"
+    volumes:
+      - ./secrets:/secrets:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  domain-finance-java:
+    build:
+      context: packages/domain-finance
+      dockerfile: Dockerfile.java
+    command: java -jar build/libs/domain-finance.jar
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      API_URL: http://api:8080/api/admin/v1
+      API_TOKEN: "${API_TOKEN}"
+    volumes:
+      - ./secrets:/secrets:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  domain-finance-grpc:
+    build:
+      context: packages/domain-finance
+      dockerfile: Dockerfile.grpc
+    ports:
+      - "50051:50051"
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      API_URL: http://api:8080/api/admin/v1
+      API_TOKEN: "${API_TOKEN}"
+    volumes:
+      - ./secrets:/secrets:ro
+    healthcheck:
+      test: ["CMD", "grpcurl", "-plaintext", "localhost:50051", "grpc.health.v1.Health/Check"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  domain-supply:
+    build:
+      context: packages/domain-supply
+      dockerfile: Dockerfile.python
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      API_URL: http://api:8080/api/admin/v1
+      API_TOKEN: "${API_TOKEN}"
+    volumes:
+      - ./secrets:/secrets:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  domain-supply-java:
+    build:
+      context: packages/domain-supply
+      dockerfile: Dockerfile.java
+    command: java -jar build/libs/domain-supply.jar
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      API_URL: http://api:8080/api/admin/v1
+      API_TOKEN: "${API_TOKEN}"
+    volumes:
+      - ./secrets:/secrets:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  domain-supply-grpc:
+    build:
+      context: packages/domain-supply
+      dockerfile: Dockerfile.grpc
+    ports:
+      - "50052:50052"
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      API_URL: http://api:8080/api/admin/v1
+      API_TOKEN: "${API_TOKEN}"
+    volumes:
+      - ./secrets:/secrets:ro
+    healthcheck:
+      test: ["CMD", "grpcurl", "-plaintext", "localhost:50052", "grpc.health.v1.Health/Check"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  mysql_data:
+  nats_data:

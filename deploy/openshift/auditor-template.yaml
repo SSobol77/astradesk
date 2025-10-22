@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: Apache-2.0
+# File: auditor-template.yaml
+# Description:
+#     OpenShift Template for deploying the AstraDesk Auditor service (Python).
+#     Includes DeploymentConfig, Service with Istio sidecar and NATS integration.
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: astradesk-auditor
+objects:
+- apiVersion: apps.openshift.io/v1
+  kind: DeploymentConfig
+  metadata:
+    name: astradesk-auditor
+    namespace: ${NAMESPACE}
+  spec:
+    replicas: 2
+    selector:
+      app: astradesk-auditor
+    template:
+      metadata:
+        labels:
+          app: astradesk-auditor
+          sidecar.istio.io/inject: "true"
+      spec:
+        containers:
+        - name: auditor
+          image: ${AUDITOR_IMAGE}:${TAG}
+          ports:
+          - containerPort: 8080
+          env:
+          - name: DATABASE_URL
+            value: ${DATABASE_URL}
+          - name: NATS_URL
+            value: ${NATS_URL}
+          - name: MTLS_CERT_PATH
+            value: /secrets/mtls-cert.pem
+          volumeMounts:
+          - name: secrets
+            mountPath: /secrets
+            readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+        volumes:
+        - name: secrets
+          secret:
+            secretName: astradesk-mtls-secret
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: astradesk-auditor
+    namespace: ${NAMESPACE}
+  spec:
+    selector:
+      app: astradesk-auditor
+    ports:
+    - port: 80
+      targetPort: 8080
+parameters:
+- name: AUDITOR_IMAGE
+  value: docker.io/astradesk/astradesk-auditor  # Update to your registry
+- name: TAG
+  value: latest
+- name: NAMESPACE
+  value: astradesk-prod
+- name: DATABASE_URL
+  value: postgresql://astradesk:astrapass@postgres:5432/astradesk
+- name: NATS_URL
+  value: nats://nats:4222

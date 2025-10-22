@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: Apache-2.0
+# File: tests/test-api.yaml
+# Description:
+#     Helm test for AstraDesk API healthcheck.
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ .Release.Name }}-api-test"
+  annotations:
+    "helm.sh/hook": test
+spec:
+  containers:
+    - name: test
+      image: curlimages/curl
+      command: ["curl", "-f", "http://astradesk-api:8080/api/admin/v1/health"]
+  restartPolicy: Never

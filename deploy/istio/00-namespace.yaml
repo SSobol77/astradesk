@@ -1,7 +1,16 @@
-# Tworzymy dedykowany namespace z labelami wymaganymi przez Istio do sidecar injection.
+# SPDX-License-Identifier: Apache-2.0
+# File: deploy/istio/00-namespace.yaml
+# Description:
+#     Defines the astradesk namespace with Istio sidecar injection enabled.
+#     Used for all AstraDesk services (e.g., domain-support, ticket-adapter-java, astradesk-api).
+#     Compatible with Istio mTLS (10-peer-authentication.yaml) and cert-manager (50-cert-manager-certificate.yaml).
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+
 apiVersion: v1
 kind: Namespace
 metadata:
   name: astradesk
   labels:
-    istio-injection: enabled  # automatyczna injekcja Envoy sidecar
+    istio-injection: enabled  # Enables automatic Envoy sidecar injection for all Pods
+    app: astradesk  # Optional: Label for workload grouping (e.g., for monitoring)

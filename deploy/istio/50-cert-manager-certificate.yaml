@@ -1,4 +1,14 @@
-# Jeśli używasz cert-managera do wystawienia certu TLS dla hosta z Gateway:
+# SPDX-License-Identifier: Apache-2.0
+# File: deploy/istio/50-cert-manager-certificate.yaml
+# Description:
+#     Defines TLS certificates for AstraDesk Istio Gateway and internal mTLS.
+#     - astradesk-tls: Certificate for external Gateway (api.astradesk.example.com).
+#     - astradesk-mtls-cert: Certificate for internal Pod-to-Pod mTLS in astradesk namespace.
+#     Managed by cert-manager, integrated with Let's Encrypt ClusterIssuer.
+#     Compatible with Istio STRICT mTLS (10-peer-authentication.yaml) and Admin API secrets.
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+---
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -6,8 +16,33 @@ metadata:
   namespace: astradesk
 spec:
   secretName: astradesk-tls
+  commonName: api.astradesk.example.com  # Change to your production domain
   dnsNames:
-    - api.astradesk.example.com     # <- ZMIEŃ
+    - api.astradesk.example.com  # Change to your production domain
+  duration: 2160h  # 90 days
+  renewBefore: 360h  # Renew 15 days before expiry
+  usages:
+    - server auth
+    - client auth
   issuerRef:
-    name: letsencrypt-prod          # <- Twój ClusterIssuer
+    name: letsencrypt-prod  # Verify ClusterIssuer exists
+    kind: ClusterIssuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: astradesk-mtls-cert
+  namespace: astradesk
+spec:
+  secretName: astradesk-mtls-secret
+  commonName: astradesk.local
+  dnsNames:
+    - "*.astradesk.local"  # Wildcard for internal services (e.g., domain-support, ticket-adapter-java)
+  duration: 2160h  # 90 days
+  renewBefore: 360h  # Renew 15 days before expiry
+  usages:
+    - server auth
+    - client auth
+  issuerRef:
+    name: astradesk-ca  # Internal CA for mTLS (create ClusterIssuer if needed)
     kind: ClusterIssuer

@@ -1,4 +1,12 @@
-# Mapuje hosta publicznego na serwis w klastrze.
+# SPDX-License-Identifier: Apache-2.0
+# File: deploy/istio/41-virtualservice-astradesk-api.yaml
+# Description:
+#     Maps public host to the astradesk-api service in the cluster.
+#     Routes all HTTP(S) traffic to astradesk-api:8080 via Gateway (40-gateway.yaml).
+#     Compatible with mTLS (20-destinationrule-astradesk-api.yaml) and cert-manager (50-cert-manager-certificate.yaml).
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+
 apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
 metadata:
@@ -6,15 +14,16 @@ metadata:
   namespace: astradesk
 spec:
   hosts:
-    - api.astradesk.example.com   # <- ZMIEŃ na swój FQDN
+    - api.astradesk.example.com  # Change to your production FQDN
   gateways:
-    - astradesk/astradesk-gw
+    - astradesk-gw  # References Gateway in astradesk namespace
   http:
     - match:
         - uri:
-            prefix: /              # cały ruch HTTP(S) idzie do backendu
+            prefix: /  # Routes all HTTP(S) traffic to backend
       route:
         - destination:
             host: astradesk-api.astradesk.svc.cluster.local
             port:
-              number: 8080         # port kontenera API
+              number: 8080  # Matches API container port
+          weight: 100  # Full traffic to this destination
