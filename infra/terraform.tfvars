@@ -1,0 +1,8 @@
+region = "eu-central-1"
+project = "astradesk"
+db_name_postgres = "astradesk"
+db_username_postgres = "astradesk"
+db_password_postgres = "astrapass"
+db_name_mysql = "tickets"
+db_username_mysql = "tickets"
+db_password_mysql = "tickets"
