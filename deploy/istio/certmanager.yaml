@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: Apache-2.0
+# File: deploy/istio/certmanager.yaml
+# Description:
+#     Cert-manager Issuer and Certificate for AstraDesk TLS.
+#     Generates TLS certificates for HTTPS on port 443.
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: astradesk-selfsigned-issuer
+  namespace: astradesk-prod
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: astradesk-tls
+  namespace: astradesk-prod
+spec:
+  secretName: astradesk-tls
+  issuerRef:
+    name: astradesk-selfsigned-issuer
+    kind: Issuer
+  commonName: astradesk.local
+  dnsNames:
+  - "*.astradesk.local"
+  - "api.astradesk.local"
+  - "ticket.astradesk.local"
+  - "admin.astradesk.local"
+  - "auditor.astradesk.local"

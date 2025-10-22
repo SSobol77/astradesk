@@ -3,9 +3,9 @@
 // Description:
 //     Production Jenkins pipeline for AstraDesk.
 //     Handles checkout, code analysis, testing (Python 3.14, Java 25, Node.js 22),
-//     Docker build/push, Terraform infrastructure deployment (VPC, EKS, RDS, S3),
-//     configuration management (Ansible/Puppet/Salt), Istio configuration,
-//     Admin API secrets, and Helm deployment.
+//     Docker build/push, Terraform infrastructure (VPC, EKS, RDS, S3),
+//     configuration management (Ansible/Puppet/Salt), Istio mTLS (STRICT),
+//     cert-manager HTTPS, Admin API secrets, and Helm deployment.
 //     Integrates with infra/, ansible/, puppet/, salt/, deploy/istio/, deploy/chart/, and Admin API (/secrets).
 // Author: Siergej Sobolewski
 // Since: 2025-10-22
@@ -233,13 +233,28 @@ pipeline {
                 unstash 'source'
                 withCredentials([file(credentialsId: env.KUBE_CREDENTIALS_ID, variable: 'KUBECONFIG'), string(credentialsId: 'admin-api-jwt', variable: 'JWT')]) {
                     sh '''
-                        kubectl get secret -n astradesk-prod astradesk-mtls-secret -o jsonpath='{.data.tls\\.crt}' --kubeconfig=$KUBECONFIG | base64 -d > mtls-cert.pem
+                        kubectl get secret -n astradesk-prod astradesk-tls -o jsonpath='{.data.tls\\.crt}' --kubeconfig=$KUBECONFIG | base64 -d > mtls-cert.pem
                         curl -X POST http://localhost:8080/api/admin/v1/secrets -H "Authorization: Bearer $JWT" -d '{
                             "name": "astradesk_mtls",
                             "type": "certificate",
                             "value": "'"$(cat mtls-cert.pem)"'"
                         }'
+                        rm -f mtls-cert.pem
                     '''
+                }
+            }
+        }
+
+        stage('Test Istio mTLS') {
+            agent { docker { image 'bitnami/kubectl:latest' } }
+            steps {
+                unstash 'source'
+                withCredentials([file(credentialsId: env.KUBE_CREDENTIALS_ID, variable: 'KUBECONFIG')]) {
+                    sh '''
+                        kubectl get peerauthentication -n astradesk-prod -o jsonpath='{.items[*].spec.mtls.mode}' | grep -q STRICT || exit 1
+                        kubectl exec -n astradesk-prod -c istio-proxy $(kubectl get pod -l app=astradesk-api -n astradesk-prod -o jsonpath='{.items[0].metadata.name}') --kubeconfig=$KUBECONFIG -- curl -k https://api.astradesk.local/api/admin/v1/health > mtls-test.log 2>&1
+                    '''
+                    stash name: 'mtls-test-log', includes: 'mtls-test.log'
                 }
             }
         }
@@ -254,12 +269,28 @@ pipeline {
                         helm upgrade --install astradesk deploy/chart \
                             --set api.image.repository=${REGISTRY_URL}/astradesk-api \
                             --set api.image.tag=${IMAGE_TAG} \
-                            --set admin.image.repository=${REGISTRY_URL}/astradesk-admin \
-                            --set admin.image.tag=${IMAGE_TAG} \
                             --set ticketAdapter.image.repository=${REGISTRY_URL}/astradesk-ticket \
                             --set ticketAdapter.image.tag=${IMAGE_TAG} \
+                            --set admin.image.repository=${REGISTRY_URL}/astradesk-admin \
+                            --set admin.image.tag=${IMAGE_TAG} \
                             --set auditor.image.repository=${REGISTRY_URL}/astradesk-auditor \
                             --set auditor.image.tag=${IMAGE_TAG} \
+                            --set api.autoscaling.enabled=true \
+                            --set api.autoscaling.minReplicas=2 \
+                            --set api.autoscaling.maxReplicas=10 \
+                            --set api.autoscaling.targetCPUUtilizationPercentage=60 \
+                            --set ticketAdapter.autoscaling.enabled=true \
+                            --set ticketAdapter.autoscaling.minReplicas=2 \
+                            --set ticketAdapter.autoscaling.maxReplicas=5 \
+                            --set ticketAdapter.autoscaling.targetCPUUtilizationPercentage=60 \
+                            --set admin.autoscaling.enabled=true \
+                            --set admin.autoscaling.minReplicas=2 \
+                            --set admin.autoscaling.maxReplicas=5 \
+                            --set admin.autoscaling.targetCPUUtilizationPercentage=60 \
+                            --set auditor.autoscaling.enabled=true \
+                            --set auditor.autoscaling.minReplicas=2 \
+                            --set auditor.autoscaling.maxReplicas=5 \
+                            --set auditor.autoscaling.targetCPUUtilizationPercentage=60 \
                             --set database.postgres.host=$(terraform output -raw rds_postgres_endpoint) \
                             --set database.mysql.host=$(terraform output -raw rds_mysql_endpoint) \
                             --namespace astradesk-prod \
@@ -274,7 +305,7 @@ pipeline {
 
     post {
         always {
-            archiveArtifacts artifacts: 'coverage.xml,**/jacocoTestReport.xml,services/admin-portal/coverage/**,infra/plan.out,ansible-test.log,puppet-test.log,salt-test.log', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'coverage.xml,**/jacocoTestReport.xml,services/admin-portal/coverage/**,infra/plan.out,ansible-test.log,puppet-test.log,salt-test.log,mtls-test.log', allowEmptyArchive: true
             junit '**/build/test-results/test/TEST-*.xml,pytest-report.xml'
         }
     }

@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: Apache-2.0
+# File: deploy/istio/virtualservice.yaml
+# Description:
+#     Istio VirtualService for routing to AstraDesk services.
+#     Routes HTTPS traffic to api, ticket-adapter, admin, and auditor.
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: astradesk-vs
+  namespace: astradesk-prod
+spec:
+  hosts:
+  - "api.astradesk.local"
+  - "ticket.astradesk.local"
+  - "admin.astradesk.local"
+  - "auditor.astradesk.local"
+  gateways:
+  - astradesk-gateway
+  http:
+  - match:
+    - uri:
+        prefix: /api
+    route:
+    - destination:
+        host: astradesk-api
+        port:
+          number: 8080
+  - match:
+    - uri:
+        prefix: /ticket
+    route:
+    - destination:
+        host: astradesk-ticketAdapter
+        port:
+          number: 8080
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: astradesk-admin
+        port:
+          number: 3000
+  - match:
+    - uri:
+        prefix: /auditor
+    route:
+    - destination:
+        host: astradesk-auditor
+        port:
+          number: 8080

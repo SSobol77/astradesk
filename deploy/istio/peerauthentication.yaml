@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: Apache-2.0
+# File: deploy/istio/peerauthentication.yaml
+# Description:
+#     Istio PeerAuthentication for enforcing STRICT mTLS in astradesk-prod namespace.
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: astradesk-prod
+spec:
+  mtls:
+    mode: STRICT

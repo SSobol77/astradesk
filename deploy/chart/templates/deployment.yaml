@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# File: templates/deployment.yaml
+# File: deploy/chart/templates/deployment.yaml
 # Description:
 #     Helm template for AstraDesk services deployment (api, ticket-adapter, admin, auditor).
 #     Configures Istio sidecar, mTLS, and environment variables from Admin API (/secrets).

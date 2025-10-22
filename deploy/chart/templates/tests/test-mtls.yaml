@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+# File: deploy/chart/templates/tests/test-mtls.yaml
+# Description:
+#     Helm test for validating mTLS STRICT and HTTPS configuration in AstraDesk.
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ .Release.Name }}-mtls-test"
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": test
+spec:
+  containers:
+  - name: test
+    image: bitnami/kubectl:latest
+    command: ["kubectl"]
+    args:
+    - "exec"
+    - "-n"
+    - "{{ .Release.Namespace }}"
+    - "-c"
+    - "istio-proxy"
+    - "$(kubectl get pod -l app=astradesk-api -n {{ .Release.Namespace }} -o jsonpath='{.items[0].metadata.name}')"
+    - "--"
+    - "curl"
+    - "-k"
+    - "https://api.astradesk.local/api/admin/v1/health"
+  restartPolicy: Never
