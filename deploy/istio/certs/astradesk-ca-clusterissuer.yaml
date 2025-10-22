@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+# File: deploy/istio/certs/astradesk-ca-clusterissuer.yaml
+# Description:
+#     Defines a cert-manager ClusterIssuer for internal CA (mTLS).
+#     Used for internal mTLS certificates (e.g., astradesk-mtls-cert in 50-cert-manager-certificate.yaml).
+#     References CA certificate stored in astradesk-ca-secret.
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: astradesk-ca
+spec:
+  ca:
+    secretName: astradesk-ca-secret  # References CA cert/key from astradesk-ca-certificate.yaml

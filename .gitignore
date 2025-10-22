@@ -53,8 +53,8 @@ docker-compose.override.yml
 # Environment variables
 .env
 *.env
-*.env.*
-!.env.example
+
+
 
 # Terraform
 infra/.terraform/
@@ -114,6 +114,7 @@ yarn-error.log*
 *.swo
 *~
 *.txt
+astradesk.code-workspace
 
 # OS-specific files
 .DS_Store

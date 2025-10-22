@@ -1,13 +1,24 @@
-# Ustawiamy politykę połączeń dla serwisu 'astradesk-api'
-# tak, aby klienci w siatce zawsze używali ISTIO_MUTUAL (mTLS)
-# przy komunikacji z tym hostem.
+# SPDX-License-Identifier: Apache-2.0
+# File: deploy/istio/20-destinationrule-astradesk-api.yaml
+# Description:
+#     Configures traffic policy for astradesk-api service.
+#     Enforces ISTIO_MUTUAL mTLS for all client connections to the service.
+#     Compatible with Istio STRICT mTLS (10-peer-authentication.yaml) and cert-manager (50-cert-manager-certificate.yaml).
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+
 apiVersion: networking.istio.io/v1beta1
 kind: DestinationRule
 metadata:
   name: astradesk-api
   namespace: astradesk
 spec:
-  host: astradesk-api.astradesk.svc.cluster.local  # FQDN usługi w klastrze
+  host: astradesk-api.astradesk.svc.cluster.local  # FQDN of the API service
   trafficPolicy:
     tls:
-      mode: ISTIO_MUTUAL  # użyj certów Istio między sidecarami (mTLS)
+      mode: ISTIO_MUTUAL  # Enforces mTLS using Istio certificates between sidecars
+    portLevelSettings:
+      - port:
+          number: 8080  # Matches VirtualService port (41-virtualservice-astradesk-api.yaml)
+        tls:
+          mode: ISTIO_MUTUAL

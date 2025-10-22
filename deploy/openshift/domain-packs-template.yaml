@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: Apache-2.0
+# File: domain-packs-template.yaml
+# Description:
+#     OpenShift Template for deploying AstraDesk domain packs (Python, Java, gRPC).
+#     Includes DeploymentConfig and Service with Istio sidecar and mTLS support.
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: astradesk-domain-packs
+objects:
+- apiVersion: apps.openshift.io/v1
+  kind: DeploymentConfig
+  metadata:
+    name: astradesk-domain-support
+    namespace: ${NAMESPACE}
+  spec:
+    replicas: 1
+    selector:
+      app: astradesk-domain-support
+    template:
+      metadata:
+        labels:
+          app: astradesk-domain-support
+          sidecar.istio.io/inject: "true"
+      spec:
+        containers:
+        - name: domain-support
+          image: ${DOMAIN_SUPPORT_IMAGE}:${TAG}
+          env:
+          - name: API_URL
+            value: http://astradesk-api:8080/api/admin/v1
+          - name: PACK_API_TOKEN
+            value: ${PACK_API_TOKEN}
+          - name: MTLS_CERT_PATH
+            value: /secrets/mtls-cert.pem
+          volumeMounts:
+          - name: secrets
+            mountPath: /secrets
+            readOnly: true
+        volumes:
+        - name: secrets
+          secret:
+            secretName: astradesk-mtls-secret
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: astradesk-domain-support
+    namespace: ${NAMESPACE}
+  spec:
+    selector:
+      app: astradesk-domain-support
+    ports:
+    - port: 80
+      targetPort: 8080
+parameters:
+- name: DOMAIN_SUPPORT_IMAGE
+  value: docker.io/astradesk/astradesk-domain-support  # Update to your registry
+- name: TAG
+  value: latest
+- name: NAMESPACE
+  value: astradesk-prod
+- name: PACK_API_TOKEN
+  value: your-pack-jwt-token

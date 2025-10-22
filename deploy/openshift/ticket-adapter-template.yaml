@@ -1,0 +1,91 @@
+# SPDX-License-Identifier: Apache-2.0
+# File: ticket-adapter-template.yaml
+# Description:
+#     OpenShift Template for deploying the AstraDesk Ticket Adapter (Java).
+#     Includes DeploymentConfig, Service, with Istio sidecar and mTLS support.
+#     Integrates with MySQL and /secrets (Admin API).
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: astradesk-ticket-adapter
+objects:
+- apiVersion: apps.openshift.io/v1
+  kind: DeploymentConfig
+  metadata:
+    name: astradesk-ticket-adapter
+    namespace: ${NAMESPACE}
+  spec:
+    replicas: 2
+    selector:
+      app: astradesk-ticket-adapter
+    template:
+      metadata:
+        labels:
+          app: astradesk-ticket-adapter
+          sidecar.istio.io/inject: "true"
+      spec:
+        containers:
+        - name: ticket-adapter
+          image: ${TICKET_IMAGE}:${TAG}
+          ports:
+          - containerPort: 8081
+          env:
+          - name: MYSQL_URL_R2DBC
+            value: ${MYSQL_URL_R2DBC}
+          - name: OIDC_ISSUER
+            value: ${OIDC_ISSUER}
+          - name: OIDC_AUDIENCE
+            value: ${OIDC_AUDIENCE}
+          - name: OIDC_JWKS_URL
+            value: ${OIDC_JWKS_URL}
+          - name: MTLS_CERT_PATH
+            value: /secrets/mtls-cert.pem
+          volumeMounts:
+          - name: secrets
+            mountPath: /secrets
+            readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8081
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 5
+        volumes:
+        - name: secrets
+          secret:
+            secretName: astradesk-mtls-secret
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: astradesk-ticket-adapter
+    namespace: ${NAMESPACE}
+  spec:
+    selector:
+      app: astradesk-ticket-adapter
+    ports:
+    - port: 80
+      targetPort: 8081
+parameters:
+- name: TICKET_IMAGE
+  value: docker.io/astradesk/astradesk-ticket  # Update to your registry
+- name: TAG
+  value: latest
+- name: NAMESPACE
+  value: astradesk-prod
+- name: MYSQL_URL_R2DBC
+  value: r2dbc:mysql://mysql:3306/tickets
+- name: OIDC_ISSUER
+  value: https://your-keycloak-or-auth0-issuer.com/
+- name: OIDC_AUDIENCE
+  value: astradesk-api
+- name: OIDC_JWKS_URL
+  value: https://your-keycloak-or-auth0-issuer.com/.well-known/jwks.json

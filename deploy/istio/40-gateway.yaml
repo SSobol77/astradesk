@@ -1,5 +1,12 @@
-# Publiczny punkt wejścia do klastra (Warstwa 7).
-# Działa na porcie 443, wykorzystuje sekret TLS (dostarczany przez cert-manager).
+# SPDX-License-Identifier: Apache-2.0
+# File: deploy/istio/40-gateway.yaml
+# Description:
+#     Defines an Istio Gateway for external HTTPS traffic (port 443).
+#     Uses TLS certificate managed by cert-manager (astradesk-tls).
+#     Compatible with VirtualService (41-virtualservice-astradesk-api.yaml) and cert-manager (50-cert-manager-certificate.yaml).
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+
 apiVersion: networking.istio.io/v1beta1
 kind: Gateway
 metadata:
@@ -7,14 +14,15 @@ metadata:
   namespace: astradesk
 spec:
   selector:
-    istio: ingressgateway  # używa domyślnego IngressGateway z istio-system
+    istio: ingressgateway  # Targets default Istio IngressGateway in istio-system
   servers:
     - port:
         number: 443
         name: https
         protocol: HTTPS
       tls:
-        mode: SIMPLE                # TLS do klienta zewnętrznego
-        credentialName: astradesk-tls  # nazwa Secret z certem (zarządzany przez cert-manager)
+        mode: SIMPLE  # TLS for external clients
+        credentialName: astradesk-tls  # Secret managed by cert-manager
+        minProtocolVersion: TLSV1_2  # Enforce minimum TLS version
       hosts:
-        - api.astradesk.example.com   # <- ZMIEŃ na swój FQDN
+        - api.astradesk.example.com  # Change to your production FQDN

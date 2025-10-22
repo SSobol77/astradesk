@@ -1,0 +1,13 @@
+     # SPDX-License-Identifier: Apache-2.0
+     # File: requirements.yaml
+     # Description:
+     #     Helm chart dependencies for AstraDesk.
+     # Author: Siergej Sobolewski
+     # Since: 2025-10-22
+     dependencies:
+       - name: istio
+         version: "1.18.0"
+         repository: "https://istio-release.storage.googleapis.com/charts"
+       - name: cert-manager
+         version: "1.15.3"
+         repository: "https://charts.jetstack.io"

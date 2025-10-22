@@ -1,3 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+# File: docker-compose.yml v.1.2.0
+# Description:
+#     Defines services for the AstraDesk project in a local development environment.
+#     Includes API, Prometheus, ticket-adapter (Java), admin-portal (Node.js), auditor,
+#     MySQL, Postgres, Redis, NATS, and domain packs (Python, Java, gRPC).
+#     Supports polyglot stack (Python 3.11+, Java 21, Node.js 22, Postgres 17).
+# Author: Siergej Sobolewski
+# Since: 2025-10-09
+
 version: "3.9"
 services:
   api:

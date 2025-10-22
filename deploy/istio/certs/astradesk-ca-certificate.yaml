@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+# File: deploy/istio/certs/astradesk-ca-certificate.yaml
+# Description:
+#     Defines a cert-manager Certificate for the internal CA (mTLS).
+#     Creates a root CA certificate stored in astradesk-ca-secret.
+#     Used by astradesk-ca ClusterIssuer for issuing mTLS certificates.
+# Author: Siergej Sobolewski
+# Since: 2025-10-22
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: astradesk-ca
+  namespace: astradesk
+spec:
+  isCA: true
+  secretName: astradesk-ca-secret
+  commonName: astradesk-ca
+  duration: 87600h  # 10 years for CA
+  renewBefore: 720h  # Renew 30 days before expiry
+  usages:
+    - cert sign
+    - crl sign
+  issuerRef:
+    name: selfsigned-issuer  # Self-signed issuer for CA
+    kind: ClusterIssuer
