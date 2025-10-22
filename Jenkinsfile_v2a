@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-// File: Jenkinsfile v2 alfa refactoring
+// File: Jenkinsfile v2 alfa --refactoring--
 // Description:
 //     Production Jenkins pipeline for AstraDesk.
-//     Handles checkout, code analysis, testing (Python3.14, Java25, Node.js), Docker build/push,
-//     Istio configuration application, and Helm deployment.
-//     Integrates with deploy/istio/, deploy/chart/, and Admin API (/secrets).
+//     Handles checkout, code analysis, testing (Python 3.14, Java 25, Node.js 22),
+//     Docker build/push, Terraform infrastructure deployment (VPC, EKS, RDS, S3),
+//     Istio configuration, Admin API secrets, and Helm deployment.
+//     Integrates with infra/, deploy/istio/, deploy/chart/, and Admin API (/secrets).
 // Author: Siergej Sobolewski
 // Since: 2025-10-22
 
@@ -15,6 +16,10 @@ pipeline {
         REGISTRY_URL = "docker.io/youruser"  // Change to your Docker registry
         IMAGE_TAG = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
         KUBE_CREDENTIALS_ID = 'kubeconfig-astradesk'  // Kubernetes credentials ID
+        AWS_CREDENTIALS_ID = 'aws-credentials'  // AWS credentials ID
+        ADMIN_API_JWT = credentials('admin-api-jwt')  // Admin API JWT
+        TERRAFORM_DIR = 'infra'
+        TF_VAR_file = "${TERRAFORM_DIR}/terraform.tfvars"
     }
 
     stages {
@@ -29,7 +34,7 @@ pipeline {
         stage('Code Analysis & Tests') {
             parallel {
                 stage('Analyze & Test Python') {
-                    agent { docker { image 'python:3.14-slim' } }  // Updated to Python 3.14
+                    agent { docker { image 'python:3.14-slim' } }
                     steps {
                         unstash 'source'
                         cache(path: '.venv', key: "venv-py-${checksum 'uv.lock'}") {
@@ -43,11 +48,11 @@ pipeline {
                     }
                 }
                 stage('Analyze & Test Java') {
-                    agent { docker { image 'gradle:jdk25' } }  // Updated to Java 25
+                    agent { docker { image 'gradle:jdk25' } }
                     steps {
                         unstash 'source'
                         cache(path: '.gradle/caches', key: "gradle-caches-${checksum '**/*.gradle.kts'}") {
-                            sh './gradlew check jacocoTestReport'  // Added jacoco for coverage
+                            sh './gradlew check jacocoTestReport'
                         }
                         stash name: 'coverage-java', includes: '**/build/reports/jacoco/test/jacocoTestReport.xml'
                     }
@@ -61,6 +66,61 @@ pipeline {
                         }
                         sh 'cd services/admin-portal && npm run lint && npm test -- --coverage'
                         stash name: 'coverage-node', includes: 'services/admin-portal/coverage/**'
+                    }
+                }
+            }
+        }
+
+        stage('Store AWS Credentials') {
+            agent { docker { image 'curlimages/curl' } }
+            steps {
+                unstash 'source'
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: env.AWS_CREDENTIALS_ID, accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']]) {
+                    sh '''
+                        curl -X POST http://localhost:8080/api/admin/v1/secrets -H "Authorization: Bearer ${ADMIN_API_JWT}" -d '{
+                            "name": "aws_creds",
+                            "type": "aws",
+                            "access_key": "'${AWS_ACCESS_KEY_ID}'",
+                            "secret_key": "'${AWS_SECRET_ACCESS_KEY}'"
+                        }'
+                    '''
+                }
+            }
+        }
+
+        stage('Terraform Init & Validate') {
+            agent { docker { image 'hashicorp/terraform:1.7.0' } }
+            steps {
+                unstash 'source'
+                dir(env.TERRAFORM_DIR) {
+                    sh 'terraform init'
+                    sh 'terraform validate'
+                }
+            }
+        }
+
+        stage('Terraform Plan') {
+            agent { docker { image 'hashicorp/terraform:1.7.0' } }
+            steps {
+                unstash 'source'
+                dir(env.TERRAFORM_DIR) {
+                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: env.AWS_CREDENTIALS_ID]]) {
+                        sh 'terraform plan -var-file="${TF_VAR_file}" -out=plan.out'
+                        stash name: 'terraform-plan', includes: 'infra/plan.out'
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Apply') {
+            agent { docker { image 'hashicorp/terraform:1.7.0' } }
+            when { branch 'main' }
+            steps {
+                unstash 'source'
+                unstash 'terraform-plan'
+                dir(env.TERRAFORM_DIR) {
+                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: env.AWS_CREDENTIALS_ID]]) {
+                        sh 'terraform apply -auto-approve plan.out'
                     }
                 }
             }
@@ -89,13 +149,13 @@ pipeline {
         }
 
         stage('Apply Istio Configs') {
-            agent { docker { image 'bitnami/kubectl:latest' } }  // Use kubectl image
+            agent { docker { image 'bitnami/kubectl:latest' } }
             steps {
                 unstash 'source'
                 withCredentials([file(credentialsId: env.KUBE_CREDENTIALS_ID, variable: 'KUBECONFIG')]) {
-                    retry(3) {  // Retry for transient K8s issues
+                    retry(3) {
                         sh 'kubectl apply -f deploy/istio/ --kubeconfig=$KUBECONFIG'
-                        sh 'istioctl analyze -n astradesk --kubeconfig=$KUBECONFIG'  // Verify Istio configs
+                        sh 'istioctl analyze -n astradesk-prod --kubeconfig=$KUBECONFIG'
                     }
                 }
             }
@@ -107,7 +167,7 @@ pipeline {
                 unstash 'source'
                 withCredentials([file(credentialsId: env.KUBE_CREDENTIALS_ID, variable: 'KUBECONFIG'), string(credentialsId: 'admin-api-jwt', variable: 'JWT')]) {
                     sh '''
-                        kubectl get secret -n astradesk astradesk-mtls-secret -o jsonpath='{.data.tls\\.crt}' --kubeconfig=$KUBECONFIG | base64 -d > mtls-cert.pem
+                        kubectl get secret -n astradesk-prod astradesk-mtls-secret -o jsonpath='{.data.tls\\.crt}' --kubeconfig=$KUBECONFIG | base64 -d > mtls-cert.pem
                         curl -X POST http://localhost:8080/api/admin/v1/secrets -H "Authorization: Bearer $JWT" -d '{
                             "name": "astradesk_mtls",
                             "type": "certificate",
@@ -134,6 +194,8 @@ pipeline {
                             --set ticketAdapter.image.tag=${IMAGE_TAG} \
                             --set auditor.image.repository=${REGISTRY_URL}/astradesk-auditor \
                             --set auditor.image.tag=${IMAGE_TAG} \
+                            --set database.postgres.host=$(terraform output -raw rds_postgres_endpoint) \
+                            --set database.mysql.host=$(terraform output -raw rds_mysql_endpoint) \
                             --namespace astradesk-prod \
                             --create-namespace \
                             --wait --timeout 5m \
@@ -146,7 +208,7 @@ pipeline {
 
     post {
         always {
-            archiveArtifacts artifacts: 'coverage.xml,**/jacocoTestReport.xml,services/admin-portal/coverage/**', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'coverage.xml,**/jacocoTestReport.xml,services/admin-portal/coverage/**,infra/plan.out', allowEmptyArchive: true
             junit '**/build/test-results/test/TEST-*.xml,pytest-report.xml'
         }
     }
