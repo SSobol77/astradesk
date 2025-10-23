@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-"""File: services/gateway-python/src/model_gateway/guardrails.py
+# services/api-gateway/src/model_gateway/guardrails.py
+"""File: services/api-gateway/src/model_gateway/guardrails.py
 Project: AstraDesk Framework — API Gateway
 Description:
     Core guardrails for validating inputs and normalizing LLM outputs before they

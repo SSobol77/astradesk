@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-"""File: services/gateway-python/src/runtime/models.py
+# services/api-gateway/src/runtime/models.py
+"""File: services/api-gateway/src/runtime/models.py
 Project: AstraDesk Framework — API Gateway
 Description:
     Centralized Pydantic v2 data models for API contracts and internal flows:

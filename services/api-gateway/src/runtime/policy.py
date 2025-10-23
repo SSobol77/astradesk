@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-"""File: services/gateway-python/src/runtime/policy.py
+# services/api-gateway/src/runtime/policy.py
+"""File: services/api-gateway/src/runtime/policy.py
 Project: AstraDesk Framework — API Gateway
 Description:
     Production-grade RBAC + ABAC policy layer for AstraDesk. Provides fast,

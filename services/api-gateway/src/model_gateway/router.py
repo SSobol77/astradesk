@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-"""File: services/gateway-python/src/model_gateway/router.py
+# services/api-gateway/src/model_gateway/router.py
+"""File: services/api-gateway/src/model_gateway/router.py
 Project: AstraDesk Framework — API Gateway
 Description:
     Central router and lifecycle manager for LLM providers. Maintains a single

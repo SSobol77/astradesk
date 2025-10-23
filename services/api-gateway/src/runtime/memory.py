@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-"""File: services/gateway-python/src/runtime/memory.py
+# services/api-gateway/src/runtime/memory.py
+"""File: services/api-gateway/src/runtime/memory.py
 Project: AstraDesk Framework — API Gateway
 Description:
     Memory & audit layer for agents. Provides a thin, async abstraction over

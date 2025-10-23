@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-"""File: services/gateway-python/src/runtime/planner.py
+# services/api-gateway/src/runtime/planner.py
+"""File: services/api-gateway/src/runtime/planner.py
 Project: AstraDesk Framework — API Gateway
 Description:
     Configurable, deterministic keyword-based planner used as a fallback (or a

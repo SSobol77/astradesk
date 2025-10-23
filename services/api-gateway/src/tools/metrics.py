@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-""" File: src/tools/metrics.py
-
-Narzędzie do pobierania metryk z systemu monitoringu Prometheus.
+# services/api-gateway/src/tools/metrics.py
+"""Narzędzie do pobierania metryk z systemu monitoringu Prometheus.
 
 Ten moduł dostarcza w pełni funkcjonalną implementację do odpytywania
 API Prometheusa w celu uzyskania kluczowych metryk wydajnościowych dla

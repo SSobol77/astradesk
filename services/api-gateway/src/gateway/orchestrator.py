@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-"""File: services/gateway-python/src/gateway/orchestrator.py
+# services/api-gateway/src/gateway/orchestrator.py
+"""File: services/api-gateway/src/gateway/orchestrator.py
 Project: AstraDesk Framework — API Gateway
 Description: Business logic layer for agent orchestration: agent selection,
              planner choice (LLM vs. keyword), tool execution, fallback

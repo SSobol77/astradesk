@@ -1,72 +1,49 @@
 # SPDX-License-Identifier: Apache-2.0
-"""
-runtime.rag — RAG z pgvector:
-- lazy load SentenceTransformer (bez blokowania startu serwera),
-- twardy timeout pobierania modelu z HF + retry,
-- tryb offline/lokalny cache,
-- deterministyczny fallback embedder, gdy HF niedostępny,
-- poprawne bindowanie do pgvector (string literal -> ::vector).
-"""
+# services/api-gateway/src/runtime/rag.py
+"""Produkcyjny moduł RAG z leniwym ładowaniem i mechanizmem fallback.
 
+Ten moduł dostarcza zaawansowaną, odporną na błędy implementację RAG,
+zaprojektowaną do działania w asynchronicznym środowisku produkcyjnym.
+"""
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import logging
 import os
-import time
-import math
-import hashlib
-from typing import List, Sequence, Optional
+from typing import Any, List, Protocol, Sequence
 
 import asyncpg
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
-CREATE_SQL = """
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-CREATE EXTENSION IF NOT EXISTS vector;
-
-CREATE TABLE IF NOT EXISTS kb_docs (
-    id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    source    TEXT NOT NULL,
-    chunk     TEXT NOT NULL,
-    embedding vector(384) NOT NULL  -- wymiary zgodne z all-MiniLM-L6-v2
-);
-"""
-
-# Konfiguracja HF przez env:
+# --- Konfiguracja ---
 HF_MODEL_NAME = os.getenv("HF_EMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
 HF_HOME = os.getenv("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
 HF_HUB_OFFLINE = os.getenv("HF_HUB_OFFLINE", "0").lower() in ("1", "true", "yes")
-HF_TIMEOUT_SECS = int(os.getenv("HF_HUB_TIMEOUT", "25"))  # twardy timeout pojedynczej próby pobrania modelu
-HF_RETRIES = int(os.getenv("HF_HUB_RETRIES", "2"))        # dodatkowe próby
+HF_TIMEOUT_SECS = int(os.getenv("HF_HUB_TIMEOUT", "25"))
+HF_RETRIES = int(os.getenv("HF_HUB_RETRIES", "2"))
+EMB_DIM = 384  # Wymiar dla all-MiniLM-L6-v2
 
-EMB_DIM = 384  # MiniLM-L6-v2 = 384
+# --- Kontrakt i Implementacje Embedderów ---
 
-
-class _Embedder:
-    """Interfejs dla embeddera (prawdziwy albo fallback)."""
+class Embedder(Protocol):
+    """Kontrakt dla wszystkich klas embedderów."""
     dim: int
+    async def embed(self, texts: list[str]) -> np.ndarray: ...
 
-    def embed(self, texts: List[str]) -> np.ndarray:
-        raise NotImplementedError
-
-
-class _HashEmbedder(_Embedder):
-    """
-    Bardzo szybki, deterministyczny fallback:
-    - mapuje tokeny (b. prosto) do 384-wymiarowego wektora przez haszowanie,
-    - normalizuje L2 (jak SentenceTransformers z normalize_embeddings=True).
-    To NIE ma jakości S-BERT, ale pozwala 100% utrzymać usługę, gdy HF leży.
-    """
-
+class HashEmbedder(Embedder):
+    """Deterministyczny embedder fallback, oparty na haszowaniu."""
+    __slots__ = ("dim",)
+    
     def __init__(self, dim: int = EMB_DIM) -> None:
         self.dim = dim
 
     @staticmethod
-    def _tokenize(text: str) -> List[str]:
-        # Mega-prosta tokenizacja po białych znakach i znakach nie-alfanumerycznych.
-        out: List[str] = []
+    def _tokenize(text: str) -> list[str]:
+        """Prosta tokenizacja po białych znakach i znakach nie-alfanumerycznych."""
+        out: list[str] = []
         token = []
         for ch in text.lower():
             if ch.isalnum():
@@ -78,157 +55,144 @@ class _HashEmbedder(_Embedder):
             out.append("".join(token))
         return out or ["_empty_"]
 
-    def embed(self, texts: List[str]) -> np.ndarray:
+    async def embed(self, texts: list[str]) -> np.ndarray:
+        """Generuje wektory embeddingów na podstawie haszy tokenów."""
         mat = np.zeros((len(texts), self.dim), dtype=np.float32)
         for i, t in enumerate(texts):
             vec = np.zeros((self.dim,), dtype=np.float32)
             for tok in self._tokenize(t):
                 h = hashlib.blake2b(tok.encode("utf-8"), digest_size=16).digest()
-                # Użyj 4 bajtowych „slotów”
                 for j in range(0, 16, 4):
                     idx = int.from_bytes(h[j:j+4], "little") % self.dim
                     vec[idx] += 1.0
-            # normalizacja L2
-            norm = float(np.linalg.norm(vec))
+            
+            norm = np.linalg.norm(vec)
             if norm > 0:
                 vec /= norm
             mat[i] = vec
         return mat
 
+class SentenceTransformerEmbedder(Embedder):
+    """Wrapper na SentenceTransformer z asynchronicznym, leniwym ładowaniem."""
+    __slots__ = ("_model_name", "_model", "dim", "_load_lock")
 
-class _SentenceTREmbedder(_Embedder):
-    """Thin-wrapper na SentenceTransformer, z offline support i timeoutami."""
     def __init__(self, model_name: str) -> None:
         self._model_name = model_name
-        self._model = None
-        self.dim = EMB_DIM  # ustawimy po załadowaniu
+        self._model: Any | None = None
+        self.dim = EMB_DIM
+        self._load_lock = asyncio.Lock()
 
-    def _download_with_timebox(self) -> None:
-        # Pobieramy model z HF z twardym timeoutem i retry.
-        import threading
-        from sentence_transformers import SentenceTransformer
-
-        last_err: Optional[BaseException] = None
-        for attempt in range(1, HF_RETRIES + 2):
-            done = False
-            model_holder = {}
-
-            def _load():
-                try:
-                    model_holder["m"] = SentenceTransformer(
-                        self._model_name,
-                        cache_folder=HF_HOME,
-                        local_files_only=HF_HUB_OFFLINE,
-                        trust_remote_code=True,
-                    )
-                except BaseException as e:  # noqa: BLE001
-                    nonlocal last_err
-                    last_err = e
-                finally:
-                    nonlocal done
-                    done = True
-
-            th = threading.Thread(target=_load, daemon=True)
-            th.start()
-            start = time.time()
-            while not done and (time.time() - start) < HF_TIMEOUT_SECS:
-                time.sleep(0.05)
-            if not done:
-                logger.warning("HF: przekroczono timeout %ss podczas ładowania modelu (próba %s/%s)",
-                               HF_TIMEOUT_SECS, attempt, HF_RETRIES + 1)
-                # spróbuj ubić i kolejna próba
-                continue
-
-            if "m" in model_holder and model_holder["m"] is not None:
-                self._model = model_holder["m"]
-                try:
-                    dim = self._model.get_sentence_embedding_dimension()
-                    if dim:
-                        self.dim = int(dim)
-                except Exception:
-                    pass
-                return
-            else:
-                logger.warning("HF: nie udało się załadować modelu (próba %s/%s): %s",
-                               attempt, HF_RETRIES + 1, last_err)
-
-        raise RuntimeError(f"Nie udało się pobrać/załadować modelu '{self._model_name}' w limicie czasu.")
-
-    def _ensure_loaded(self) -> None:
+    async def _ensure_loaded(self) -> None:
+        """Asynchronicznie ładuje model z Hugging Face z timeoutem i ponowieniami."""
         if self._model is not None:
             return
-        self._download_with_timebox()
 
-    def embed(self, texts: List[str]) -> np.ndarray:
-        self._ensure_loaded()
-        vec = self._model.encode(texts, normalize_embeddings=True, convert_to_numpy=True)
-        return np.asarray(vec, dtype=np.float32)
+        async with self._load_lock:
+            if self._model is not None:
+                return
+            
+            from sentence_transformers import SentenceTransformer
+            
+            logger.info(f"Rozpoczynanie ładowania modelu SentenceTransformer: '{self._model_name}'...")
+            
+            def _blocking_load():
+                """Blokująca funkcja do uruchomienia w osobnym wątku."""
+                return SentenceTransformer(
+                    self._model_name,
+                    cache_folder=HF_HOME,
+                    local_files_only=HF_HUB_OFFLINE,
+                )
 
+            for attempt in range(HF_RETRIES + 1):
+                try:
+                    model = await asyncio.wait_for(
+                        asyncio.to_thread(_blocking_load),
+                        timeout=HF_TIMEOUT_SECS
+                    )
+                    self._model = model
+                    
+                    if (dim := getattr(self._model, 'get_sentence_embedding_dimension', lambda: None)()) is not None:
+                        self.dim = dim
+                    
+                    logger.info(f"Model '{self._model_name}' załadowany pomyślnie.")
+                    return
+                except asyncio.TimeoutError:
+                    logger.warning(f"Przekroczono timeout ({HF_TIMEOUT_SECS}s) podczas ładowania modelu (próba {attempt + 1}/{HF_RETRIES + 1}).")
+                except Exception as e:
+                    logger.warning(f"Błąd podczas ładowania modelu (próba {attempt + 1}/{HF_RETRIES + 1}): {e}")
+            
+            raise RuntimeError(f"Nie udało się załadować modelu '{self._model_name}' po {HF_RETRIES + 1} próbach.")
+
+    async def embed(self, texts: list[str]) -> np.ndarray:
+        """Asynchronicznie wektoryzuje teksty, uruchamiając `encode` w osobnym wątku."""
+        await self._ensure_loaded()
+        if not self._model:
+            raise RuntimeError("Model SentenceTransformer nie został załadowany.")
+            
+        loop = asyncio.get_running_loop()
+        vecs = await loop.run_in_executor(
+            None,
+            lambda: self._model.encode(texts, normalize_embeddings=True, convert_to_numpy=True)
+        )
+        return np.asarray(vecs, dtype=np.float32)
+
+# --- Główna Klasa RAG ---
 
 class RAG:
-    """
-    RAG z pgvector i dwoma trybami embeddera:
-      - SentenceTransformer (HF) — jeśli dostępny,
-      - HashEmbedder (fallback) — gdy HF niedostępny.
-    """
-    __slots__ = ("pool", "_embedder", "_fallback")
+    """Zarządza cyklem życia dokumentów w systemie RAG."""
+    __slots__ = ("pool", "_embedder", "_fallback_embedder")
 
-    def __init__(self, pool: asyncpg.Pool, prefer_offline: bool | None = None) -> None:
-        if pool is None:
-            raise ValueError("pool is required")
+    def __init__(self, pool: asyncpg.Pool) -> None:
+        if pool is None: raise ValueError("Pula połączeń `pool` jest wymagana.")
         self.pool = pool
-
-        # logika wyboru embeddera na starcie TYLKO jako deklaracja; init modelu leniwie
-        use_offline = HF_HUB_OFFLINE if prefer_offline is None else prefer_offline
-        self._fallback = _HashEmbedder(dim=EMB_DIM)
+        self._fallback_embedder = HashEmbedder(dim=EMB_DIM)
+        self._embedder: Embedder = self._fallback_embedder
+        
         try:
-            if use_offline:
-                logger.info("RAG: działam w trybie OFFLINE — preferuję lokalny cache HF.")
-            self._embedder = _SentenceTREmbedder(HF_MODEL_NAME)
+            self._embedder = SentenceTransformerEmbedder(HF_MODEL_NAME)
+            logger.info("RAG skonfigurowany do użycia SentenceTransformer.")
+        except ImportError:
+            logger.warning("Biblioteka `sentence-transformers` nie jest zainstalowana. RAG będzie działał w trybie fallback (HashEmbedder).")
         except Exception as e:
-            logger.warning("RAG: nie udało się przygotować SentenceTransformer (%s) — używam fallbacku.", e)
-            self._embedder = self._fallback
+            logger.warning(f"Nie udało się zainicjalizować SentenceTransformer ({e}). RAG będzie działał w trybie fallback.")
 
-    async def init_schema(self) -> None:
-        async with self.pool.acquire() as con:
-            await con.execute(CREATE_SQL)
+    async def _safe_embed(self, texts: list[str]) -> np.ndarray:
+        """Wektoryzuje teksty, używając głównego embeddera z automatycznym fallbackiem."""
+        try:
+            if isinstance(self._embedder, SentenceTransformerEmbedder):
+                return await self._embedder.embed(texts)
+        except Exception as e:
+            logger.error(f"Błąd głównego embeddera SentenceTransformer: {e}. Trwałe przełączenie na HashEmbedder dla tego żądania.")
+            self._embedder = self._fallback_embedder
+        
+        return await self._fallback_embedder.embed(texts)
 
     @staticmethod
-    def _to_vector_literal(emb: Sequence[float]) -> str:
-        # pgvector akceptuje zapis: [e1,e2,...]
-        return "[" + ",".join(f"{x:.6f}" for x in emb) + "]"
+    def _to_vector_literal(embedding: Sequence[float]) -> str:
+        """Konwertuje listę float na string akceptowalny przez pgvector: '[1.0,2.0,...]'."""
+        return "[" + ",".join(map(str, embedding)) + "]"
 
-    def _safe_embed(self, text: str) -> np.ndarray:
-        """
-        Zwraca 1xD embedding. W razie problemów z HF — przełącza się na fallback.
+    async def retrieve(self, query: str, agent_name: str, k: int = 4) -> list[str]:
+        """Zwraca top-k chunków najbardziej podobnych semantycznie do zapytania."""
+        embedding_matrix = await self._safe_embed([query])
+        query_embedding = embedding_matrix[0]
+
+        sql = """
+            SELECT chunk
+            FROM documents
+            WHERE source LIKE $3
+            ORDER BY embedding <-> $1
+            LIMIT $2
         """
         try:
-            vec = self._embedder.embed([text])
-            if not isinstance(vec, np.ndarray) or vec.ndim != 2 or vec.shape[0] != 1:
-                raise RuntimeError("embedder zwrócił nieprawidłowy kształt wektora")
-            return vec
-        except Exception as e:
-            logger.error("RAG: błąd embeddera (%s). Przełączam na fallback.", e)
-            self._embedder = self._fallback
-            return self._embedder.embed([text])
-
-    async def retrieve(self, query: str, k: int = 4) -> List[str]:
-        """
-        Zwróć top-k chunków najbardziej podobnych semantycznie do zapytania.
-        """
-        # 1) Embedding zapytania
-        vec = self._safe_embed(query)  # (1, D)
-        emb: np.ndarray = np.asarray(vec, dtype=np.float32)[0]
-        vec_lit = self._to_vector_literal(emb.tolist())  # "[0.123,-0.234,...]"
-
-        # 2) Zapytanie top-k
-        sql = """
-        SELECT chunk
-        FROM kb_docs
-        ORDER BY embedding <-> $1::vector
-        LIMIT $2;
-        """
-        async with self.pool.acquire() as con:
-            await self.init_schema()
-            rows = await con.fetch(sql, vec_lit, k)
-            return [r["chunk"] for r in rows]
+            async with self.pool.acquire() as con:
+                rows = await con.fetch(
+                    sql,
+                    self._to_vector_literal(query_embedding.tolist()),
+                    k,
+                    f"{agent_name}/%"
+                )
+                return [r["chunk"] for r in rows]
+        except asyncpg.PostgresError as e:
+            logger.error(f"Błąd podczas wyszukiwania w RAG dla agenta '{agent_name}': {e}", exc_info=True)
+            return []
