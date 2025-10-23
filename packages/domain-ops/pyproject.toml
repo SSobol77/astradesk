@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: Apache-2.0
+# packages/domain-ops/pyproject.toml
+
+[project]
+name = "astradesk-domain-ops"
+version = "0.3.0"
+description = "Operations (SRE/DevOps) domain pack for AstraDesk."
+authors = [{ name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com" }]
+license = { text = "Apache-2.0" }
+requires-python = ">=3.11"
+
+dependencies = [
+  # Zależności od innych pakietów w naszym monorepo.
+  "astradesk-core @ {path = \"../../core\"}",
+  "astradesk-api-gateway @ {path = \"../../services/api-gateway\"}",
+
+  # Zależności produkcyjne specyficzne dla tej paczki.
+  "kubernetes-asyncio>=20.0,<21.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.23",
+]

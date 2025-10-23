@@ -22,6 +22,11 @@ services/ticket-adapter-java/gradle/wrapper/*.jar
 *.war
 *.ear
 target/
+astradesk.egg-info/
+# Ignoruj pliki generowane przez IDE i systemy budowania
+bin/
+out/
+*.class
 
 # Node.js / Next.js
 services/admin-portal/node_modules/
@@ -152,6 +157,8 @@ grafana/data/
 **/bin/
 **/out/
 target/
+.gradle/
+build/
 
 # Test artifacts
 coverage.xml

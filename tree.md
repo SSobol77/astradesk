@@ -1,43 +1,85 @@
+# Struktura 2.0
+
+```sh
 .
-├── ansible
-│   ├── inventories
-│   │   └── dev
-│   │       └── hosts.ini
-│   └── roles
-│       └── astradesk_docker
-│           └── tasks
-│               └── main.yml
 ├── astradesk.code-workspace
-├── build
-│   ├── reports
-│   │   └── problems
-│   │       └── problems-report.html
-│   └── tmp
-│       ├── artifactTransforms
-│       ├── buildEnvironment
-│       ├── dependencies
-│       ├── dependencyInsight
-│       ├── help
-│       ├── init
-│       ├── javaToolchains
-│       ├── kotlinDslAccessorsReport
-│       ├── outgoingVariants
-│       ├── prepareKotlinBuildScriptModel
-│       ├── projects
-│       ├── properties
-│       ├── resolvableConfigurations
-│       ├── tasks
-│       ├── updateDaemonJvm
-│       └── wrapper
 ├── build.gradle.kts
+├── core
+│   ├── build.gradle.kts
+│   ├── pyproject.toml
+│   └── src
+│       └── astradesk_core
+│           ├── exceptions.py
+│           ├── __init__.py
+│           └── utils
+│               ├── auth.py
+│               └── events.py
 ├── deploy
 │   ├── chart
 │   │   ├── Chart.yaml
+│   │   ├── deploy_chart_README.md
+│   │   ├── requirements.yaml
 │   │   ├── templates
 │   │   │   ├── deployment.yaml
 │   │   │   ├── hpa.yaml
-│   │   │   └── service.yaml
+│   │   │   ├── service.yaml
+│   │   │   └── tests
+│   │   │       └── test-mtls.yaml
+│   │   ├── tests
+│   │   │   ├── test-api.yaml
+│   │   │   └── test-hpa.yaml
 │   │   └── values.yaml
+│   ├── cm
+│   │   ├── ansible
+│   │   │   ├── ansible_README.md
+│   │   │   ├── inventories
+│   │   │   │   └── dev
+│   │   │   │       └── hosts.ini
+│   │   │   ├── playbook.yml
+│   │   │   └── roles
+│   │   │       └── astradesk_docker
+│   │   │           └── tasks
+│   │   │               └── main.yml
+│   │   ├── puppet
+│   │   │   ├── manifests
+│   │   │   │   └── astradesk.pp
+│   │   │   └── puppet_README.md
+│   │   └── salt
+│   │       ├── astradesk
+│   │       │   └── init.sls
+│   │       └── salt_README.md
+│   ├── infra
+│   │   ├── main.tf
+│   │   ├── modules
+│   │   │   ├── eks
+│   │   │   │   ├── infra_modules_eks_README.md
+│   │   │   │   ├── main.tf
+│   │   │   │   ├── outputs.tf
+│   │   │   │   └── variables.tf
+│   │   │   ├── rds-mysql
+│   │   │   │   ├── infra_modules_rds-mysql_README.md
+│   │   │   │   ├── main.tf
+│   │   │   │   ├── outputs.tf
+│   │   │   │   └── variables.tf
+│   │   │   ├── rds-postgres
+│   │   │   │   ├── infra_modules_rds-postgres_README.md
+│   │   │   │   ├── main.tf
+│   │   │   │   ├── outputs.tf
+│   │   │   │   └── variables.tf
+│   │   │   ├── s3
+│   │   │   │   ├── infra_modules_s3_README.md
+│   │   │   │   ├── main.tf
+│   │   │   │   ├── outputs.tf
+│   │   │   │   └── variables.tf
+│   │   │   └── vpc
+│   │   │       ├── infra_modules_vpc_README.md
+│   │   │       ├── main.tf
+│   │   │       ├── outputs.tf
+│   │   │       └── variables.tf
+│   │   ├── outputs.tf
+│   │   ├── README_infra.md
+│   │   ├── terraform.tfvars
+│   │   └── variables.tf
 │   ├── istio
 │   │   ├── 00-namespace.yaml
 │   │   ├── 10-peer-authentication.yaml
@@ -46,13 +88,33 @@
 │   │   ├── 40-gateway.yaml
 │   │   ├── 41-virtualservice-astradesk-api.yaml
 │   │   ├── 50-cert-manager-certificate.yaml
-│   │   └── readme.md
+│   │   ├── certmanager.yaml
+│   │   ├── certs
+│   │   │   ├── astradesk-ca-certificate.yaml
+│   │   │   ├── astradesk-ca-clusterissuer.yaml
+│   │   │   ├── letsencrypt-prod-clusterissuer.yaml
+│   │   │   └── README_certs.md
+│   │   ├── deploy_istio_README.md
+│   │   ├── gateway.yaml
+│   │   ├── peerauthentication.yaml
+│   │   ├── readme.md
+│   │   └── virtualservice.yaml
+│   ├── local
+│   │   └── dev
+│   │       ├── mock_tickets.py
+│   │       └── prometheus
+│   │           └── prometheus.yml
+│   ├── observability
+│   │   └── dashboards
+│   │       └── grafana
+│   │           └── dashboard-astradesk.json
 │   └── openshift
-│       └── astradesk-template.yaml
-├── dev
-│   ├── mock_tickets.py
-│   └── prometheus
-│       └── prometheus.yml
+│       ├── admin-portal-template.yaml
+│       ├── astradesk-template.yaml
+│       ├── auditor-template.yaml
+│       ├── domain-packs-template.yaml
+│       ├── README_openshift.md
+│       └── ticket-adapter-template.yaml
 ├── docker-compose.yml
 ├── Dockerfile
 ├── docs
@@ -68,33 +130,13 @@
 │   │   └── AstraDesktop.png
 │   ├── en
 │   │   ├── 01_introduction.md
-│   │   ├── 02_architecture_overview.md
-│   │   ├── 03_plan_phase.md
-│   │   ├── 04_build_phase.md
-│   │   ├── 05_test_optimize.md
-│   │   ├── 06_deploy_phase.md
-│   │   ├── 07_monitor_operate.md
-│   │   ├── 08_security_governance.md
-│   │   ├── 09_mcp_gateway_domain_packs.md
-│   │   ├── 10_future_roadmap.md
-│   │   ├── glossary.md
-│   │   └── README.md
+│   │   └── ...
 │   ├── js
 │   │   └── mermaid-init.js
 │   ├── operations.md
 │   ├── pl
 │   │   ├── 01_introduction.pl.md
-│   │   ├── 02_architecture_overview.pl.md
-│   │   ├── 03_plan_phase.pl.md
-│   │   ├── 04_build_phase.pl.md
-│   │   ├── 05_test_optimize.pl.md
-│   │   ├── 06_deploy_phase.pl.md
-│   │   ├── 07_monitor_operate.pl.md
-│   │   ├── 08_security_governance.pl.md
-│   │   ├── 09_mcp_gateway_domain_packs.pl.md
-│   │   ├── 10_future_roadmap.pl.md
-│   │   ├── glossary.pl.md
-│   │   └── README.pl.md
+│   │   └── ...
 │   ├── README.md
 │   ├── security.md
 │   └── styles
@@ -104,21 +146,17 @@
 │       └── gradle-wrapper.properties
 ├── gradlew
 ├── gradlew.bat
-├── grafana
-│   └── dashboard-astradesk.json
-├── infra
-│   ├── main.tf
-│   ├── outputs.tf
-│   └── variables.tf
 ├── Jenkinsfile
+├── Jenkinsfile_v2a
 ├── LICENSE
 ├── Makefile
+├── Makefile_v2a
 ├── migrations
 │   └── 0001_init_pgvector.sql
 ├── mkdocs.yml
 ├── openapi
 │   └── astradesk-admin.v1.yaml
-├── Opis_structury.txt
+├── Opis_structury_1.2.0.txt
 ├── packages
 │   ├── domain-finance
 │   │   ├── agents
@@ -143,6 +181,14 @@
 │   │       ├── erp_oracle.py
 │   │       ├── OracleErpAdapter.java
 │   │       └── OracleErpGrpcServer.java
+│   ├── domain-ops
+│   │   ├── agents
+│   │   │   └── ops.py
+│   │   ├── pyproject.toml
+│   │   ├── tests
+│   │   │   └── test_ops.py
+│   │   └── tools
+│   │       └── ops_actions.py
 │   ├── domain-supply
 │   │   ├── agents
 │   │   │   └── replenish.py
@@ -188,16 +234,10 @@
 │   │       └── slack_adapter.py
 │   ├── README.markdown
 │   └── README.md
-├── puppet
-│   └── manifests
-│       └── astradesk.pp
 ├── pyproject.toml
 ├── README.md
 ├── README.pl.md
 ├── README.zh-CN.md
-├── salt
-│   └── astradesk
-│       └── init.sls
 ├── scripts
 │   ├── demo_queries.sh
 │   ├── docker-audit.sh
@@ -337,119 +377,63 @@
 │   │   │       └── sse.reconnect.test.ts
 │   │   ├── tsconfig.json
 │   │   └── vitest.config.ts
+│   ├── api-gateway
+│   │   ├── src
+│   │   │   ├── agents
+│   │   │   │   ├── base.py
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── support.py
+│   │   │   ├── astradesk.egg-info
+│   │   │   │   ├── dependency_links.txt
+│   │   │   │   ├── PKG-INFO
+│   │   │   │   ├── requires.txt
+│   │   │   │   ├── SOURCES.txt
+│   │   │   │   └── top_level.txt
+│   │   │   ├── gateway
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── main.py
+│   │   │   │   └── orchestrator.py
+│   │   │   ├── model_gateway
+│   │   │   │   ├── base.py
+│   │   │   │   ├── guardrails.py
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── llm_planner.py
+│   │   │   │   ├── providers
+│   │   │   │   │   ├── bedrock_provider.py
+│   │   │   │   │   ├── __init__.py
+│   │   │   │   │   ├── openai_provider.py
+│   │   │   │   │   └── vllm_provider.py
+│   │   │   │   └── router.py
+│   │   │   ├── runtime
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── memory.py
+│   │   │   │   ├── models.py
+│   │   │   │   ├── planner.py
+│   │   │   │   ├── policy.py
+│   │   │   │   ├── rag.py
+│   │   │   │   └── registry.py
+│   │   │   └── tools
+│   │   │       ├── __init__.py
+│   │   │       ├── metrics.py
+│   │   │       ├── ops_actions.py
+│   │   │       ├── tickets_proxy.py
+│   │   │       └── weather.py
+│   │   └── tests
+│   │       └── runtime
+│   │           ├── test_auth.py
+│   │           ├── test_events.py
+│   │           ├── test_memory.py
+│   │           ├── test_models.py
+│   │           ├── test_planner.py
+│   │           ├── test_policy.py
+│   │           ├── test_rag.py
+│   │           └── test_registry.py
 │   ├── auditor
 │   │   ├── Dockerfile
 │   │   ├── main.py
 │   │   └── pyproject.toml
-│   ├── build
-│   │   └── tmp
-│   │       ├── artifactTransforms
-│   │       ├── buildEnvironment
-│   │       ├── dependencies
-│   │       ├── dependencyInsight
-│   │       ├── help
-│   │       ├── javaToolchains
-│   │       ├── outgoingVariants
-│   │       ├── projects
-│   │       ├── properties
-│   │       ├── resolvableConfigurations
-│   │       └── tasks
 │   └── ticket-adapter-java
-│       ├── bin
-│       │   └── main
-│       │       └── com
-│       │           └── astradesk
-│       │               └── ticket
-│       │                   ├── http
-│       │                   │   ├── TicketController.class
-│       │                   │   └── TicketReq.class
-│       │                   ├── model
-│       │                   │   └── Ticket.class
-│       │                   ├── repo
-│       │                   │   └── TicketRepo.class
-│       │                   └── TicketApp.class
-│       ├── build
-│       │   ├── classes
-│       │   │   └── java
-│       │   │       ├── main
-│       │   │       │   └── com
-│       │   │       │       └── astradesk
-│       │   │       │           └── ticket
-│       │   │       │               ├── http
-│       │   │       │               │   ├── TicketController.class
-│       │   │       │               │   └── TicketReq.class
-│       │   │       │               ├── model
-│       │   │       │               │   └── Ticket.class
-│       │   │       │               ├── repo
-│       │   │       │               │   └── TicketRepo.class
-│       │   │       │               ├── SecurityConfig.class
-│       │   │       │               └── TicketApp.class
-│       │   │       └── test
-│       │   │           └── com
-│       │   │               └── astradesk
-│       │   │                   └── ticket
-│       │   │                       ├── TicketControllerTest$CreateTicketTests.class
-│       │   │                       ├── TicketControllerTest$GetTicketTests.class
-│       │   │                       └── TicketControllerTest.class
-│       │   ├── generated
-│       │   │   └── sources
-│       │   │       ├── annotationProcessor
-│       │   │       │   └── java
-│       │   │       │       ├── main
-│       │   │       │       └── test
-│       │   │       └── headers
-│       │   │           └── java
-│       │   │               ├── main
-│       │   │               └── test
-│       │   ├── resources
-│       │   │   ├── main
-│       │   │   │   ├── application.yml
-│       │   │   │   └── schema.sql
-│       │   │   └── test
-│       │   └── tmp
-│       │       ├── artifactTransforms
-│       │       ├── assemble
-│       │       ├── bootBuildImage
-│       │       ├── bootJar
-│       │       │   └── MANIFEST.MF
-│       │       ├── bootRun
-│       │       ├── bootTestRun
-│       │       ├── build
-│       │       ├── buildDependents
-│       │       ├── buildEnvironment
-│       │       ├── buildNeeded
-│       │       ├── check
-│       │       ├── classes
-│       │       ├── clean
-│       │       ├── compileJava
-│       │       │   └── previous-compilation-data.bin
-│       │       ├── compileTestJava
-│       │       │   └── previous-compilation-data.bin
-│       │       ├── dependencies
-│       │       ├── dependencyInsight
-│       │       ├── dependencyManagement
-│       │       ├── help
-│       │       ├── jar
-│       │       │   └── MANIFEST.MF
-│       │       ├── javadoc
-│       │       ├── javadocJar
-│       │       │   └── MANIFEST.MF
-│       │       ├── javaToolchains
-│       │       ├── kotlinDslAccessorsReport
-│       │       ├── outgoingVariants
-│       │       ├── processResources
-│       │       ├── processTestResources
-│       │       ├── projects
-│       │       ├── properties
-│       │       ├── resolvableConfigurations
-│       │       ├── resolveMainClassName
-│       │       ├── resolveTestMainClassName
-│       │       ├── runSingle
-│       │       ├── sourcesJar
-│       │       │   └── MANIFEST.MF
-│       │       ├── tasks
-│       │       ├── test
-│       │       └── testClasses
+│       │
 │       ├── build.gradle.kts
 │       ├── Dockerfile
 │       ├── gradle
@@ -484,61 +468,72 @@
 │                               └── TicketControllerTest.java
 ├── settings.gradle.kts
 ├── sonar-project.properties
-├── src
-│   ├── agents
-│   │   ├── base.py
-│   │   ├── __init__.py
-│   │   ├── ops.py
-│   │   └── support.py
-│   ├── astradesk.egg-info
-│   │   ├── dependency_links.txt
-│   │   ├── PKG-INFO
-│   │   ├── requires.txt
-│   │   ├── SOURCES.txt
-│   │   └── top_level.txt
-│   ├── gateway
-│   │   ├── __init__.py
-│   │   ├── main.py
-│   │   └── orchestrator.py
-│   ├── model_gateway
-│   │   ├── base.py
-│   │   ├── guardrails.py
-│   │   ├── __init__.py
-│   │   ├── llm_planner.py
-│   │   ├── providers
-│   │   │   ├── bedrock_provider.py
-│   │   │   ├── __init__.py
-│   │   │   ├── openai_provider.py
-│   │   │   └── vllm_provider.py
-│   │   └── router.py
-│   ├── runtime
-│   │   ├── auth.py
-│   │   ├── events.py
-│   │   ├── __init__.py
-│   │   ├── memory.py
-│   │   ├── models.py
-│   │   ├── planner.py
-│   │   ├── policy.py
-│   │   ├── rag.py
-│   │   └── registry.py
-│   └── tools
-│       ├── __init__.py
-│       ├── metrics.py
-│       ├── ops_actions.py
-│       ├── tickets_proxy.py
-│       └── weather.py
 ├── tests
-│   ├── runtime
-│   │   ├── test_auth.py
-│   │   ├── test_events.py
-│   │   ├── test_memory.py
-│   │   ├── test_models.py
-│   │   ├── test_planner.py
-│   │   ├── test_policy.py
-│   │   ├── test_rag.py
-│   │   └── test_registry.py
 │   └── test_api.py
 ├── tree.md
 └── uv.lock
 
-238 directories, 304 files
+```
+
+## Opis Struktury Plików Projektu AstraDesk (Wersja Produkcyjna)
+
+Poniżej znajduje się szczegółowa analiza i opis każdego kluczowego folderu oraz pliku w strukturze projektu AstraDesk, zaktualizowana do stanu na 21 października 2025. Opis jest hierarchiczny i wyjaśnia przeznaczenie każdego elementu w kontekście nowej, wielomodułowej architektury monorepo.
+
+---
+
+- **.** (root projektu): Główny katalog projektu, pełniący rolę "workspace". Integruje wszystkie komponenty, konfiguracje i narzędzia. Jest punktem wejściowym dla zunifikowanego systemu budowania (Gradle) i zarządzania zależnościami (uv).
+
+  - **ansible/, puppet/, salt/**: Foldery z konfiguracją dla narzędzi Zarządzania Konfiguracją (CM). Służą do automatyzacji wdrożeń na maszynach wirtualnych lub serwerach bare-metal. **Analiza**: Dobra praktyka dla środowisk hybrydowych; komplementarne do wdrożeń kontenerowych.
+
+  - **build.gradle.kts**: **Główny plik budowania Gradle**. Definiuje wersje wtyczek (`plugins`) dla całego monorepo. **Analiza**: Celowo utrzymany jako minimalny, deleguje konfigurację do podprojektów i `settings.gradle.kts`.
+
+  - **settings.gradle.kts**: **Plik ustawień Gradle**. Definiuje strukturę projektu wielomodułowego, deklarując, które podkatalogi (np. `services/ticket-adapter-java`) są modułami Gradle. **Analiza**: Kluczowy plik dla architektury monorepo.
+
+  - **gradlew, gradlew.bat, gradle/**: **Gradle Wrapper**. Zapewnia, że każdy deweloper i system CI/CD używa tej samej, spójnej wersji Gradle do budowania komponentów Javy. **Analiza**: Niezbędny element dla powtarzalnych buildów.
+
+  - **deploy/**: Zawiera wszystkie manifesty i konfiguracje do wdrożeń na platformach orkiestracji kontenerów.
+    - **chart/**: Chart Helm dla wdrożeń na **Kubernetes**. Definiuje szablony dla `Deployment`, `Service`, `HPA`, etc. **Analiza**: Standard branżowy, kluczowy dla wdrożeń w chmurze.
+    - **istio/**: Manifesty Istio do konfiguracji service mesh, włączając w to mTLS, polityki autoryzacji i routing. **Analiza**: Zaawansowane, kluczowe dla bezpieczeństwa na poziomie enterprise.
+    - **openshift/**: Szablony dla platformy **OpenShift**. **Analiza**: Dobre rozszerzenie dla środowisk korporacyjnych opartych na Red Hat.
+
+  - **docker-compose.yml**: Główny plik Docker Compose. Służy do **uruchamiania środowiska deweloperskiego**, włączając w to serwisy zewnętrzne (Postgres, MySQL, Redis, NATS) oraz pre-zbudowane obrazy aplikacji. **Analiza**: Niezbędny dla lokalnego developmentu i testów integracyjnych.
+
+  - **Dockerfile**: Główny `Dockerfile` dla **serwisu `api` (Python/FastAPI)**. Definiuje, jak zbudować obraz kontenera dla rdzenia aplikacji. **Analiza**: Zoptymalizowany, używa `uv` i najlepszych praktyk.
+
+  - **docs/**: Kompletna dokumentacja projektu zarządzana przez **MkDocs**. Zawiera opisy architektury, API (generowane z OpenAPI), tutoriale i zasoby wizualne. **Analiza**: Bardzo rozbudowana i profesjonalna, kluczowa dla onboardingu i utrzymania.
+
+  - **infra/**: Kod **Terraform** do provisioningu infrastruktury w chmurze (IaC - Infrastructure as Code). Definiuje zasoby takie jak VPC, klaster EKS i bazy danych RDS. **Analiza**: Kluczowy element dla zautomatyzowanych wdrożeń na AWS.
+
+  - **Jenkinsfile, .gitlab-ci.yml**: Definicje pipeline'ów CI/CD. Automatyzują proces testowania, budowania i wdrażania dla całego monorepo. **Analiza**: Niezbędne dla praktyk DevOps.
+
+  - **Makefile**: Plik automatyzujący najczęstsze zadania deweloperskie (`make test`, `make up`, `make run-local`). Służy jako **uproszczony interfejs** do złożonych komend `docker`, `uv` i `gradle`. **Analiza**: Znacząco poprawia Developer Experience.
+
+  - **migrations/**: Skrypty SQL do zarządzania schematem bazy danych PostgreSQL. **Analiza**: Kluczowe dla ewolucji schematu bazy danych.
+
+  - **openapi/**: Centralne miejsce dla specyfikacji API.
+    - **astradesk-admin.v1.yaml**: **Jedno źródło prawdy** dla `Admin API`. Definiuje wszystkie endpointy, schematy i zasady bezpieczeństwa. Służy do generowania klientów API i dokumentacji. **Analiza**: Fundament podejścia "API-First".
+
+  - **packages/**: **Pakiety Domenowe (Domain Packs)**. Modułowe, instalowalne pakiety Pythona, które rozszerzają funkcjonalność platformy o logikę specyficzną dla danej dziedziny (np. finanse, support). **Analiza**: Najważniejszy element architektoniczny zapewniający skalowalność i rozszerzalność platformy.
+    - **domain-*/**: Każdy pakiet ma własną, spójną strukturę (`agents/`, `tools/`, `tests/`, `pyproject.toml`), co pozwala na niezależny rozwój.
+
+  - **pyproject.toml**: Główny plik konfiguracyjny dla ekosystemu Pythona. Definiuje zależności, narzędzia (Ruff, Mypy, Pytest) oraz, co kluczowe, **konfigurację `uv workspace`**, która integruje rdzeń `src` z paczkami w `packages/`.
+
+  - **scripts/**: Skrypty pomocnicze do zadań operacyjnych, takich jak zasilanie bazy RAG (`ingest_docs.py`) czy uruchamianie zapytań demonstracyjnych.
+
+  - **services/**: **Mikroserwisy** stanowiące rdzeń platformy. W przeciwieństwie do `packages`, są to fundamentalne, zawsze obecne komponenty.
+    - **admin-portal/**: Kod źródłowy dla frontendu (Next.js), włączając w to komponenty, logikę API i konfigurację budowania. **Analiza**: Bardzo rozbudowany i profesjonalnie zorganizowany.
+    - **auditor/**: Prosty mikroserwis w Pythonie do subskrybowania i zapisywania zdarzeń audytowych z NATS.
+    - **ticket-adapter-java/**: Mikroserwis w Javie (Spring WebFlux) pełniący rolę adaptera do systemu ticketowego. **Analiza**: W pełni niezależny moduł Gradle.
+
+  - **src/**: Kod źródłowy **głównego komponentu Pythonowego** (API Gateway i Runtime).
+    - **agents/**: Implementacje agentów (`SupportAgent`, `OpsAgent`) i ich klasa bazowa.
+    - **gateway/**: Warstwa webowa (FastAPI), w tym `main.py` (entrypoint) i `orchestrator.py` (logika biznesowa).
+    - **model_gateway/**: Abstrakcja do komunikacji z modelami LLM, włączając w to `router`, `planner` i konkretne implementacje `providerów`.
+    - **runtime/**: Biblioteka rdzennych komponentów frameworka (pamięć, RAG, rejestr narzędzi, polityki, etc.), z których korzystają agenci.
+    - **tools/**: Konkretne implementacje narzędzi (np. `tickets_proxy.py`, `ops_actions.py`).
+    - **UWAGA: `src/main` i `src/test`**: Te katalogi zawierają **zduplikowany kod Javy**. Wygląda to na pozostałość po poprzedniej strukturze projektu. **Rekomendacja**: Należy je **usunąć**, ponieważ cały kod Javy dla `ticket-adapter` znajduje się teraz w `services/ticket-adapter-java/`.
+
+  - **tests/**: Główne testy integracyjne i jednostkowe dla rdzenia Pythona (`src`). **Analiza**: Dobrze zorganizowane, ale `test_planner.py` jest zduplikowany.
+
+---
+**Ocena Ogólna:** Struktura projektu jest **wybitna, na poziomie enterprise**. Jest to klasyczne monorepo z wieloma technologiami, zarządzane przez zunifikowany system budowania. Największym zidentyfikowanym problemem jest **duplikacja kodu Javy w katalogu `src`**, którą należy natychmiast usunąć, aby uniknąć nieporozumień. Poza tym, struktura jest gotowa do skalowania i dalszego rozwoju.

@@ -1,0 +1,53 @@
+# services/api-gateway/pyproject.toml
+
+[project]
+name = "astradesk-api-gateway"
+version = "0.3.0"
+description = "AstraDesk's core API Gateway and runtime."
+authors = [{ name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com" }]
+license = { text = "Apache-2.0" }
+requires-python = ">=3.11"
+
+dependencies = [
+  # Zależność od naszego współdzielonego pakietu `core`
+  "astradesk-core @ {path = \"../../core\"}",
+
+  # Zależności frameworka webowego i serwera
+  "fastapi>=0.115,<0.116",
+  "uvicorn[standard]>=0.30,<0.31",
+  "pydantic>=2.8,<2.9",
+  "python-dotenv>=1.0,<2.0",
+
+  # Zależności baz danych i cache
+  "asyncpg>=0.29,<0.30",
+  "psycopg[binary]>=3.2,<3.3",
+  "redis>=5.0,<5.1",
+  "pgvector>=0.2,<0.3",
+
+  # Zależności komunikacji i zdarzeń
+  "nats-py>=2.7,<2.8",
+  "httpx>=0.27,<0.28",
+  "tenacity>=9.0,<10.0",
+
+  # Zależności bezpieczeństwa
+  "python-jose[cryptography]>=3.3.0,<3.4.0",
+  "jwcrypto>=1.5.6,<1.6.0",
+  "kubernetes-asyncio>=20.0,<21.0",
+
+  # Zależności AI / ML
+  "sentence-transformers>=3.0,<4.0",
+  "transformers==4.45.2",
+  "torch==2.9.0",
+
+  # Zależności obserwowalności (Observability)
+  "python-json-logger>=2.0,<3.0",
+  "opentelemetry-instrumentation-fastapi>=0.49b0,<1.0",
+  "opentelemetry-semantic-conventions>=0.49b0,<1.0",
+  "opentelemetry-api>=1.30,<2.0",
+  "opentelemetry-sdk>=1.30,<2.0",
+  "opentelemetry-exporter-otlp>=1.30,<2.0",
+  "opentelemetry-exporter-otlp-proto-grpc>=1.30,<2.0",
+]
+
+# Zależności deweloperskie pozostają w głównym `pyproject.toml`,
+# ponieważ `uv` potrafi je stamtąd odczytać dla całego workspace.

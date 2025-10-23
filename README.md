@@ -7,14 +7,14 @@
 # AstraDesk - Enterprise AI Framework
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Python Version](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
-[![JDK Version](https://img.shields.io/badge/JDK-21-green.svg)](https://openjdk.org/projects/jdk/21/)
+[![Python Version](https://img.shields.io/badge/Python-3.14-blue.svg)](https://www.python.org/downloads/release/python-3140/)
+[![JDK Version](https://img.shields.io/badge/JDK-25-orange.svg)](https://openjdk.org/projects/jdk/25/)
+[![PyTorch Version](https://img.shields.io/badge/PyTorch-2.9-magenta.svg)](https://pytorch.org/projects/pytorch/)
 [![Node.js Version](https://img.shields.io/badge/Node.js-22-brightgreen.svg)](https://nodejs.org/en)
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](https://github.com/your-org/astradesk/actions)
 
 
-🌍 **Languages:** 🇺🇸 [English](README.md) | [Polski](README.pl.md) | [中文](README.zh-CN.md)
-
+🌍 **Languages:** 🇺🇸 [English](README.md) | [Polski](docs/pl/README.pl.main.md) | [中文](docs/zh/README.zh-CN.main.md)
 
 <br>
 

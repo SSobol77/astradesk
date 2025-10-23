@@ -155,20 +155,10 @@ import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, Optional
+from core.src.astradesk_core.exceptions import AuthorizationError, PolicyError
 
-# ---------------------------
-# Wyjątki specyficzne polityk
-# ---------------------------
 
-class PolicyError(Exception):
-    """Błąd ogólny polityki (np. zła konfiguracja)."""
-
-class AuthorizationError(PermissionError):
-    """Odmowa uprawnień (RBAC/ABAC nie pozwala)."""
-
-# ---------------------------
 # Konfiguracja źródła polityk
-# ---------------------------
 
 _POLICY_TTL = int(os.getenv("POLICY_TTL_SECONDS", "60"))  # reload cache co X s
 _POLICY_FILE = os.getenv("POLICY_FILE", "").strip()       # ścieżka do JSON

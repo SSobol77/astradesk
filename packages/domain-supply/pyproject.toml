@@ -1,51 +1,36 @@
 # SPDX-License-Identifier: Apache-2.0
+# packages/domain-supply/pyproject.toml
+
 [project]
 name = "astradesk-domain-supply"
-version = "0.1.0"
-description = "Supply domain pack for AstraDesk — replenishment and SAP integration via Admin API."
-requires-python = ">=3.11,<3.12"
-authors = [{name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com"}]
-license = {text = "Apache-2.0"}
+version = "0.3.0"
+description = "Supply chain domain pack for AstraDesk — replenishment and SAP integration."
+authors = [{ name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com" }]
+license = { text = "Apache-2.0" }
+requires-python = ">=3.11"
 
 dependencies = [
-    "astradesk>=0.2.1",
-    "httpx>=0.27,<0.28",
-    "pydantic>=2.8,<2.9",
-    "tenacity>=9.0,<10.0",
-    "grpcio>=1.66,<2.0",
+  # Zależności od innych pakietów w naszym monorepo.
+  "astradesk-core @ {path = \"../../core\"}",
+  "astradesk-api-gateway @ {path = \"../../services/api-gateway\"}",
+
+  # Zależności produkcyjne specyficzne dla tej paczki.
+  # Na podstawie struktury plików, ta paczka również używa gRPC.
+  "grpcio>=1.66,<2.0",
+  "protobuf>=5.0",
+]
+
+[project.optional-dependencies]
+# Zależności deweloperskie specyficzne dla testowania tej paczki.
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.23",
+    # Do mockowania zapytań HTTP w testach
+    "respx>=0.20,<1.0",
+    # Do testowania i pracy z gRPC
     "grpcio-tools>=1.66,<2.0",
 ]
 
-[project.entry-points."astradesk.pack"]
-domain-supply = "domain-supply:Pack"  # klasa/fabryka rejestrująca agentów, tools, flows
-
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.3,<8.4",
-    "pytest-asyncio>=0.23,<0.24",
-    "respx>=0.20,<1.0",
-]
-
-[tool.uv]
-extra-index-url = ["https://download.pytorch.org/whl/cu121"]
-index-strategy = "first-match"
-
-[tool.uv.sources]
-astradesk = { workspace = true }
-
-[tool.ruff]
-line-length = 100
-target-version = "py314"
-lint.ignore = ["E501", "F841"]
-lint.select = ["E", "F", "W", "I", "N", "D", "UP", "S", "B", "A", "C4", "T20", "RUF"]
-format = {quote-style = "single"}
-
-[tool.mypy]
-python_version = "3.14"
-strict = true
-ignore_missing_imports = true
-
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-addopts = "--cov=. --cov-report=xml --cov-report=term-missing"
+# Konfiguracja narzędzi (ruff, mypy, pytest) jest zdefiniowana w głównym
+# `pyproject.toml` i jest automatycznie stosowana do tego pakietu
+# przez `uv workspace`. Nie trzeba jej tutaj powtarzać.

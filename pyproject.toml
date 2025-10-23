@@ -1,45 +1,20 @@
+# SPDX-License-Identifier: Apache-2.0
+# pyproject.toml (w głównym katalogu)
+
 [project]
-name = "astradesk"
-version = "0.2.1"
-description = "AstraDesk – internal AI agents framework (Python core)"
-requires-python = ">=3.11,<3.12"
-authors = [{name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com"}]
-license = {text = "Apache-2.0"}
+# Ta sekcja jest teraz głównie dla metadanych całego projektu.
+name = "astradesk-monorepo"
+version = "0.3.0"
+description = "AstraDesk – Enterprise AI Framework (Monorepo)"
+requires-python = ">=3.11"
+authors = [{ name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com" }]
+license = { text = "Apache-2.0" }
 
-dependencies = [
-  "fastapi>=0.115,<0.116",
-  "uvicorn[standard]>=0.30,<0.31",
-  "pydantic>=2.8,<2.9",
-  "asyncpg>=0.29,<0.30",
-  "psycopg[binary]>=3.2,<3.3",
-  "redis>=5.0,<5.1",
-  "nats-py>=2.7,<2.8",
-  "httpx>=0.27,<0.28",
-  "sentence-transformers>=3.0,<4.0",
-  "pgvector>=0.2,<0.3",
-  "python-dotenv>=1.0,<2.0",
-  "opentelemetry-instrumentation-fastapi>=0.49b0,<1.0",
-  "opentelemetry-semantic-conventions>=0.49b0,<1.0",
-  "tenacity>=9.0,<10.0",
-  "opentelemetry-api>=1.30,<2.0",
-  "opentelemetry-sdk>=1.30,<2.0",
-  "opentelemetry-exporter-otlp>=1.30,<2.0",
-  "opentelemetry-exporter-otlp-proto-grpc>=1.30,<2.0",
-  "opentelemetry-proto>=1.30,<2.0",
-  "protobuf>=6.31.1",
-  "python-json-logger>=2.0,<3.0",
-  "python-jose[cryptography]>=3.3.0,<3.4.0",
-  "jwcrypto>=1.5.6,<1.6.0",
-  "aioboto3>=10.0,<11.0",
-  "kubernetes-asyncio>=20.0,<21.0",
-  "httpx>=0.27,<0.28",
+# Zależności aplikacyjne zostały przeniesione do poszczególnych pakietów.
+# Tutaj zostawiamy tylko zależności deweloperskie i dla dokumentacji.
+dependencies = []
 
-  # ML stack (CPU by default)
-  "transformers==4.45.2",
-  "torch==2.9.0",
-]
-
-[dependency-groups]
+[project.optional-dependencies]
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.23",
@@ -50,6 +25,12 @@ dev = [
     "pip-audit>=2.7,<3.0",
 ]
 
+# GPU optional – used only on machines with CUDA 12.1
+#cu121 = [
+#  "torch==2.4.1+cu121",
+#]
+# Remove the global CU121 index to avoid accidental CUDA pulls for CPU installs
+
 docs = [
   "mkdocs>=1.6.0",
   "mkdocs-material>=9.5.0",
@@ -58,28 +39,27 @@ docs = [
   "mkdocs-redoc-tag>=0.2.0",
   "mkdocstrings>=0.23.0",
 ]
-# GPU optional – used only on machines with CUDA 12.1
-#cu121 = [
-#  "torch==2.4.1+cu121",
-#]
 
-# Remove the global CU121 index to avoid accidental CUDA pulls for CPU installs
 [tool.uv]
+# Konfiguracja `uv` pozostaje w głównym pliku.
 prerelease = "allow"
-# (empty or remove this section entirely)
-# index-strategy left default (safer than "unsafe-best-match")
 
 [tool.uv.workspace]
 members = [
+  "core",
+  "services/api-gateway",
   "packages/domain-support",
   "packages/domain-finance",
   "packages/domain-supply",
+  "packages/domain-ops",
 ]
 
+# Konfiguracja narzędzi (ruff, mypy, pytest) pozostaje w głównym pliku,
+# ponieważ `uv` będzie ich używał dla całego workspace.
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-lint.ignore = ["TC003","E501", "F841"]
+lint.ignore = ["TC003", "E501", "F841"]
 lint.select = ["E", "F", "W", "I", "N", "D", "UP", "S", "B", "A", "C4", "T20", "RUF"]
 format = { quote-style = "single" }
 
@@ -90,4 +70,6 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-addopts = "--cov=src --cov-report=xml --cov-report=term-missing"
+
+# ZMIANA: `addopts` musi teraz wskazywać na wszystkie katalogi z kodem.
+addopts = "--cov=core/src --cov=services/api-gateway/src --cov=packages --cov-report=xml --cov-report=term-missing"
