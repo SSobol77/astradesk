@@ -12,7 +12,7 @@
 [![Node.js 版本](https://img.shields.io/badge/Node.js-22-brightgreen.svg)](https://nodejs.org/en)
 [![构建状态](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](https://github.com/your-org/astradesk/actions)
 
-🌍 **语言版本:** [英文](README.md) | [波兰文](README.pl.md) | 🇨🇳 [中文 (当前文件)](README.zh.md)
+🌍 **语言版本:** [英文](astradesk/README.md) | [波兰文](astradesk/docs/pl/README.pl.main.md) | 🇨🇳 [中文 (当前文件)](docs/zh/README.zh.main.md)
 
 <br>
 

@@ -74,12 +74,9 @@ from __future__ import annotations
 
 from typing import List  # noqa: UP035
 
-from agents.base import BaseAgent
-from runtime.memory import Memory
-from runtime.planner import KeywordPlanner
-from runtime.rag import RAG
-from runtime.registry import ToolRegistry
-
+from services.api_gateway.src.agents.base import BaseAgent
+from services.api_gateway.src.runtime.memory import Memory
+from services.api_gateway.src.runtime import KeywordPlanner, RAG, ToolRegistry
 
 class SupportAgent(BaseAgent):
     """Agent do obsługi zapytań użytkowników i zarządzania zgłoszeniami."""

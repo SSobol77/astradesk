@@ -88,6 +88,10 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Any, Protocol, runtime_checkable
 
+from core.src.astradesk_core.exceptions import ProviderOverloadedError, ProviderServerError
+from core.src.astradesk_core.exceptions import ProviderTimeoutError, TokenLimitExceededError
+
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------

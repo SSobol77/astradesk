@@ -36,8 +36,8 @@ from jose import JWTError
 
 # --- Importy z projektu ---
 from agents.base import BaseAgent
-from agents.ops import OpsAgent
-from agents.support import SupportAgent
+from packages.domain_ops.agents.ops import OpsAgent
+from packages.domain_support.agents.support import SupportAgent
 from gateway.orchestrator import AgentOrchestrator
 from model_gateway.router import provider_router
 from runtime.auth import cfg as auth_config
@@ -46,10 +46,11 @@ from runtime.models import AgentRequest, AgentResponse
 from runtime.planner import KeywordPlanner
 from runtime.rag import RAG
 from runtime.registry import ToolRegistry
-from tools.metrics import metrics
-from tools.ops_actions import restart_service
-from tools.tickets_proxy import create_ticket
-from tools.weather import get_weather
+
+from packages.domain_ops.tools.actions import restart_service
+from packages.domain_support.tools.tickets_proxy import create_ticket
+from services.api_gateway.src.tools.metrics import get_metrics
+from services.api_gateway.src.tools.weather import get_weather
 
 
 if TYPE_CHECKING:
@@ -104,7 +105,7 @@ async def lifespan(app: FastAPI):
         dsn=DB_URL,
         min_size=2,
         max_size=10,
-        ssl=ssl_context # <-- DODAJEMY KONFIGURACJĘ SSL
+        ssl=ssl_context
     )
 
     app_state.redis = await redis.from_url(REDIS_URL, encoding="utf-8", decode_responses=False)
@@ -114,7 +115,7 @@ async def lifespan(app: FastAPI):
     
     tools = ToolRegistry()
     await tools.register("create_ticket", create_ticket, description="Tworzy nowe zgłoszenie w systemie.")
-    await tools.register("metrics", metrics, description="Pobiera metryki dla podanej usługi.")
+    await tools.register("get_metrics", get_metrics, description="Pobiera metryki dla podanej usługi.")
     await tools.register("restart_service", restart_service, allowed_roles={"sre"}, description="Restartuje wskazaną usługę.")
     await tools.register("get_weather", get_weather, description="Pobiera pogodę dla wskazanego miasta.")
     app_state.tools = tools
