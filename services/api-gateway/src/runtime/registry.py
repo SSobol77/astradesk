@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-"""File: services/gateway-python/src/runtime/registry.py
+# services/api-gateway/src/runtime/registry.py
+"""registry.py
 Project: AstraDesk Framework — API Gateway
 Description:
     Thread-safe runtime Tool Registry for AstraDesk agents. Provides deterministic

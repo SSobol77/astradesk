@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-"""File: services/gateway-python/src/agents/base.py
+# services/api-gateway/src/agents/base.py
+"""File: services/api-gateway/src/agents/base.py
 Project: AstraDesk Framework — API Gateway
 Description:
     Abstract base class (ABC) and lifecycle contract for all agents.
@@ -176,7 +177,7 @@ class BaseAgent:
                 )
                 tool_results.append(f"Błąd: Wystąpił problem podczas użycia narzędzia '{step.name}'.")
 
-        contextual_info = await self._get_contextual_info(query, tool_results)
+        contextual_info = await self._get_contextual_info(query, invoked_tools)
         
         final_response = self.planner.finalize(query, tool_results, contextual_info)
         

@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-"""
-#tools/tickets_proxy.py
-
-Narzędzie 'create_ticket' z bezpiecznym retry i kontrolowanym fallbackiem STUB,
+#services/api-gateway/src/tools/tickets_proxy.py
+"""Narzędzie 'create_ticket' z bezpiecznym retry i kontrolowanym fallbackiem STUB,
 gdy adapter biletów nie jest osiągalny (np. lokalny dev bez backendu).
 
 tools.tickets_proxy — create_ticket z retry i STUB fallbackiem, jeśli adapter nieosiągalny.

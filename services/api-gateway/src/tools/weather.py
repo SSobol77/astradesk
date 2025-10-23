@@ -1,4 +1,5 @@
-# src/tools/weather.py
+# SPDX-License-Identifier: Apache-2.0
+# services/api-gateway/src/tools/weather.py
 """Narzędzie do pobierania aktualnych danych pogodowych z zewnętrznego API.
 
 Moduł ten dostarcza w pełni funkcjonalną, gotową na produkcję integrację

@@ -185,6 +185,16 @@ endif
 ingest: sync ## Process documents from ./docs and populate RAG database
 	$(UV) run python scripts/ingest_docs.py ./docs
 
+ingest-support: ## Przetwarza dokumenty z `datasets/support` i zasila RAG dla SupportAgent.
+	uv run python scripts/ingest_docs.py support
+
+ingest-ops: ## Przetwarza dokumenty z `datasets/ops` i zasila RAG dla OpsAgent.
+	uv run python scripts/ingest_docs.py ops
+
+ingest-all: ingest-support ingest-ops ## Przetwarza WSZYSTKIE datasety.
+	@echo "All datasets ingested."
+	
+
 # --- Istio and Certificate Management ---
 
 apply-istio: ## Apply Istio configurations

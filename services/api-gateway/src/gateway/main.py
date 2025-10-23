@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-"""File: services/gateway-python/app/main.py
+# services/api-gateway/src/gateway/main.py
+"""File: services/api-gateway/src/gateway/main.py
 Project: AstraDesk Framework — API Gateway
 Description: FastAPI entrypoint (Python 3.11+) exposing HTTP endpoints and
              managing application lifecycle via `lifespan`. Centralizes

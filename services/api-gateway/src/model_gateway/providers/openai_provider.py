@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-"""File: services/gateway-python/src/model_gateway/providers/openai_provider.py
+# services/api-gateway/src/model_gateway/providers/openai_provider.py
+"""File: services/api-gateway/src/model_gateway/providers/openai_provider.py
 Project: AstraDesk Framework — API Gateway
 Description:
     OpenAI Chat Completions LLM provider (async) implementing the `LLMProvider`

@@ -1,4 +1,5 @@
-# src/tools/ops_actions.py
+# SPDX-License-Identifier: Apache-2.0
+# services/api-gateway/src/tools/ops_actions.py
 """Narzędzie do wykonywania akcji operacyjnych w klastrze Kubernetes.
 
 Moduł ten dostarcza funkcje, które mogą być wywoływane przez agentów SRE/DevOps

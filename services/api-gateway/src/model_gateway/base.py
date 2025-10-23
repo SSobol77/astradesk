@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-"""File: services/gateway-python/src/model_gateway/base.py
+# services/api-gateway/src/model_gateway/base.py
+"""File: services/api-gateway/src/model_gateway/base.py
 Project: AstraDesk Framework — API Gateway
 Description:
     Core contracts, types, and helpers for the Model Gateway layer. Provides a

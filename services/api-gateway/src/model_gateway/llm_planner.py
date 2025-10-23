@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-"""File: services/gateway-python/src/model_gateway/llm_planner.py
+# services/api-gatewaysrc/model_gateway/llm_planner.py
+"""File: services/api-gatewaysrc/model_gateway/llm_planner.py
 Project: AstraDesk Framework — API Gateway
 Description:
     Language-Model–driven planner that converts a user query and a set of
