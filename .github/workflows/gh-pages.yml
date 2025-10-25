@@ -1,3 +1,9 @@
+# Build and deploy MkDocs site to GitHub Pages using uv.
+# Uses Redoc with single OpenAPI source (no copies).
+# Project: AstraDesk Framework AI
+# Author: Siergej Sobolewski
+# Since: 2025-10-25
+
 name: Deploy Docs to GitHub Pages (uv)
 
 on:
@@ -31,19 +37,19 @@ jobs:
           enable-cache: true
 
       - name: Install Python (via uv)
-        run: uv python install 3.11
+        run: uv python install 3.14
 
       - name: Build site (MkDocs via uv)
         run: |
           uv venv
-          uv pip install mkdocs mkdocs-material pymdown-extensions
-          # uv pip install mkdocs-mermaid2-plugin
+          if uv pip install ".[docs]"; then
+            echo "Installed docs extras from pyproject."
+          else
+            uv pip install mkdocs mkdocs-material pymdown-extensions mkdocs-redoc-tag
+          fi
+          chmod +x scripts/check-openapi-version.sh || true
+          ./scripts/check-openapi-version.sh || true
           uv run mkdocs build --strict
-
-      - name: Copy OpenAPI to docs
-        run: |
-          mkdir -p docs/api
-          cp openapi/astradesk-admin.v1.yaml docs/api/openapi.yaml
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
