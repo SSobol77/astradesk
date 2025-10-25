@@ -47,6 +47,8 @@ dependencies = [
   "opentelemetry-sdk>=1.30,<2.0",
   "opentelemetry-exporter-otlp>=1.30,<2.0",
   "opentelemetry-exporter-otlp-proto-grpc>=1.30,<2.0",
+  "networkx=^3.3",
+  "opa-python-client=^1.2",
 ]
 
 # Zależności deweloperskie pozostają w głównym `pyproject.toml`,

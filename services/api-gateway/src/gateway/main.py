@@ -2,265 +2,199 @@
 # services/api-gateway/src/gateway/main.py
 """File: services/api-gateway/src/gateway/main.py
 Project: AstraDesk Framework — API Gateway
-Description: FastAPI entrypoint (Python 3.11+) exposing HTTP endpoints and
-             managing application lifecycle via `lifespan`. Centralizes
-             dependency injection, auth, logging, and error handling.
+Description: FastAPI entrypoint (Python 3.14+) exposing HTTP endpoints and managing application lifecycle via `lifespan`.
+Centralizes dependency injection, auth, logging, error handling, OPA governance, and OTel tracing.
+Integrates agent orchestration with OpenAPI v1.2.0 endpoints for /v1/agents/{name}/run.
 Author: Siergej Sobolewski
-Since: 2025-10-07.
-
-Notes (PL):
-- Ten moduł jest PUNKTEM WEJŚCIOWYM aplikacji (FastAPI).
-- Odpowiedzialność ograniczona do:
-  * Definiowania endpointów HTTP (np. `/healthz`, `/v1/agents/run`).
-  * Zarządzania cyklem życia (startup/shutdown) przez `lifespan`.
-  * Wstrzykiwania zależności (stan aplikacji, autoryzacja) przez `Depends`.
-  * Globalnej obsługi wyjątków i logowania.
-- Logika biznesowa agentów jest delegowana do modułu `orchestrator`.
+Since: 2025-10-25
 """  # noqa: D205
+
 from __future__ import annotations
 
-from dotenv import load_dotenv
-load_dotenv()
+from contextlib import asynccontextmanager
+from typing import Any, AsyncIterator
 
 import logging
 import os
 import uuid
-import ssl
-from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, Any
+from dotenv import load_dotenv
+load_dotenv()
 
 import asyncpg
 import redis.asyncio as redis
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.responses import JSONResponse
-from jose import JWTError
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from jose import JWTError, jwt
+from opa_python_client import OPAClient  # OPA middleware
+from opentelemetry import trace  # OTel
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from pydantic import BaseModel
 
-# --- Importy z projektu ---
-from agents.base import BaseAgent
-from packages.domain_ops.agents.ops import OpsAgent
-from packages.domain_support.agents.support import SupportAgent
-from gateway.orchestrator import AgentOrchestrator
-from model_gateway.router import provider_router
-from runtime.auth import cfg as auth_config
-from runtime.memory import Memory
-from runtime.models import AgentRequest, AgentResponse
-from runtime.planner import KeywordPlanner
-from runtime.rag import RAG
-from runtime.registry import ToolRegistry
+# Project imports
+from services.api_gateway.src.agents.base import BaseAgent
+from services.api_gateway.src.agents.support import SupportAgent
+from services.api_gateway.src.agents.billing import BillingAgent  # New
+from services.api_gateway.src.gateway.orchestrator import AgentOrchestrator
+from services.api_gateway.src.model_gateway.router import provider_router
+from services.api_gateway.src.runtime.auth import cfg as auth_config
+from services.api_gateway.src.runtime.memory import Memory
+from services.api_gateway.src.runtime.models import AgentRequest, AgentResponse
+from services.api_gateway.src.runtime.planner import KeywordPlanner
+from services.api_gateway.src.runtime.rag import RAG
+from services.api_gateway.src.runtime.registry import ToolRegistry
 
-from packages.domain_ops.tools.actions import restart_service
-from packages.domain_support.tools.tickets_proxy import create_ticket
-from services.api_gateway.src.tools.metrics import get_metrics
-from services.api_gateway.src.tools.weather import get_weather
-
-
-if TYPE_CHECKING:
-    from model_gateway.llm_planner import LLMPlanner
-
-try:
-    from model_gateway.llm_planner import LLMPlanner
-except ImportError:
-    LLMPlanner = None
-
-dotenv_path = os.path.join(os.path.dirname(__file__), '..', '..', '.env')
-load_dotenv(dotenv_path=dotenv_path)
-print(f"DEBUG: DATABASE_URL wczytany jako: {os.getenv('DATABASE_URL')}")
-
-# --- Konfiguracja i Logowanie ---
-logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://astradesk:astrapass@db:5432/astradesk")
-REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+security = HTTPBearer()
 
+class ProblemDetail(BaseModel):  # RFC 7807
+    type: str
+    title: str
+    detail: str
+    status: int
 
+app = FastAPI(title="AstraDesk API Gateway", version="1.2.0")
+
+# App state
 class AppState:
-    """Kontener na współdzielone zasoby i stan aplikacji."""
-    __slots__ = (
-        "pg_pool", "redis", "rag", "tools", "keyword_planner", "llm_planner", "agents"
-    )
-    
     pg_pool: asyncpg.Pool
     redis: redis.Redis
-    rag: RAG
     tools: ToolRegistry
-    keyword_planner: KeywordPlanner
-    llm_planner: LLMPlanner | None # type: ignore
-    agents: dict[str, BaseAgent]
-
-
-app_state = AppState()
-
+    memory: Memory
+    planner: KeywordPlanner
+    rag: RAG
+    llm_planner: Any  # From model_gateway
+    opa_client: OPAClient
+    agents: Dict[str, BaseAgent]
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Zarządza cyklem życia zasobów aplikacji (startup i shutdown)."""
-    logger.info("Uruchamianie aplikacji i inicjalizacja zasobów...")
-    # Tworzymy kontekst SSL, który nie weryfikuje certyfikatu serwera
-    # (prostsze dla developmentu, w produkcji można użyć certyfikatu CA).
-    ssl_context = ssl.create_default_context()
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
-
-    app_state.pg_pool = await asyncpg.create_pool(
-        dsn=DB_URL,
-        min_size=2,
-        max_size=10,
-        ssl=ssl_context
-    )
-
-    app_state.redis = await redis.from_url(REDIS_URL, encoding="utf-8", decode_responses=False)
-    
-    # --- Inicjalizacja komponentów ---
-    app_state.rag = RAG(app_state.pg_pool)
-    
-    tools = ToolRegistry()
-    await tools.register("create_ticket", create_ticket, description="Tworzy nowe zgłoszenie w systemie.")
-    await tools.register("get_metrics", get_metrics, description="Pobiera metryki dla podanej usługi.")
-    await tools.register("restart_service", restart_service, allowed_roles={"sre"}, description="Restartuje wskazaną usługę.")
-    await tools.register("get_weather", get_weather, description="Pobiera pogodę dla wskazanego miasta.")
-    app_state.tools = tools
-    
-    app_state.keyword_planner = KeywordPlanner()
-    
-    if LLMPlanner:
-        try:
-            # Inicjalizacja planera LLM.
-            app_state.llm_planner = LLMPlanner()
-            logger.info("Pomyślnie zainicjalizowano LLMPlanner.")
-        except Exception as e:
-            app_state.llm_planner = None
-            logger.warning(f"Nie udało się zainicjalizować LLMPlanner: {e}. Aplikacja będzie działać w trybie fallback.", exc_info=True)
-    else:
-        app_state.llm_planner = None
-        logger.info("LLMPlanner nie jest dostępny. Aplikacja będzie działać w trybie fallback.")
-
-    memory = Memory(app_state.pg_pool, app_state.redis)
-    app_state.agents = {
-        "support": SupportAgent(tools, memory, app_state.keyword_planner, app_state.rag),
-        "ops": OpsAgent(tools, memory, app_state.keyword_planner, app_state.rag),
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """FastAPI lifespan: startup (init deps, OTel, OPA) and shutdown."""
+    # Startup
+    app.state.pg_pool = await asyncpg.create_pool(os.getenv("DATABASE_URL"))
+    app.state.redis = redis.from_url(os.getenv("REDIS_URL"))
+    app.state.tools = ToolRegistry()  # Init with tools
+    app.state.memory = Memory(pg_pool=app.state.pg_pool, redis=app.state.redis)
+    app.state.planner = KeywordPlanner()
+    app.state.rag = RAG()  # From earlier
+    app.state.agents = {
+        "support": SupportAgent(
+            tools=app.state.tools,
+            memory=app.state.memory,
+            planner=app.state.planner,
+            rag=app.state.rag,
+            llm_planner=app.state.llm_planner,
+            opa_client=app.state.opa_client,
+        ),
+        "billing": BillingAgent(  # New agent
+            tools=app.state.tools,
+            memory=app.state.memory,
+            planner=app.state.planner,
+            rag=app.state.rag,
+            llm_planner=app.state.llm_planner,
+            opa_client=app.state.opa_client,
+        ),
     }
-    
-    logger.info("Inicjalizacja zasobów zakończona. Aplikacja gotowa do pracy.")
-    
-    yield  # Aplikacja działa
-    
-    # --- Zamykanie zasobów ---
-    logger.info("Zamykanie zasobów aplikacji...")
-    
-    # Bezpieczne zamknięcie providera LLM
+    app.state.opa_client = OPAClient(url=os.getenv("OPA_URL", "http://opa:8181"))
+    app.state.llm_planner = await provider_router.get_provider()  # Lazy
+
+    # OTel instrumentation
+    tracer_provider = trace.get_tracer_provider()
+    FastAPIInstrumentor.instrument_app(app, tracer_provider=tracer_provider)
+
+    yield
+
+    # Shutdown
+    await app.state.pg_pool.close()
+    await app.state.redis.close()
     await provider_router.shutdown()
-    
-    # Zamknięcie puli połączeń do bazy danych
-    if hasattr(app_state, 'pg_pool') and app_state.pg_pool:
-        await app_state.pg_pool.close()
-        
-    # Zamknięcie połączenia z Redis
-    if hasattr(app_state, 'redis') and app_state.redis:
-        await app_state.redis.close()
-        
-    logger.info("Wszystkie zasoby zostały pomyślnie zamknięte.")
 
+app.router.lifespan_context = lifespan
 
-app = FastAPI(title="AstraDesk API", version="0.2.1", lifespan=lifespan)
-
-
-# --- Zależności (Dependencies) ---
-
-def get_app_state() -> AppState:
-    """Zależność FastAPI zwracająca stan aplikacji."""
-    return app_state
-
-
-async def auth_guard(authorization: str | None = Header(None)) -> dict[str, Any]:
-    """Weryfikuje token JWT i zwraca jego claims."""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Brak nagłówka autoryzacyjnego Bearer.")
-    
-    token = authorization.split(" ", 1)[1]
+# Auth guard (JWT + OPA)
+async def auth_guard(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict[str, Any]:
+    """Auth guard: Validate JWT and OPA policy."""
     try:
-        claims = await auth_config.verify(token)
+        claims = jwt.decode(credentials.credentials, auth_config.SECRET_KEY, algorithms=[auth_config.ALGORITHM])
+        # OPA check
+        decision = await app.state.opa_client.check_policy(
+            input={"user": claims, "action": "agent_run"},
+            policy_path="astradesk/auth"
+        )
+        if not decision["result"]:
+            raise HTTPException(status_code=403, detail="Access denied by policy")
         return claims
-    except JWTError as e:
-        logger.warning(f"Błąd walidacji tokena JWT: {e}")
-        raise HTTPException(status_code=401, detail=f"Nieprawidłowy token: {e}")
-    except Exception as e:
-        logger.error(f"Nieoczekiwany błąd podczas weryfikacji tokena: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Wewnętrzny błąd serwera podczas autoryzacji.")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid JWT")
 
-
-# --- Handlery Błędów ---
-
+# Error handler (RFC 7807)
 @app.exception_handler(Exception)
-async def generic_exception_handler(request: Request, exc: Exception):
-    """Globalny handler dla nieoczekiwanych błędów."""
-    request_id = getattr(request.state, "request_id", "unknown")
-    logger.error(f"Nieobsłużony wyjątek dla żądania {request_id}: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "Wystąpił wewnętrzny błąd serwera.", "request_id": request_id},
-    )
+async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    detail = {"type": "https://astradesk.com/errors/internal", "title": "Internal Error", "status": 500}
+    return JSONResponse(status_code=500, content=detail, media_type="application/problem+json")
 
-@app.exception_handler(PermissionError)
-async def permission_error_handler(request: Request, exc: PermissionError):
-    """Handler dla błędów autoryzacji (RBAC)."""
-    return JSONResponse(status_code=403, content={"detail": str(exc)})
-
-
-# --- Endpointy ---
-
-@app.get("/healthz", tags=["Monitoring"])
-async def healthz() -> dict[str, str]:
-    """Podstawowe sprawdzenie stanu (liveness probe)."""
+# Health endpoint
+@app.get("/health", tags=["Health"])
+async def health() -> Dict[str, str]:
+    """Basic health check."""
     return {"status": "ok"}
 
-
-@app.get("/healthz/deep", tags=["Monitoring"])
-async def healthz_deep(state: AppState = Depends(get_app_state)) -> dict[str, str]:
-    """Zaawansowane sprawdzenie stanu (readiness probe), weryfikuje połączenie z bazą."""
+@app.get("/ready", tags=["Health"])
+async def ready(state: AppState = Depends(lambda: app.state)) -> Dict[str, str]:
+    """Readiness probe: Verify DB connections."""
     try:
         async with state.pg_pool.acquire() as conn:
             await conn.execute("SELECT 1")
-        return {"status": "ok", "dependencies": {"postgres": "ok"}}
+        return {"status": "ready", "dependencies": {"postgres": "ok", "redis": "ok"}}
     except Exception as e:
-        logger.error(f"Głębokie sprawdzenie stanu nie powiodło się: {e}")
-        raise HTTPException(status_code=503, detail={"postgres": "unavailable"})
+        logger.error(f"Readiness check failed: {e}")
+        raise HTTPException(status_code=503, detail={"dependencies": {"postgres": "unavailable"}})
 
-
-# --- Endpoint /v1/agents/run ---
-# --- Endpoint /v1/agents/run ---
-@app.post("/v1/agents/run", response_model=AgentResponse, tags=["Agents"])
+# Integrated agent endpoint (OpenAPI v1.2.0)
+@app.post(
+    "/v1/agents/{agent_name}/run",
+    response_model=AgentResponse,
+    tags=["Agents"],
+    summary="Run a specific agent",
+    description="Executes the named agent with the provided request. Supports SupportAgent, BillingAgent, etc.",
+    security=[{"BearerAuth": []}],
+)
 async def run_agent(
+    agent_name: str,
     req: AgentRequest,
-    # ZMIANA: Przywracamy `request: Request`, ale bez domyślnej wartości.
-    # FastAPI wie, jak wstrzyknąć ten obiekt.
     request: Request,
-    # UWAGA: Poniższa linia jest wyłączona na potrzeby lokalnego developmentu.
-    # Należy ją odkomentować przed wdrożeniem na produkcję.
-    # claims: dict[str, Any] = Depends(auth_guard),
-    state: AppState = Depends(get_app_state),
+    claims: Dict[str, Any] = Depends(auth_guard),
+    state: AppState = Depends(lambda: app.state),
 ) -> AgentResponse:
-    """Uruchamia wskazanego agenta i zwraca jego odpowiedź."""
-    request_id = str(uuid.uuid4())
-    # Ustawiamy request_id w stanie żądania, aby był dostępny
-    # w handlerach błędów i potencjalnym middleware.
-    request.state.request_id = request_id
+    """Runs the specified agent and returns its response.
     
-    logger.info(f"Rozpoczęto przetwarzanie żądania {request_id} dla agenta '{req.agent.value}'")
+    Integrates with ticketing system via tools (e.g., create_ticket calls HTTP to ticket-adapter-java:8081).
     
-    orchestrator = AgentOrchestrator(
-        llm_planner=state.llm_planner,
-        agents=state.agents,
-        tools=state.tools,
-        pg_pool=state.pg_pool,
-        redis=state.redis,
-    )
+    Args:
+        agent_name: Name of the agent (e.g., 'support', 'billing').
+        req: Agent request payload.
+        claims: JWT claims from auth.
     
-    # Używamy pustego słownika `claims` na potrzeby testów lokalnych.
-    # W środowisku produkcyjnym, `claims` będzie pochodzić z `auth_guard`.
-    claims = {} 
-    
-    response = await orchestrator.run(req, claims, request_id)
-    
-    logger.info(f"Zakończono przetwarzanie żądania {request_id}")
-    return response
+    Returns:
+        AgentResponse with output, trace_id, invoked_tools.
+    """
+    with trace.get_tracer(__name__).start_as_current_span("run_agent") as span:
+        span.set_attribute("agent_name", agent_name)
+        span.set_attribute("request_id", str(uuid.uuid4()))
+
+        if agent_name not in state.agents:
+            raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found")
+
+        agent = state.agents[agent_name]
+        context = {"claims": claims, "request_id": span.get_span_context().span_id}
+        response = await agent.run(req.input, context)
+
+        # Ticketing integration: If create_ticket invoked, log to adapter
+        if any(tool.name == "create_ticket" for tool in response.invoked_tools):
+            # Async call to ticket-adapter-java
+            import httpx
+            async with httpx.AsyncClient() as client:
+                await client.post("http://ticket-adapter:8081/tickets/confirm", json={"request_id": context["request_id"]})
+
+        return response

@@ -1,17 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
-# pyproject.toml (w głównym katalogu)
+# File: pyproject.toml (root)
+# Since: 2025-10-25
 
 [project]
-# Ta sekcja jest teraz głównie dla metadanych całego projektu.
-name = "astradesk-monorepo"
+name = "astradesk"
 version = "0.3.0"
-description = "AstraDesk – Enterprise AI Framework (Monorepo)"
-requires-python = ">=3.11"
+description = "AstraDesk – Enterprise AI Framework"
+requires-python = ">=3.14"
 authors = [{ name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com" }]
 license = { text = "Apache-2.0" }
 
-# Zależności aplikacyjne zostały przeniesione do poszczególnych pakietów.
-# Tutaj zostawiamy tylko zależności deweloperskie i dla dokumentacji.
 dependencies = []
 
 [project.optional-dependencies]
@@ -24,13 +22,11 @@ dev = [
     "types-redis>=4.6.0,<5.0",
     "pip-audit>=2.7,<3.0",
 ]
-
 # GPU optional – used only on machines with CUDA 12.1
-#cu121 = [
-#  "torch==2.4.1+cu121",
-#]
 # Remove the global CU121 index to avoid accidental CUDA pulls for CPU installs
-
+#cu121 = [ 
+#    "torch==2.9.0+cu121",
+#]
 docs = [
   "mkdocs>=1.6.0",
   "mkdocs-material>=9.5.0",
@@ -41,8 +37,8 @@ docs = [
 ]
 
 [tool.uv]
-# Konfiguracja `uv` pozostaje w głównym pliku.
 prerelease = "allow"
+#extra-index-url = ["https://download.pytorch.org/whl/cu121"]
 
 [tool.uv.workspace]
 members = [
@@ -54,22 +50,18 @@ members = [
   "packages/domain-ops",
 ]
 
-# Konfiguracja narzędzi (ruff, mypy, pytest) pozostaje w głównym pliku,
-# ponieważ `uv` będzie ich używał dla całego workspace.
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py314"
 lint.ignore = ["TC003", "E501", "F841"]
 lint.select = ["E", "F", "W", "I", "N", "D", "UP", "S", "B", "A", "C4", "T20", "RUF"]
 format = { quote-style = "single" }
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.14"
 strict = true
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-
-# ZMIANA: `addopts` musi teraz wskazywać na wszystkie katalogi z kodem.
 addopts = "--cov=core/src --cov=services/api-gateway/src --cov=packages --cov-report=xml --cov-report=term-missing"

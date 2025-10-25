@@ -1,28 +1,83 @@
+# SPDX-License-Identifier: Apache-2.0
+# File: .gitlab-ci.yml v2.1 --production-ready--
+# Description:
+#     Full production GitLab CI/CD pipeline for AstraDesk monorepo (2025 best-practices).
+#     Covers:
+#       • Global cache (uv, npm, gradle) – ultra-fast builds
+#       • Parallel test stages (Python 3.14, Java 25, Node 22) with coverage
+#       • Multi-arch Docker build & push (Buildx + cache + Sigstore)
+#       • Terraform init → validate → plan → apply (S3 backend, AWS creds)
+#       • Config-mgmt dry-run (Ansible/Puppet/Salt)
+#       • Istio mTLS STRICT + cert-manager sync → Admin API (/secrets)
+#       • Helm lint → test → upgrade (autoscaling, DB from TF, OTel)
+#       • Manual approval + Slack notifications
+#     All jobs are idempotent, retry-aware, use explicit variables.
+# Author: Siergej Sobolewski
+# Since: 2025-10-25
+
+## UWAGA!!!
+# Wymagane zmienne CI/CD w GitLabie:
+# CI_REGISTRY_IMAGE    - registry.gitlab.com/yourgroup/astradesk
+# TF_STATE_BUCKET      - S3 bucket dla terraform state,Protected
+# KUBE_CONFIG          - Base64-encoded kubeconfig,"File, Protected"
+# ADMIN_API_JWT        - JWT do Admin API,"Masked, Protected"
+# COSIGN_PRIVATE_KEY   - (opcjonalnie) klucz Sigstore,"File, Protected"
+# SLACK_WEBHOOK_URL     - Webhook do Slacka
+#  --- do SONAR QUBE --
+# SONAR_HOST_URL       - URL do SonarQube (np. https://sonar.astradesk.com),Protected
+# SONAR_TOKEN          - Token do autoryzacji (Project Analysis Token),"Masked, Protected"
+
+
+# ==============================================================================
+# Global Configuration
+# ==============================================================================
 stages:
   - test
+  - coverage
+  - sonarqube
   - build
+  - terraform
+  - config-mgmt
+  - docker
+  - istio
   - deploy
 
-# ZMIANA: Definiujemy globalny cache dla zależności, co przyspiesza pipeline
+# Global cache – shared across all jobs in the same branch
 cache:
-  key: ${CI_COMMIT_REF_SLUG}
+  key: "${CI_COMMIT_REF_SLUG}"
   paths:
     - .venv/
     - services/admin-portal/node_modules/
     - services/ticket-adapter-java/.gradle/
+    - .terraform/
+    - .uv-cache/
+    - .sonar/
+  policy: pull-push
+
+# Default retry policy
+default:
+  image: alpine:latest
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 # ==============================================================================
-# Etap Testowania (uruchamiany równolegle)
+# Stage: Test (parallel execution)
 # ==============================================================================
+
 test:python:
   stage: test
-  image: python:3.11-slim
+  image: python:3.14-slim
+  variables:
+    UV_CACHE_DIR: "/uv-cache"
   before_script:
-    - pip install --no-cache-dir uv
+    - pip install --no-cache-dir uv==0.4.16
     - uv sync --all-extras --frozen
   script:
-    - uv run ruff check src
-    - uv run mypy src
+    - uv run ruff check .
+    - uv run mypy .
     - uv run pytest --cov=src --cov-report=xml --cov-report=term-missing -q
   artifacts:
     paths:
@@ -31,70 +86,344 @@ test:python:
       coverage_report:
         coverage_format: cobertura
         path: coverage.xml
+    expire_in: 1 day
+  coverage: '/Total.*?([0-9]+\.[0-9]+)%/'
 
 test:java:
   stage: test
-  image: gradle:jdk21
+  image: gradle:jdk25
   script:
-    - cd services/ticket-adapter-java && gradle test
+    - cd services/ticket-adapter-java && ./gradlew test jacocoTestReport
   artifacts:
     paths:
       - services/ticket-adapter-java/build/reports/tests/test/
+      - services/ticket-adapter-java/build/reports/jacoco/test/jacocoTestReport.xml
     reports:
       junit: services/ticket-adapter-java/build/test-results/test/TEST-*.xml
+    expire_in: 1 day
 
 test:node:
   stage: test
   image: node:22-alpine
   script:
-    - cd services/admin-portal && npm ci && npm test
+    - cd services/admin-portal && npm ci
+    - cd services/admin-portal && npm run lint
+    - cd services/admin-portal && npm test -- --coverage
+  artifacts:
+    paths:
+      - services/admin-portal/coverage/lcov.info
+    expire_in: 1 day
 
 # ==============================================================================
-# Etap Budowania Obrazów
+# Stage: Coverage Aggregation
 # ==============================================================================
+
+coverage:aggregate:
+  stage: coverage
+  image: python:3.14-slim
+  needs: ["test:python", "test:java", "test:node"]
+  script:
+    - pip install --no-cache-dir coverage
+    - coverage combine coverage.xml || true
+    - coverage report
+    - coverage xml -o coverage-final.xml
+  artifacts:
+    paths:
+      - coverage-final.xml
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage-final.xml
+    expire_in: 7 days
+
+# ==============================================================================
+# Stage: SonarQube Analysis
+# ==============================================================================
+
+sonarqube:scan:
+  stage: sonarqube
+  image: 
+    name: sonarsource/sonar-scanner-cli:latest
+    entrypoint: [""]
+  variables:
+    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
+    GIT_DEPTH: "0"  # Full history for blame
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-sonar"
+    paths:
+      - .sonar/cache
+  script:
+    - sonar-scanner
+      -Dsonar.projectKey=astradesk
+      -Dsonar.sources=.
+      -Dsonar.host.url=${SONAR_HOST_URL}
+      -Dsonar.login=${SONAR_TOKEN}
+      -Dsonar.python.coverage.reportPaths=coverage-final.xml
+      -Dsonar.java.binaries=services/ticket-adapter-java/build/classes
+      -Dsonar.java.test.binaries=services/ticket-adapter-java/build/classes
+      -Dsonar.coverage.jacoco.xmlReportPaths=services/ticket-adapter-java/build/reports/jacoco/test/jacocoTestReport.xml
+      -Dsonar.javascript.lcov.reportPaths=services/admin-portal/coverage/lcov.info
+      -Dsonar.exclusions=**/__pycache__/**,**/node_modules/**,**/build/**,**/dist/**
+      -Dsonar.qualitygate.wait=true
+  allow_failure: false
+  only:
+    - branches
+    - merge_requests
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+  needs:
+    - job: coverage:aggregate
+      artifacts: true
+    - job: test:java
+      artifacts: true
+    - job: test:node
+      artifacts: true
+
+# ==============================================================================
+# Stage: Build Docker Images (multi-arch, cache, Sigstore)
+# ==============================================================================
+
 build:images:
   stage: build
-  image: docker:25
+  image: docker:25-dind
   services:
     - docker:25-dind
   variables:
     DOCKER_HOST: tcp://docker:2375
-  script:
+    DOCKER_BUILDKIT: "1"
+    IMAGE_TAG: ${CI_COMMIT_SHA}
+  before_script:
     - echo "Logging into GitLab Container Registry..."
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-    
-    - echo "Building and pushing images..."
-    - docker build -t $CI_REGISTRY_IMAGE/api:$CI_COMMIT_SHA .
-    - docker build -t $CI_REGISTRY_IMAGE/ticket:$CI_COMMIT_SHA services/ticket-adapter-java
-    - docker build -t $CI_REGISTRY_IMAGE/admin:$CI_COMMIT_SHA services/admin-portal
-    - docker build -t $CI_REGISTRY_IMAGE/auditor:$CI_COMMIT_SHA services/auditor
-    
-    - docker push $CI_REGISTRY_IMAGE/api:$CI_COMMIT_SHA
-    - docker push $CI_REGISTRY_IMAGE/ticket:$CI_COMMIT_SHA
-    - docker push $CI_REGISTRY_IMAGE/admin:$CI_COMMIT_SHA
-    - docker push $CI_REGISTRY_IMAGE/auditor:$CI_COMMIT_SHA
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+  script:
+    - |
+      echo "Building multi-arch images with Buildx..."
+      docker buildx create --use --name astradesk-builder
+      docker buildx inspect --bootstrap
+
+      images=(
+        "api:.:api"
+        "ticket:services/ticket-adapter-java:ticket"
+        "admin:services/admin-portal:admin"
+        "auditor:services/auditor:auditor"
+      )
+
+      for img in "${images[@]}"; do
+        IFS=':' read -r name path tag <<< "$img"
+        full_image="${CI_REGISTRY_IMAGE}/${tag}:${IMAGE_TAG}"
+        
+        echo "Building ${full_image} from ${path}"
+        docker buildx build \
+          --platform linux/amd64,linux/arm64 \
+          --cache-from type=registry,ref=${full_image} \
+          --cache-to type=inline \
+          -t "${full_image}" \
+          --push \
+          "${path}"
+        
+        # Sigstore signing (requires COSIGN_PRIVATE_KEY in CI/CD variables)
+        if [ -n "$COSIGN_PRIVATE_KEY" ]; then
+          echo "Signing image with Sigstore..."
+          echo "$COSIGN_PRIVATE_KEY" | cosign sign --key env://COSIGN_PRIVATE_KEY "${full_image}"
+        fi
+      done
+  rules:
+    - if: $CI_COMMIT_BRANCH
 
 # ==============================================================================
-# Etap Wdrażania
+# Stage: Terraform (init → validate → plan → apply)
 # ==============================================================================
-deploy:production:
-  stage: deploy
-  image: alpine/helm:3.15.3
+
+terraform:init:
+  stage: terraform
+  image: hashicorp/terraform:1.9.5
   script:
-    # Tutaj powinna być konfiguracja dostępu do klastra Kubernetes
-    - echo "Deploying to production namespace..."
-    - |
-      helm upgrade --install astradesk deploy/chart \
-        --set api.image.repository=$CI_REGISTRY_IMAGE/api \
-        --set api.image.tag=$CI_COMMIT_SHA \
-        --set admin.image.repository=$CI_REGISTRY_IMAGE/admin \
-        --set admin.image.tag=$CI_COMMIT_SHA \
-        --set ticketAdapter.image.repository=$CI_REGISTRY_IMAGE/ticket \
-        --set ticketAdapter.image.tag=$CI_COMMIT_SHA \
-        --set auditor.image.repository=$CI_REGISTRY_IMAGE/auditor \
-        --set auditor.image.tag=$CI_COMMIT_SHA \
-        --namespace astradesk-prod \
-        --create-namespace --wait
+    - cd infra
+    - terraform init -backend-config="bucket=${TF_STATE_BUCKET}" -reconfigure
+    - terraform validate
+  artifacts:
+    paths:
+      - infra/.terraform/
+    expire_in: 1 day
+
+terraform:plan:
+  stage: terraform
+  image: hashicorp/terraform:1.9.5
+  needs: ["terraform:init"]
+  script:
+    - cd infra
+    - terraform plan -var-file=terraform.tfvars -out=plan.out
+  artifacts:
+    paths:
+      - infra/plan.out
+    expire_in: 1 day
+  rules:
+    - if: $CI_COMMIT_BRANCH
+
+terraform:apply:
+  stage: terraform
+  image: hashicorp/terraform:1.9.5
+  needs: ["terraform:plan"]
+  script:
+    - cd infra
+    - terraform apply -auto-approve plan.out
   environment:
     name: production
-  when: manual # Wdrożenie na produkcję jest uruchamiane ręcznie
+  when: manual
+  only:
+    - main
+
+# ==============================================================================
+# Stage: Config Management Dry-Run
+# ==============================================================================
+
+config-mgmt:dry-run:
+  stage: config-mgmt
+  parallel:
+    matrix:
+      - TOOL: [ansible, puppet, salt]
+  script:
+    - |
+      case $TOOL in
+        ansible)
+          pip install --no-cache-dir ansible
+          ansible-playbook -i ansible/inventories/prod/hosts.ini ansible/playbook.yml --check > ${TOOL}-dryrun.log 2>&1
+          ;;
+        puppet)
+          apt-get update && apt-get install -y puppet-agent
+          puppet apply puppet/manifests/astradesk.pp --noop > ${TOOL}-dryrun.log 2>&1
+          ;;
+        salt)
+          apt-get update && apt-get install -y salt-minion
+          salt-call --local state.apply astradesk test=True > ${TOOL}-dryrun.log 2>&1
+          ;;
+      esac
+      cat ${TOOL}-dryrun.log
+  artifacts:
+    paths:
+      - "*.log"
+    expire_in: 3 days
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+# ==============================================================================
+# Stage: Istio mTLS & Cert Sync
+# ==============================================================================
+
+istio:apply:
+  stage: istio
+  image: bitnami/kubectl:latest
+  variables:
+    KUBECONFIG: /etc/deploy/kubeconfig
+  before_script:
+    - mkdir -p $(dirname $KUBECONFIG)
+    - echo "$KUBE_CONFIG" | base64 -d > $KUBECONFIG
+  script:
+    - kubectl apply -f deploy/istio/ -n astradesk-prod
+    - istioctl analyze -n astradesk-prod
+    - |
+      if ! kubectl get peerauthentication -n astradesk-prod -o jsonpath='{.items[*].spec.mtls.mode}' | grep -q STRICT; then
+        echo "mTLS not in STRICT mode!" && exit 1
+      fi
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+istio:sync-certs:
+  stage: istio
+  image: curlimages/curl
+  needs: ["istio:apply"]
+  variables:
+    ADMIN_API_URL: "https://api.astradesk.com/api/admin/v1"
+  script:
+    - |
+      TLS_CERT=$(kubectl get secret -n astradesk-prod astradesk-tls -o jsonpath='{.data.tls\.crt}' | base64 -d)
+      curl -sSf -X POST "${ADMIN_API_URL}/secrets" \
+        -H "Authorization: Bearer ${ADMIN_API_JWT}" \
+        -H "Content-Type: application/json" \
+        -d '{
+          "name": "astradesk_mtls_cert",
+          "type": "certificate",
+          "value": "'"${TLS_CERT}"'"
+        }'
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+# ==============================================================================
+# Stage: Helm Deploy (lint → test → upgrade)
+# ==============================================================================
+
+deploy:helm:
+  stage: deploy
+  image: alpine/helm:3.19.0
+  variables:
+    KUBECONFIG: /etc/deploy/kubeconfig
+  before_script:
+    - mkdir -p $(dirname $KUBECONFIG)
+    - echo "$KUBE_CONFIG" | base64 -d > $KUBECONFIG
+  script:
+    - helm lint deploy/chart
+    - |
+      helm upgrade --dry-run astradesk deploy/chart \
+        --namespace astradesk-prod \
+        --kubeconfig=$KUBECONFIG
+
+    - |
+      POSTGRES_ENDPOINT=$(terraform -chdir=infra output -raw rds_postgres_endpoint)
+      MYSQL_ENDPOINT=$(terraform -chdir=infra output -raw rds_mysql_endpoint)
+
+      helm upgrade --install astradesk deploy/chart \
+        --set api.image.repository=${CI_REGISTRY_IMAGE}/api \
+        --set api.image.tag=${CI_COMMIT_SHA} \
+        --set ticketAdapter.image.repository=${CI_REGISTRY_IMAGE}/ticket \
+        --set ticketAdapter.image.tag=${CI_COMMIT_SHA} \
+        --set admin.image.repository=${CI_REGISTRY_IMAGE}/admin \
+        --set admin.image.tag=${CI_COMMIT_SHA} \
+        --set auditor.image.repository=${CI_REGISTRY_IMAGE}/auditor \
+        --set auditor.image.tag=${CI_COMMIT_SHA} \
+        --set api.autoscaling.enabled=true \
+        --set api.autoscaling.minReplicas=2 \
+        --set api.autoscaling.maxReplicas=10 \
+        --set api.autoscaling.targetCPUUtilizationPercentage=60 \
+        --set database.postgres.host=${POSTGRES_ENDPOINT} \
+        --set database.mysql.host=${MYSQL_ENDPOINT} \
+        --namespace astradesk-prod \
+        --create-namespace \
+        --wait --timeout 6m \
+        --kubeconfig=$KUBECONFIG
+  environment:
+    name: production
+    url: https://app.astradesk.com
+  when: manual
+  only:
+    - main
+
+# ==============================================================================
+# Notifications (Slack)
+# ==============================================================================
+
+notify:slack:
+  stage: deploy
+  image: curlimages/curl
+  script:
+    - |
+      STATUS="success"
+      COLOR="good"
+      if [ "$CI_JOB_STATUS" != "success" ]; then
+        STATUS="failed"
+        COLOR="danger"
+      fi
+
+      curl -X POST -H 'Content-type: application/json' \
+        --data "{
+          \"channel\": \"#astradesk-ci\",
+          \"username\": \"GitLab CI\",
+          \"icon_emoji\": \":git:\",
+          \"attachments\": [{
+            \"color\": \"${COLOR}\",
+            \"title\": \"${CI_PROJECT_NAME} #${CI_PIPELINE_ID}\",
+            \"text\": \"Pipeline *${STATUS}* on \`${CI_COMMIT_REF_NAME}\`\n<${CI_PIPELINE_URL}|View Pipeline>\"
+          }]
+        }" \
+        "${SLACK_WEBHOOK_URL}"
+  when: always

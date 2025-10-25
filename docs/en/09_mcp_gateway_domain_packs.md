@@ -236,7 +236,7 @@ Expose a small REST surface **for non-MCP clients**; internally still call MCP.
 
 ```yaml
 openapi: 3.1.0
-info: { title: "AstraDesk Gateway Shim", version: "1.0.0" }
+info: { title: "AstraDesk Gateway Shim", version: "1.2.0" }
 paths:
   /invoke:
     post:

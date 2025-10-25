@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # File: docker-compose.yml v.1.2.0
 # Description:
-#     Defines services for the AstraDesk project in a local development environment.
+#     Defines services for AstraDesk local dev environment.
 #     Includes API, Prometheus, ticket-adapter (Java), admin-portal (Node.js), auditor,
 #     MySQL, Postgres, Redis, NATS, and domain packs (Python, Java, gRPC).
-#     Supports polyglot stack (Python 3.11+, Java 21, Node.js 22, Postgres 17).
+#     Supports polyglot stack (Python 3.14+, Java 25, Node 22+, Postgres 18).
 # Author: Siergej Sobolewski
-# Since: 2025-10-09
+# Since: 2025-10-25
 
 version: "3.9"
 services:
@@ -19,10 +19,10 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      # db:   #postgres
-      #   condition: service_healthy
-      # redis:
-      #   condition: service_healthy
+      db:  # Postgres enabled
+        condition: service_healthy
+      redis:
+        condition: service_healthy
       nats:
         condition: service_healthy
       ticket-adapter:
@@ -31,7 +31,7 @@ services:
         condition: service_healthy
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.7.1  # Latest stable
     ports:
       - "9090:9090"
     volumes:
@@ -56,9 +56,7 @@ services:
 
   admin:
     build: services/admin-portal
-    env_file: .env # Przekazujemy env, aby NEXT_PUBLIC_API_URL mógł być konfigurowalny
-    #environment:
-    #  NEXT_PUBLIC_API_URL: http://api:8080
+    env_file: .env
     ports:
       - "3000:3000"
     depends_on:
@@ -73,45 +71,19 @@ services:
           condition: service_healthy
       restart: unless-stopped
 
-
-  # db:
-  #   image: pgvector/pgvector:pg16
-  #   environment:
-  #     POSTGRES_DB: astradesk
-  #     POSTGRES_USER: astradesk
-  #     POSTGRES_PASSWORD: astrapass
-  #   ports: ["5432:5432"]
-  #   volumes: [postgres_data:/var/lib/postgresql/data]
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U astradesk"]
-
-    # image: postgres:16
-    # environment:
-    #   POSTGRES_DB: astradesk
-    #   POSTGRES_USER: astradesk
-    #   POSTGRES_PASSWORD: astrapass
-    # ports:
-    #   - "5432:5432"
-    # volumes:
-    #   - postgres_data:/var/lib/postgresql/data
-    # healthcheck:
-    #   test: ["CMD-SHELL", "pg_isready -U astradesk"]
-    #   interval: 5s
-    #   timeout: 5s
-    #   retries: 5
-
-
-  # redis:
-  #   image: redis:8
-  #   ports:
-  #     - "6379:6379"
-  #   volumes:
-  #     - redis_data:/data
-  #   healthcheck:
-  #     test: ["CMD", "redis-cli", "ping"]
-  #     interval: 5s
-  #     timeout: 3s
-  #     retries: 5
+  db:
+    image: pgvector/pgvector:pg18  # Updated to PostgreSQL 18 with pgvector
+    environment:
+      POSTGRES_DB: astradesk
+      POSTGRES_USER: astradesk
+      POSTGRES_PASSWORD: astrapass
+    ports: ["5432:5432"]
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U astradesk"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   mysql:
     image: mysql:8
@@ -130,8 +102,20 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:8.2.2  # Latest stable
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   nats:
-    image: nats:2-alpine
+    image: nats:2.12.1-alpine  # Latest stable
     command:
       - "--jetstream"
       - "--store_dir=/datastore"
@@ -213,7 +197,7 @@ services:
       API_TOKEN: "${API_TOKEN}"
 
 volumes:
-  # postgres_data:
-  # redis_data:
+  postgres_data:
   mysql_data:
+  redis_data:
   nats_data:

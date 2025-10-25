@@ -1,16 +1,16 @@
-// settings.gradle.kts (w głównym katalogu)
+// settings.gradle.kts (root)
+// Author: Siergej Sobolewski
+// Since: 2025-10-25
 
 import org.gradle.api.GradleException
 import org.gradle.util.GradleVersion
 
-// Sprawdzanie wersji Gradle jest dobrą praktyką.
-val requiredVersion = GradleVersion.version("8.5") // Użyjmy stabilnej, powszechnie dostępnej wersji
+val requiredVersion = GradleVersion.version("9.1")
 val currentVersion = GradleVersion.current()
 if (currentVersion < requiredVersion) {
-    throw GradleException("Ten projekt wymaga Gradle w wersji >= ${requiredVersion.version} (obecna: ${currentVersion.version})")
+    throw GradleException("Project requires Gradle >= ${requiredVersion.version} (current: ${currentVersion.version})")
 }
 
-// Zarządzanie repozytoriami dla wtyczek.
 pluginManagement {
     repositories {
         gradlePluginPortal()
@@ -18,7 +18,6 @@ pluginManagement {
     }
 }
 
-// Zarządzanie repozytoriami dla zależności.
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
@@ -26,10 +25,8 @@ dependencyResolutionManagement {
     }
 }
 
-// Definicja nazwy projektu głównego.
 rootProject.name = "astradesk"
 
-// Rejestracja wszystkich modułów, które używają Gradle.
 include("services:ticket-adapter-java")
-// W przyszłości:
+// In future:
 // include("packages:domain-finance")

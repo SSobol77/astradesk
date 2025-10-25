@@ -1,169 +1,128 @@
 # SPDX-License-Identifier: Apache-2.0
 # services/api-gateway/src/model_gateway/guardrails.py
-"""File: services/api-gateway/src/model_gateway/guardrails.py
-Project: AstraDesk Framework — API Gateway
-Description:
-    Core guardrails for validating inputs and normalizing LLM outputs before they
-    reach orchestration or tool execution layers. Provides intent filtering,
-    JSON/schema validation for model-produced plans, and safe output clipping.
-
+"""Core guardrails for input validation, plan schema enforcement, and output sanitization.
+Integrates OPA governance, OTel tracing, self-reflection, and PII redaction. Async-native.
 Author: Siergej Sobolewski
-Since: 2025-10-07
-
-Overview
---------
-- Intent filtering: detect potentially dangerous patterns (e.g., shell/SQL abuse).
-- Plan validation: ensure LLM-produced plans are valid JSON and conform to a
-  strict Pydantic schema (`PlanModel` → list of typed `PlanStepModel`).
-- Output clipping: truncate overly long text safely with ellipsis.
-
-Design principles
------------------
-- Fail closed: reject unsafe or malformed content early and explicitly.
-- Keep policies transparent: patterns and schemas are code-reviewed artifacts.
-- Side-effect free: pure functions suitable for synchronous and async contexts.
-- Extensible: patterns and schemas can evolve without touching call sites.
-
-Security & safety
------------------
-- Normalize and validate inputs before any tool invocation or DB access.
-- Treat guardrails as a *first line of defense* within a layered security model.
-- Never log secrets; redact user content when needed. Log only minimal context.
-
-Performance
------------
-- Regexes compiled at import for low-overhead checks.
-- Pydantic validation is fast for small/medium payloads; avoid giant blobs.
-- Use guardrails on the hot path, but keep schemas lean and focused.
-
-Usage (example)
----------------
->>> if not is_safe_input(user_text):
-...     raise ValueError("Unsafe input detected")
->>> plan = validate_plan_json(model_output_json)  # returns PlanModel
->>> preview = clip_output(render(plan), max_chars=2_000)
-
-Notes
------
-- This module does not replace WAF, IAM, or network policies—use it alongside
-  upstream controls (defense in depth).
-- Keep schemas tightly scoped to the current planner contract and update them
-  together with planner changes.
-
-Notes (PL):
------------
-Moduł implementujący podstawowe zabezpieczenia (guardrails).
-
-Ten moduł dostarcza zestaw funkcji stanowiących pierwszą linię obrony
-przed niepożądanymi lub potencjalnie złośliwymi danymi wejściowymi oraz
-zapewnia, że dane wyjściowe z modeli LLM mają poprawną strukturę.
-
-Funkcjonalności:
-- **Filtrowanie intencji**: Identyfikuje potencjalnie niebezpieczne
-  wzorce w zapytaniach użytkownika (np. próby SQL injection, polecenia systemowe).
-- **Walidacja struktury**: Weryfikuje, czy odpowiedź LLM (plan działania)
-  jest poprawnym formatem JSON i pasuje do zdefiniowanego schematu Pydantic.
-- **Narzędzia pomocnicze**: Funkcje do przycinania zbyt długich odpowiedzi.
-
-Uwaga: Te zabezpieczenia nie stanowią kompletnego rozwiązania bezpieczeństwa,
-ale są kluczowym elementem warstwowej strategii obronnej (defense in depth).
-
-"""  # noqa: D205
+Since: 2025-10-25
+"""
 
 from __future__ import annotations
 
 import json
 import logging
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ValidationError
+from opentelemetry import trace
+from opa_python_client import OPAClient
+from pydantic import BaseModel, ValidationError, Field
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
-# Zestaw skompilowanych wyrażeń regularnych do wykrywania potencjalnie
-# niebezpiecznych wzorców. Użycie `re.IGNORECASE` i `\b` (granica słowa)
-# czyni je znacznie trudniejszymi do obejścia niż proste porównanie stringów.
+# Compiled dangerous patterns
 DANGEROUS_PATTERNS = [
-    re.compile(r"\bdrop\s+database\b", re.IGNORECASE),
-    re.compile(r"\brm\s+-rf\b", re.IGNORECASE),
+    re.compile(r"\bdrop\s+(database|table)\b", re.IGNORECASE),
+    re.compile(r"\brm\s+-rf?\b", re.IGNORECASE),
     re.compile(r"\bshutdown\b", re.IGNORECASE),
     re.compile(r"\bformat\s+c:", re.IGNORECASE),
-    re.compile(r"';\s*--", re.IGNORECASE),  # Prosty wzorzec SQL injection
+    re.compile(r"['\";]\s*--", re.IGNORECASE),
+    re.compile(r"\bexec\s+\w+\s*\(", re.IGNORECASE),
+    re.compile(r"\bpasswd\b", re.IGNORECASE),
+    re.compile(r"\broot\b", re.IGNORECASE),
 ]
 
-
-def is_safe_input(text: str) -> bool:
-    """Sprawdza, czy tekst wejściowy nie zawiera potencjalnie złośliwych wzorców.
-
-    Iteruje przez listę `DANGEROUS_PATTERNS` i jeśli znajdzie dopasowanie,
-    loguje ostrzeżenie i zwraca False.
-
-    Args:
-        text: Tekst wejściowy od użytkownika.
-
-    Returns:
-        True, jeśli tekst jest uznany za bezpieczny, w przeciwnym razie False.
-    """
-    normalized_text = " ".join(text.lower().split())
-    for pattern in DANGEROUS_PATTERNS:
-        if pattern.search(normalized_text):
-            logger.warning(
-                "Wykryto potencjalnie niebezpieczny wzorzec! "
-                f"Wzorzec: '{pattern.pattern}', Tekst: '{text}'"
-            )
-            return False
-    return True
-
-
-# Uwaga: Te modele są ściśle powiązane z `llm_planner.py`. W przyszłości
-# TODO: można rozważyć przeniesienie ich do wspólnego pliku z modelami planera.
 class PlanStepModel(BaseModel):
-    """Model Pydantic dla pojedynczego kroku w planie wygenerowanym przez LLM."""
-    name: str
-    args: Dict[str, Any]
-
+    """Pydantic model for a single plan step."""
+    name: str = Field(..., description="Tool name")
+    args: Dict[str, Any] = Field(default_factory=dict, description="Tool arguments")
 
 class PlanModel(BaseModel):
-    """Model Pydantic dla pełnego planu wygenerowanego przez LLM."""
-    steps: List[PlanStepModel]
+    """Pydantic model for full LLM-generated plan."""
+    steps: List[PlanStepModel] = Field(..., description="Execution steps")
+    reflection_score: Optional[float] = Field(None, ge=0.0, le=1.0, description="Self-reflection score")
 
+class ProblemDetail(BaseModel):
+    """RFC 7807 error detail."""
+    type: str = "https://astradesk.com/errors/validation"
+    title: str = "Validation Error"
+    detail: str
+    status: int = 400
 
-def validate_plan_json(json_string: str) -> PlanModel:
-    """Waliduje, czy string jest poprawnym JSON-em i pasuje do schematu `PlanModel`.
+def redact_sensitive(text: str) -> str:
+    """Redacts PII from text before logging."""
+    text = re.sub(r'\b[\w.-]+@[\w.-]+\.\w+\b', '[EMAIL]', text)
+    text = re.sub(r'\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b', '[IP]', text)
+    return text
 
-    Funkcja ta jest kluczowym zabezpieczeniem, które gwarantuje, że nieprzewidywalny
-    wynik z LLM zostanie przekształcony w ustrukturyzowaną, bezpieczną formę
-    przed dalszym przetwarzaniem.
+async def is_safe_input(
+    text: str,
+    opa_client: Optional[OPAClient] = None,
+) -> bool:
+    """Checks if input is safe. Async for policy checks."""
+    with tracer.start_as_current_span("guardrails.is_safe_input") as span:
+        span.set_attribute("input_preview", text[:50])
+        safe_text = redact_sensitive(text)
+        normalized = " ".join(safe_text.lower().split())
 
-    Args:
-        json_string: Surowy string odpowiedzi z modelu LLM.
+        if opa_client:
+            decision = await opa_client.check_policy(
+                input={"input": safe_text},
+                policy_path="astradesk/guardrails/input"
+            )
+            if not decision.get("result", True):
+                logger.warning("OPA blocked input")
+                return False
 
-    Returns:
-        Sprawdzona instancja `PlanModel`.
+        for pattern in DANGEROUS_PATTERNS:
+            if pattern.search(normalized):
+                logger.warning(f"Dangerous pattern: {pattern.pattern}")
+                span.add_event("unsafe_input_detected")
+                return False
+        return True
 
-    Raises:
-        ValueError: Jeśli string nie jest poprawnym JSON-em lub nie pasuje
-            do schematu `PlanModel`.
-    """
-    try:
-        data = json.loads(json_string)
-        return PlanModel.model_validate(data)
-    except (json.JSONDecodeError, ValidationError) as e:
-        logger.error(f"Odpowiedź LLM nie przeszła walidacji JSON lub schematu. Błąd: {e}")
-        raise ValueError("Nieprawidłowy format planu JSON otrzymany z LLM.") from e
+async def validate_plan_json(
+    json_string: str,
+    opa_client: Optional[OPAClient] = None,
+) -> PlanModel:
+    """Validates and parses LLM plan JSON."""
+    with tracer.start_as_current_span("guardrails.validate_plan_json"):
+        try:
+            data = json.loads(json_string)
+            if opa_client:
+                decision = await opa_client.check_policy(
+                    input={"plan": data},
+                    policy_path="astradesk/guardrails/plan"
+                )
+                if not decision.get("result", True):
+                    raise ValueError("Plan denied by policy")
+            plan = PlanModel.model_validate(data)
+            logger.info(f"Plan validated: {len(plan.steps)} steps")
+            return plan
+        except (json.JSONDecodeError, ValidationError) as e:
+            logger.error(f"Plan validation failed: {e}")
+            raise ValueError("Invalid plan format") from e
 
+async def reflect_plan_quality(
+    plan: PlanModel,
+    query: str,
+    llm_provider: Any,
+) -> float:
+    """Scores plan relevance using LLM self-reflection."""
+    with tracer.start_as_current_span("guardrails.reflect_plan"):
+        system = "Score plan relevance to query (0.0-1.0). JSON: {\"score\": 0.85}"
+        user = f"Query: {query}\nPlan: {plan.model_dump_json(indent=2)}"
+        try:
+            raw = await llm_provider.chat([{"role": "system", "content": system}, {"role": "user", "content": user}])
+            data = json.loads(raw)
+            score = float(data.get("score", 0.5))
+            plan.reflection_score = score
+            return score
+        except Exception:
+            return 0.5
 
 def clip_output(text: str, max_chars: int = 2000) -> str:
-    """Bezpiecznie przycina tekst do maksymalnej dozwolonej długości.
-
-    Args:
-        text: Tekst do przycięcia.
-        max_chars: Maksymalna liczba znaków.
-
-    Returns:
-        Przycięty tekst, zakończony elipsą, jeśli był dłuższy niż limit.
-    """
+    """Safely clips output text."""
     if max_chars <= 0:
         return "…"
     return text if len(text) <= max_chars else text[: max_chars - 1] + "…"
