@@ -1,4 +1,6 @@
-# services/api-gateway/pyproject.toml
+# SPDX-License-Identifier: Apache-2.0
+# File: services/api-gateway/pyproject.toml
+# Since: 2025-10-25
 
 [project]
 name = "astradesk-api-gateway"
@@ -6,11 +8,11 @@ version = "0.3.0"
 description = "AstraDesk's core API Gateway and runtime."
 authors = [{ name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com" }]
 license = { text = "Apache-2.0" }
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 
 dependencies = [
   # Zależność od naszego współdzielonego pakietu `core`
-  "astradesk-core @ {path = \"../../core\"}",
+  "astradesk-core",
 
   # Zależności frameworka webowego i serwera
   "fastapi>=0.115,<0.116",
@@ -47,8 +49,8 @@ dependencies = [
   "opentelemetry-sdk>=1.30,<2.0",
   "opentelemetry-exporter-otlp>=1.30,<2.0",
   "opentelemetry-exporter-otlp-proto-grpc>=1.30,<2.0",
-  "networkx=^3.3",
-  "opa-python-client=^1.2",
+  "networkx>=3.3,<4.0",
+  "opa-python-client>=1.2,<2.0",
 ]
 
 # Zależności deweloperskie pozostają w głównym `pyproject.toml`,

@@ -7,7 +7,7 @@ version = "0.3.0"
 description = "Core shared utilities, exceptions, and base models for the AstraDesk Framework."
 authors = [{ name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com" }]
 license = { text = "Apache-2.0" }
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 
 # Zależności produkcyjne potrzebne dla `core`.
 dependencies = [

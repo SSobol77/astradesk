@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
-# packages/domain-supply/pyproject.toml
+# File: packages/domain-supply/pyproject.toml
+# Author: Siergej Sobolewski
+# Since: 2025-10-26
 
 [project]
 name = "astradesk-domain-supply"
@@ -7,12 +9,11 @@ version = "0.3.0"
 description = "Supply chain domain pack for AstraDesk — replenishment and SAP integration."
 authors = [{ name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com" }]
 license = { text = "Apache-2.0" }
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 
 dependencies = [
   # Zależności od innych pakietów w naszym monorepo.
-  "astradesk-core @ {path = \"../../core\"}",
-  "astradesk-api-gateway @ {path = \"../../services/api-gateway\"}",
+  "astradesk-core",
 
   # Zależności produkcyjne specyficzne dla tej paczki.
   # Na podstawie struktury plików, ta paczka również używa gRPC.

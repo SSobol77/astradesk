@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # File: pyproject.toml (root)
-# Since: 2025-10-25
+# Author: Siergej Sobolewski
+# Since: 2025-10-26
 
 [project]
 name = "astradesk"
@@ -10,23 +11,24 @@ requires-python = ">=3.14"
 authors = [{ name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com" }]
 license = { text = "Apache-2.0" }
 
+# Root paczka jest meta-koordynatorem monorepo – tu zwykle nie trzymamy zależności runtime.
 dependencies = []
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.3",
-    "pytest-asyncio>=0.23",
-    "pytest-cov>=5.0",
-    "ruff>=0.5.7,<0.6.0",
-    "mypy>=1.11,<1.12",
-    "types-redis>=4.6.0,<5.0",
-    "pip-audit>=2.7,<3.0",
+  "pytest>=8.3",
+  "pytest-asyncio>=0.23",
+  "pytest-cov>=5.0",
+  "ruff>=0.5.7,<0.6.0",
+  "mypy>=1.11,<1.12",
+  "types-redis>=4.6.0,<5.0",
+  "pip-audit>=2.7,<3.0",
 ]
-# GPU optional – used only on machines with CUDA 12.1
-# Remove the global CU121 index to avoid accidental CUDA pulls for CPU installs
-#cu121 = [ 
-#    "torch==2.9.0+cu121",
+# GPU optional – używaj tylko na hostach z CUDA; unikamy globalnych CU indexów
+#cu121 = [
+#  "torch==2.9.0+cu121",
 #]
+
 docs = [
   "mkdocs>=1.6.0",
   "mkdocs-material>=9.5.0",
@@ -37,6 +39,7 @@ docs = [
 ]
 
 [tool.uv]
+# Pozwól na prerelease (np. Python 3.14.0rc1) – świadomie, bo projekt celuje w 3.14
 prerelease = "allow"
 #extra-index-url = ["https://download.pytorch.org/whl/cu121"]
 
@@ -50,12 +53,26 @@ members = [
   "packages/domain-ops",
 ]
 
+# kluczowe mapowania nazw -> ścieżki, aby w subpakietach używać czystych PEP 508 nazw
+[tool.uv.sources]
+astradesk-core = { workspace = true }
+astradesk-domain-ops = { workspace = true }
+astradesk-domain-finance = { workspace = true }
+astradesk-domain-supply = { workspace = true }
+astradesk-domain-support  = { workspace = true }
+
+# (opcjonalnie kolejne lokalne paczki)
+# astradesk-utils = {workspace = true }
+
 [tool.ruff]
 line-length = 100
 target-version = "py314"
-lint.ignore = ["TC003", "E501", "F841"]
-lint.select = ["E", "F", "W", "I", "N", "D", "UP", "S", "B", "A", "C4", "T20", "RUF"]
 format = { quote-style = "single" }
+
+[tool.ruff.lint]
+# Nowy schemat Ruff 0.5+: sekcja lint w osobnym bloku (masz już zgodny zapis)
+ignore = ["TC003", "E501", "F841"]
+select = ["E", "F", "W", "I", "N", "D", "UP", "S", "B", "A", "C4", "T20", "RUF"]
 
 [tool.mypy]
 python_version = "3.14"

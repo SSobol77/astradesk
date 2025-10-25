@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
-# packages/domain-finance/pyproject.toml
+# File: packages/domain-finance/pyproject.toml
+# Author: Siergej Sobolewski
+# Since: 2025-10-26
 
 [project]
 name = "astradesk-domain-finance"
@@ -7,32 +9,29 @@ version = "0.3.0"
 description = "Finance domain pack for AstraDesk — forecasting and ERP integration."
 authors = [{ name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com" }]
 license = { text = "Apache-2.0" }
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 
 dependencies = [
-  # Zależności od innych pakietów w naszym monorepo.
-  "astradesk-core @ {path = \"../../core\"}",
-  "astradesk-api-gateway @ {path = \"../../services/api-gateway\"}",
+  # lokalne pakiety wyłącznie nazwą (wiąże je root [tool.uv.sources])
+  "astradesk-core",
 
-  # Zależności produkcyjne specyficzne dla tej paczki.
+  # prod deps tej paczki
   "prophet>=1.1,<2.0",
   "grpcio>=1.66,<2.0",
   "protobuf>=5.0",
 ]
 
 [project.optional-dependencies]
-# ZMIANA: Definiujemy zależności deweloperskie specyficzne dla tej paczki.
-# `uv sync --all-extras` w głównym katalogu zainstaluje je automatycznie.
 dev = [
-    # `pytest` i `pytest-asyncio` są w głównym `dev`, ale dla jasności
-    # i pełnej autonomii, możemy je tu zadeklarować ponownie.
-    "pytest>=8.3",
-    "pytest-asyncio>=0.23",
-    
-    # Zależności specyficzne dla testów tej paczki.
-    "respx>=0.20,<1.0",      # Do mockowania zapytań HTTP w testach narzędzi
-    "grpcio-tools>=1.66,<2.0", # Do testowania i pracy z gRPC
+  "pytest>=8.3",
+  "pytest-asyncio>=0.23",
+  "respx>=0.20,<1.0",
+  "grpcio-tools>=1.66,<2.0",
 ]
+
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
 
 # Konfiguracja narzędzi (ruff, mypy, pytest) jest zdefiniowana w głównym
 # `pyproject.toml` i jest automatycznie stosowana do tego pakietu

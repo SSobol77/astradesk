@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
-# packages/domain-support/pyproject.toml
+# File:packages/domain-support/pyproject.toml
+# Author: Siergej Sobolewski
+# Since: 2025-10-26
 
 [project]
 name = "astradesk-domain-support"
@@ -7,13 +9,11 @@ version = "0.3.0"
 description = "Support domain pack for AstraDesk — ticket triage with integrations for JIRA, Slack, and Asana."
 authors = [{ name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com" }]
 license = { text = "Apache-2.0" }
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 
 dependencies = [
   # Zależności od innych pakietów w naszym monorepo.
-  "astradesk-core @ {path = \"../../core\"}",
-  "astradesk-api-gateway @ {path = \"../../services/api-gateway\"}",
-
+  "astradesk-core",
   # Zależności produkcyjne specyficzne TYLKO dla tej paczki.
   # Na podstawie struktury plików, ta paczka może w przyszłości potrzebować
   # bibliotek do integracji z JIRA, Slack, Asana. Na razie zostawiamy pustą.
