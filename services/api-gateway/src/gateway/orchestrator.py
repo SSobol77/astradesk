@@ -1,153 +1,264 @@
 # SPDX-License-Identifier: Apache-2.0
 # services/api-gateway/src/gateway/orchestrator.py
-"""File: services/api-gateway/src/gateway/orchestrator.py
-Project: AstraDesk Framework — API Gateway
-Description: Business logic layer for agent orchestration: agent selection,
-             planner choice (LLM vs. keyword), tool execution, fallback
-             handling, and final response assembly.
-Author: Siergej Sobolewski
-Since: 2025-10-07.
+"""Business logic layer for agent orchestration: agent selection, planner choice (LLM vs. keyword),
+tool execution with governance, fallback handling, Intent Graph with self-reflection, and final response assembly.
 
-Notes (PL):
-- Warstwa czysto domenowa: brak zależności od FastAPI/HTTP. Dzięki temu łatwo testować.
-- Odpowiedzialności:
-  * Wybór agenta i strategii (heurystyki/LLM).
-  * Decyzja o użyciu planera (LLM vs. keyword/rules).
-  * Wykonanie planu: orkiestracja narzędzi/akcji, kolejkowanie kroków.
-  * Fallback i retry (np. backoff, circuit breaker) oraz agregacja wyników.
-  * Budowa finalnej odpowiedzi dla warstwy webowej.
-- Zalecenia:
-  * Interfejsy/porty dla narzędzi (np. ToolRunner), DI przez konstruktory.
-  * Deterministyczne testy jednostkowe z dublami (fakes/mocks).
-  * Telemetria: eventy/traces przekazywane przez adapter obserwowalności.
-"""  # noqa: D205
+**Pure domain layer** - no FastAPI/HTTP dependencies. Fully testable, async-native, OTel-traced.
+Author: Siergej Sobolewski
+Since: 2025-10-25
+"""
+
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import asyncpg
+import networkx as nx  # Intent Graph
 import redis.asyncio as redis
-from fastapi import HTTPException
+from opa_python_client import OPAClient  # Governance
+from opentelemetry import trace  # AstraOps/OTel
 
-from agents.base import BaseAgent
-from runtime.memory import Memory
-from runtime.models import AgentName, AgentRequest, AgentResponse, ToolCall
-from runtime.planner import KeywordPlanner
-from runtime.registry import ToolRegistry
+# Project imports
+from services.api_gateway.src.agents.base import BaseAgent
+from services.api_gateway.src.runtime.memory import Memory
+from services.api_gateway.src.runtime.models import (
+    AgentName,
+    AgentRequest,
+    AgentResponse,
+    ToolCall,
+)
+from services.api_gateway.src.runtime.planner import KeywordPlanner
+from services.api_gateway.src.runtime.registry import ToolRegistry
 
-# --- Standardowy i poprawny sposób na opcjonalne importy dla typowania ---
-
-# Ten blok jest widoczny tylko dla analizatorów typów (np. Pylance, mypy).
-# Definiuje on typy, aby Pylance wiedział, czym są "LLMPlanner" i "LLMPlan".
+# --- Type-only imports for LLMPlanner (avoid runtime dependency) ---
 if TYPE_CHECKING:
     from model_gateway.llm_planner import LLMPlan, LLMPlanner
-
-# Ten blok jest wykonywany w trakcie działania programu (runtime).
-try:
-    from model_gateway.llm_planner import LLMPlan, LLMPlanner
-except ImportError:
-    # Jeśli import się nie powiedzie, w runtime `LLMPlanner` będzie miało wartość None.
+else:
     LLMPlanner = None
     LLMPlan = None
-
 
 logger = logging.getLogger(__name__)
 
 
+class DomainError(Exception):
+    """Base exception for domain-level errors."""
+    pass
+
+
+class AgentNotFoundError(DomainError):
+    """Raised when requested agent is not available."""
+    def __init__(self, agent_name: str):
+        super().__init__(f"Agent '{agent_name}' not found")
+        self.agent_name = agent_name
+
+
+class PolicyViolationErrorこな(DomainError):
+    """Raised when OPA denies access."""
+    def __init__(self, action: str):
+        super().__init__(f"Access denied by policy for action: {action}")
+        self.action = action
+
+
 class AgentOrchestrator:
-    """Orkiestruje pełny cykl życia żądania wykonania agenta."""
+    """Orchestrates the full agent execution lifecycle with governance, reflection, and fallback."""
 
     def __init__(
         self,
-        # Użycie stringa ("forward reference") ostatecznie rozwiązuje problem.
-        llm_planner: Optional["LLMPlanner"], # type: ignore
+        llm_planner: Optional["LLMPlanner"],
         agents: Dict[str, BaseAgent],
         tools: ToolRegistry,
         pg_pool: asyncpg.Pool,
         redis: redis.Redis,
-    ):
+        opa_client: OPAClient,
+    ) -> None:
+        """Initializes the orchestrator with all dependencies.
+
+        Args:
+            llm_planner: Optional LLM-based planner (can be None for fallback-only mode).
+            agents: Mapping of agent names to initialized BaseAgent instances.
+            tools: Central tool registry.
+            pg_pool: PostgreSQL connection pool.
+            redis: Redis async client.
+            opa_client: OPA client for policy enforcement.
+        """
         self.llm_planner = llm_planner
         self.agents = agents
         self.tools = tools
         self.pg_pool = pg_pool
         self.redis = redis
+        self.opa_client = opa_client
+        self.tracer = trace.get_tracer(__name__)
 
     async def run(
-        self, req: AgentRequest, claims: dict[str, Any], request_id: str
+        self, req: AgentRequest, claims: Dict[str, Any], request_id: str
     ) -> AgentResponse:
-        """Główna metoda wykonawcza."""
-        context = {**req.meta, "claims": claims, "request_id": request_id}
-        memory = Memory(self.pg_pool, self.redis)
+        """Main execution entrypoint with LLM → Keyword → Fallback strategy.
 
-        if self.llm_planner:
-            response = await self._try_llm_path(req, context, memory, request_id)
-            if response:
-                return response
+        Args:
+            req: Incoming agent request.
+            claims: JWT claims from auth layer.
+            request_id: Unique trace ID.
 
-        return await self._run_fallback_path(req, context, memory, request_id)
+        Returns:
+            AgentResponse with output and invoked tools.
+
+        Raises:
+            AgentNotFoundError: If agent not found.
+            PolicyViolationError: If OPA denies access.
+        """
+        with self.tracer.start_as_current_span("orchestrator.run") as span:
+            span.set_attribute("request_id", request_id)
+            span.set_attribute("agent", req.agent.value)
+            span.set_attribute("input_preview", req.input[:100])
+
+            context = {**req.meta, "claims": claims, "request_id": request_id}
+            memory = Memory(self.pg_pool, self.redis)
+
+            # Try LLM path first
+            if self.llm_planner:
+                with self.tracer.start_as_current_span("orchestrator.llm_path"):
+                    response = await self._try_llm_path(req, context, memory, request_id)
+                    if response:
+                        return response
+
+            # Fallback to keyword-based agent
+            with self.tracer.start_as_current_span("orchestrator.fallback_path"):
+                return await self._run_fallback_path(req, context, memory, request_id)
 
     async def _try_llm_path(
-        self, req: AgentRequest, context: dict, memory: Memory, request_id: str
-    ) -> AgentResponse | None:
-        """Próbuje wykonać zadanie przy użyciu planera LLM."""
-        # Sprawdzamy, czy klasa LLMPlan została zaimportowana, zanim użyjemy jej typu.
-        if not LLMPlan:
+        self, req: AgentRequest, context: Dict[str, Any], memory: Memory, request_id: str
+    ) -> Optional[AgentResponse]:
+        """Attempts execution using LLMPlanner with Intent Graph and self-reflection."""
+        if not LLMPlan or not self.llm_planner:
             return None
-            
-        try:
-            logger.info(f"[{request_id}] Próba użycia LLMPlanner.")
-            # Użycie stringa jako adnotacji typu ("forward reference").
-            llm_plan: "LLMPlan" = await self.llm_planner.make_plan( # type: ignore
-                req.input, available_tools=self.tools.names()
-            )
 
-            if not llm_plan or not llm_plan.steps:
-                logger.info(f"[{request_id}] LLMPlanner nie wygenerował planu. Przejście do fallbacku.")
+        with self.tracer.start_as_current_span("llm_planner.make_plan") as span:
+            try:
+                llm_plan: "LLMPlan" = await asyncio.wait_for(
+                    self.llm_planner.make_plan(req.input, available_tools=self.tools.names()),
+                    timeout=15.0
+                )
+            except asyncio.TimeoutError:
+                span.record_exception(asyncio.TimeoutError("LLM plan generation timeout"))
+                return None
+            except Exception as e:
+                span.record_exception(e)
+                logger.warning(f"[{request_id}] LLM plan failed: {e}")
                 return None
 
-            logger.info(f"[{request_id}] LLMPlanner wygenerował plan z {len(llm_plan.steps)} krokami.")
-            results: List[str] = []
-            invoked_tools: List[ToolCall] = []
-
-            for step in llm_plan.steps:
-                tool_call = ToolCall(name=step.name, arguments=step.args)
-                res = await self.tools.execute(
-                    step.name, claims=context.get("claims"), **step.args
-                )
-                results.append(str(res))
-                invoked_tools.append(tool_call)
-
-            output = await self.llm_planner.summarize(req.input, results)
-            await memory.store_dialogue(req.agent.value, req.input, output, context)
-
-            return AgentResponse(
-                output=output,
-                reasoning_trace_id=request_id,
-                # Konwertujemy każdy obiekt ToolCall na słownik
-                invoked_tools=[tool.model_dump() for tool in invoked_tools],
-            )
-        except Exception as e:
-            logger.warning(
-                f"[{request_id}] Wystąpił błąd podczas ścieżki LLM: {e}. Przejście do fallbacku.",
-                exc_info=True,
-            )
+        if not llm_plan or not llm_plan.steps:
+            logger.info(f"[{request_id}] LLM generated empty plan. Falling back.")
             return None
 
-    async def _run_fallback_path(
-        self, req: AgentRequest, context: dict, memory: Memory, request_id: str
-    ) -> AgentResponse:
-        """Wykonuje zadanie przy użyciu agenta z planerem słów kluczowych."""
-        logger.info(f"[{request_id}] Uruchamianie ścieżki fallback (KeywordPlanner).")
-        
-        agent = self.agents.get(req.agent.value)
-        if not agent:
-            raise HTTPException(status_code=404, detail=f"Agent '{req.agent.value}' nie został znaleziony.")
+        logger.info(f"[{request_id}] LLM plan: {len(llm_plan.steps)} steps")
 
-        output, invoked_tools = await agent.run(req.input, context)
-        
+        # Build Intent Graph
+        graph = nx.DiGraph()
+        for i, step in enumerate(llm_plan.steps):
+            graph.add_node(i, step=step, executed=False)
+
+        results: List[str] = []
+        invoked_tools: List[ToolCall] = []
+        reflection_count = 0
+
+        # Execute with reflection and replan
+        for node_id in list(graph.nodes):
+            step = graph.nodes[node_id]["step"]
+            tool_call = ToolCall(name=step.name, arguments=step.args)
+
+            # OPA governance
+            decision = await self.opa_client.check_policy(
+                input={"user": context["claims"], "action": step.name},
+                policy_path="astradesk/tools"
+            )
+            if not decision.get("result", False):
+                raise PolicyViolationError(step.name)
+
+            # Execute with timeout
+            try:
+                result = await asyncio.wait_for(
+                    self.tools.execute(step.name, claims=context["claims"], **step.args),
+                    timeout=30.0
+                )
+            except asyncio.TimeoutError:
+                result = "Tool execution timeout"
+            except Exception as e:
+                result = f"Tool error: {str(e)}"
+
+            results.append(str(result))
+            invoked_tools.append(tool_call)
+            graph.nodes[node_id]["executed"] = True
+            graph.nodes[node_id]["result"] = result
+
+            # Self-reflection
+            score = await self._reflect_step(req.input, result, request_id)
+            reflection_count += 1
+
+            if score < 0.7:
+                logger.info(f"[{request_id}] Low reflection score ({score:.2f}). Replanning...")
+                with self.tracer.start_as_current_span("llm_planner.replan"):
+                    new_plan = await self.llm_planner.replan(req.input, results)
+                    if new_plan and new_plan.steps:
+                        # Add new branch to graph
+                        base = len(graph.nodes)
+                        for j, new_step in enumerate(new_plan.steps):
+                            new_node = base + j
+                            graph.add_node(new_node, step=new_step, executed=False)
+                            graph.add_edge(node_id, new_node)
+
+        # Final summarization
+        with self.tracer.start_as_current_span("llm_planner.summarize"):
+            output = await self.llm_planner.summarize(req.input, results)
+
+        await memory.store_dialogue(req.agent.value, req.input, output, context)
+
         return AgentResponse(
             output=output,
             reasoning_trace_id=request_id,
             invoked_tools=[tool.model_dump() for tool in invoked_tools],
         )
+
+    async def _run_fallback_path(
+        self, req: AgentRequest, context: Dict[str, Any], memory: Memory, request_id: str
+    ) -> AgentResponse:
+        """Executes fallback using keyword-based agent (SupportAgent, BillingAgent, etc.)."""
+        agent = self.agents.get(req.agent.value)
+        if not agent:
+            raise AgentNotFoundError(req.agent.value)
+
+        logger.info(f"[{request_id}] Running fallback agent: {req.agent.value}")
+
+        output, invoked_tools = await agent.run(req.input, context)
+
+        return AgentResponse(
+            output=output,
+            reasoning_trace_id=request_id,
+            invoked_tools=[tool.model_dump() for tool in invoked_tools],
+        )
+
+    async def _reflect_step(self, query: str, result: str, request_id: str) -> float:
+        """Evaluates step quality using LLMPlanner (self-reflection)."""
+        if not self.llm_planner:
+            return 1.0
+
+        with self.tracer.start_as_current_span("reflection.step"):
+            system = (
+                "Evaluate how well this tool result addresses the user query. "
+                "Return JSON: {\"score\": float(0.0-1.0)}. No explanation."
+            )
+            user = f"Query: \"{query}\"\nResult: \"{result}\""
+
+            try:
+                raw = await self.llm_planner.chat(
+                    [{"role": "system", "content": system}, {"role": "user", "content": user}],
+                    params={"max_tokens": 50, "temperature": 0.0}
+                )
+                data = json.loads(raw.strip())
+                score = float(data.get("score", 0.5))
+                return max(0.0, min(1.0, score))
+            except Exception as e:
+                logger.warning(f"[{request_id}] Reflection failed: {e}")
+                return 0.5

@@ -1,186 +1,211 @@
 # SPDX-License-Identifier: Apache-2.0
 # services/api-gateway/src/agents/base.py
-"""File: services/api-gateway/src/agents/base.py
-Project: AstraDesk Framework — API Gateway
-Description:
-    Abstract base class (ABC) and lifecycle contract for all agents.
-    Encapsulates the end-to-end execution loop (plan → act → finalize) while
-    delegating strategy-specific behavior to subclasses via well-defined hooks.
+"""Abstract base class (ABC) and lifecycle contract for all agents.
+Encapsulates the end-to-end execution loop (plan → act → reflect → replan) while
+delegating strategy-specific behavior to subclasses via well-defined hooks.
+Integrates Intent Graph for dynamic planning, self-reflection for quality evaluation,
+OPA for governance, and OTel for observability.
 
 Author: Siergej Sobolewski
-Since: 2025-10-07
-
-Design goals
-------------
-- Single, consistent execution lifecycle across agents (Template Method pattern).
-- Clear separation of concerns: orchestration lives here; domain strategy in subclasses.
-- Safety first: robust error handling, bounded retries, and structured telemetry.
-- Async-native: all I/O must be non-blocking (asyncio), suitable for FastAPI/WebFlux backends.
-- Testability: pure logic with injectable dependencies and deterministic hooks.
-
-Public contract (high level)
----------------------------
-Subclasses MUST implement/override:
-  * `async plan(request: AgentRequest) -> Plan`
-      - Build an actionable plan (steps/tools) from the incoming request.
-  * `async act(step: PlanStep, ctx: AgentContext) -> StepResult`
-      - Execute a single step (tool call / reasoning) with proper timeouts and cancellation.
-  * `async finalize(ctx: AgentContext) -> AgentResponse`
-      - Assemble final response and side effects (persist dialogue, emit events).
-
-Subclasses MAY override:
-  * `async before_run(ctx)` / `async after_run(ctx, response)`
-  * `on_error(exc, ctx)` — map exceptions to agent-level failures (no blocking I/O).
-  * `select_retry_policy(step)` — customize retry/backoff per step/tool.
-
-Lifecycle (Template Method)
----------------------------
-`run(request) -> AgentResponse`:
-    1) validate → create context
-    2) plan(request)
-    3) for each step in plan:
-           act(step, ctx) with timeout/RetryPolicy
-           update context / collect evidence
-    4) finalize(ctx)
-    5) return response
-
-Observability & policies
-------------------------
-- Emit structured events (trace/span) at: plan start, step start/end, errors, finalize.
-- Enforce limits: max steps, max tool calls, wall-clock budget, token/size quotas.
-- Provide uniform error taxonomy (e.g., ToolTimeout, ToolBadRequest, PolicyViolation).
-- Optional redaction layer for PII before logging/telemetry export.
-
-Type hints & data contracts
----------------------------
-- Prefer `pydantic` models for request/response/context (json-schema friendly).
-- Use `typing.Protocol` for tool runners to keep agents decoupled from concrete I/O.
-- Keep serialization boundaries explicit (no implicit `.dict()` in core logic).
-
-Usage (example)
----------------
->>> class SupportAgent(BaseAgent):
-...     async def plan(self, request): ...
-...     async def act(self, step, ctx): ...
-...     async def finalize(self, ctx): ...
-...
->>> agent = SupportAgent(tools=my_tools, policy=my_policy, tracer=my_tracer)
->>> resp = await agent.run(AgentRequest(user_input="reset VPN"))
-
-Notes
------
-- No network/filesystem side effects at import time.
-- All timeouts should be cancellable (`asyncio.timeout()` in Python 3.11+).
-- Keep hook implementations idempotent where feasible to enable safe retries.
-
-Notes PL:
----------
-Moduł definiujący abstrakcyjną klasę bazową dla wszystkich agentów.
-
-Klasa `BaseAgent` implementuje wspólną, niezmienną logikę cyklu życia
-przetwarzania zapytania, w tym:
-- Tworzenie planu działania.
-- Bezpieczne wykonywanie narzędzi z obsługą błędów.
-- Wykorzystanie strategii kontekstowej zdefiniowanej przez klasę pochodną.
-- Finalizację odpowiedzi i zapis dialogu.
-
-Dzięki temu, konkretne implementacje agentów (np. `OpsAgent`, `SupportAgent`)
-muszą jedynie zdefiniować swoją unikalną strategię, a nie implementować
-całą pętlę wykonawczą od nowa.
-
-"""  # noqa: D205
+Since: 2025-10-25
+"""
 
 from __future__ import annotations
 
+import asyncio
 import logging
-from typing import Any, Dict, List, Tuple  # noqa: UP035
+import json
+from abc import ABC, abstractmethod
+from typing import Any, Dict, List, Optional, Tuple
 
-from runtime.memory import Memory
-from runtime.models import ToolCall
-from runtime.planner import KeywordPlanner
-from runtime.rag import RAG
-from runtime.registry import ToolRegistry
+import networkx as nx  # For Intent Graph (DiGraph with nodes/edges)
+from opa_python_client import OPAClient  # OPA governance
+from opentelemetry import trace  # AstraOps/OTel tracing
+from pydantic import BaseModel  # Pydantic v2.9+ for models
+
+from services.api_gateway.src.runtime import (
+    KeywordPlanner,
+    Memory,
+    RAG,
+    ToolRegistry,
+    ToolCall,
+    LLMPlanner,  # For self-reflection
+)
 
 logger = logging.getLogger(__name__)
 
+class PlanStep(BaseModel):
+    """Pydantic model for a single step in the plan."""
+    name: str
+    arguments: Dict[str, Any]
 
-class BaseAgent:
-    """Abstrakcyjna klasa bazowa dla agentów."""
+class Plan(BaseModel):
+    """Pydantic model for the full plan generated by planner."""
+    steps: List[PlanStep]
 
-    __slots__ = ("agent_name", "memory", "planner", "rag", "tools")
+class BaseAgent(ABC):
+    """Abstract base class for all agents in AstraDesk.
+    Provides common structure for dynamic planning with Intent Graph, execution,
+    contextual info retrieval, self-reflection, and OPA governance."""
 
-    def __init__(  # noqa: D107
+    def __init__(
         self,
         tools: ToolRegistry,
         memory: Memory,
         planner: KeywordPlanner,
         rag: RAG,
+        llm_planner: LLMPlanner,  # For reflection
+        opa_client: OPAClient,  # For governance
         agent_name: str,
-    ):
+    ) -> None:
+        """Initializes the base agent.
+
+        Args:
+            tools: Registry of available tools.
+            memory: Memory layer for auditing and storage.
+            planner: Planner for generating execution plans.
+            rag: RAG system for knowledge retrieval.
+            llm_planner: LLM planner used for reflection and scoring.
+            opa_client: OPA client for policy enforcement.
+            agent_name: Name of the agent for identification.
+        """
         self.tools = tools
         self.memory = memory
         self.planner = planner
         self.rag = rag
+        self.llm_planner = llm_planner
+        self.opa_client = opa_client
         self.agent_name = agent_name
+        self.tracer = trace.get_tracer(__name__)  # OTel tracer
 
+    @abstractmethod
     async def _get_contextual_info(
-        self, query: str, tool_results: List[str]
+        self, query: str, invoked_tools: List[ToolCall]
     ) -> List[str]:
-        """Metoda strategii, którą muszą zaimplementować klasy pochodne.
-
-        Decyduje, czy i jak użyć RAG na podstawie wyników narzędzi.
+        """Implementation of contextual strategy for the agent.
 
         Args:
-            query: Oryginalne zapytanie użytkownika.
-            tool_results: Wyniki zwrócone przez wykonane narzędzia.
+            query: Original user query.
+            invoked_tools: List of successfully invoked tools.
 
         Returns:
-            Lista fragmentów kontekstu z RAG (może być pusta).
+            List of context snippets from RAG or empty list.
         """
-        raise NotImplementedError(
-            "Klasa pochodna musi zaimplementować metodę _get_contextual_info"
-        )
+        raise NotImplementedError("Subclass must implement _get_contextual_info")
+
+    async def _reflect(self, step_result: str, query: str) -> float:
+        """Self-reflection: Evaluate step quality using LLM.
+
+        Prompt:
+        Query: "{query}"
+        Result: "{step_result}"
+        On a scale of 0.0 to 1.0, how well does this result address the query? JSON: {"score": 0.85}
+
+
+        Args:
+            step_result: Result from tool execution.
+            query: Original user query.
+
+        Returns:
+            Score (0.0 to 1.0) indicating quality.
+        """
+        with self.tracer.start_as_current_span("agent_reflect"):
+            system_prompt = (
+                "Evaluate how well the result addresses the query. "
+                "Return JSON {'score': float(0.0-1.0)}. No explanations."
+            )
+            user_prompt = f"Query: \"{query}\"\nResult: \"{step_result}\""
+
+            try:
+                raw_response = await self.llm_planner.chat(
+                    [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+                    params={"max_tokens": 50, "temperature": 0.0}
+                )
+                data = json.loads(raw_response.strip())
+                return float(data.get("score", 0.5))
+            except Exception as e:
+                logger.warning(f"Reflection failed: {e}")
+                return 0.5  # Default medium score on error
 
     async def run(
-        self, query: str, context: Dict[str, Any]
+    self, query: str, context: Dict[str, Any]
     ) -> Tuple[str, List[ToolCall]]:
-        """Uruchamia główną pętlę wykonawczą agenta.
+        """Runs the main execution loop of the agent with Intent Graph, reflection, and OPA.
+
+        Workflow:
+        1. Generate initial plan.
+        2. Build Intent Graph (DiGraph).
+        3. For each step: OPA check → execute → reflect → replan if score low.
+        4. Get contextual info → finalize → store.
 
         Args:
-            query: Zapytanie użytkownika.
-            context: Słownik kontekstowy zawierający m.in. 'claims' i 'request_id'.
+            query: User query.
+            context: Contextual dictionary including 'claims' and 'request_id'.
 
         Returns:
-            Krotka zawierająca (finalna_odpowiedź_tekstowa, lista_wywołanych_narzędzi).
+            Tuple containing (final_text_response, list_of_invoked_tools).
         """
-        plan = self.planner.make_plan(query)
-        
-        tool_results: List[str] = []
-        invoked_tools: List[ToolCall] = []
+        with self.tracer.start_as_current_span("agent_run") as span:
+            span.set_attribute("agent_name", self.agent_name)
+            span.set_attribute("query", query)
 
-        for step in plan:
-            try:
-                logger.info(f"Wykonywanie kroku planu: wywołanie narzędzia '{step.name}'")
-                # `execute` z ToolRegistry centralnie obsługuje RBAC i wywołanie sync/async
-                result = await self.tools.execute(
-                    step.name, claims=context.get("claims"), **step.arguments
-                )
-                tool_results.append(str(result))
-                invoked_tools.append(step)
-            except PermissionError as e:
-                logger.warning(f"Odmowa dostępu do narzędzia '{step.name}': {e}")
-                tool_results.append(f"Błąd: Brak uprawnień do użycia narzędzia '{step.name}'.")
-            except Exception as e:
-                logger.error(
-                    f"Wystąpił błąd podczas wykonywania narzędzia '{step.name}'. Błąd: {e}",
-                    exc_info=True,
-                )
-                tool_results.append(f"Błąd: Wystąpił problem podczas użycia narzędzia '{step.name}'.")
+            plan = await asyncio.wait_for(self.planner.make_plan(query), timeout=10.0)  # Async with timeout
+            intent_graph = nx.DiGraph()
+            for i, step in enumerate(plan.steps):
+                intent_graph.add_node(i, step=step)
+                if i > 0:
+                    intent_graph.add_edge(i-1, i)  # Sequential edges
 
-        contextual_info = await self._get_contextual_info(query, invoked_tools)
-        
-        final_response = self.planner.finalize(query, tool_results, contextual_info)
-        
-        await self.memory.store_dialogue(self.agent_name, query, final_response, context)
-        
-        return final_response, invoked_tools
+            tool_results: List[str] = []
+            invoked_tools: List[ToolCall] = []
+            reflection_count = 0
+
+            for node in list(intent_graph.nodes):
+                step = intent_graph.nodes[node]['step']
+                tool_call = ToolCall(name=step.name, arguments=step.arguments)
+
+                # OPA governance
+                decision = await self.opa_client.check_policy(
+                    input={"user": context.get("claims"), "action": step.name},
+                    policy_path="astradesk/tools"
+                )
+                if not decision["result"]:
+                    raise PermissionError(f"OPA denied: {step.name}")
+
+                # Execute with timeout
+                try:
+                    result = await asyncio.wait_for(
+                        self.tools.execute(step.name, claims=context.get("claims"), **step.arguments),
+                        timeout=30.0
+                    )
+                except asyncio.TimeoutError:
+                    result = "Timeout during execution"
+                except Exception as e:
+                    result = f"Error: {str(e)}"
+
+                tool_results.append(result)
+                invoked_tools.append(tool_call)
+
+                # Self-reflection
+                score = await self._reflect(result, query)
+                reflection_count += 1
+                span.set_attribute("reflection_count", reflection_count)
+                span.set_attribute(f"step_{node}_score", score)
+
+                if score < 0.7:  # Low score → replan
+                    span.add_event("Replanning due to low score")
+                    new_plan = await self.planner.replan(query, tool_results)
+                    # Update graph: add new nodes/edges
+                    new_start = len(intent_graph.nodes)
+                    for j, new_step in enumerate(new_plan.steps):
+                        intent_graph.add_node(new_start + j, step=new_step)
+                        intent_graph.add_edge(node, new_start + j)  # Branch from current
+
+            contextual_info = await self._get_contextual_info(query, invoked_tools)
+            
+            final_response = self.planner.finalize(query, tool_results, contextual_info)
+            
+            await self.memory.store_dialogue(self.agent_name, query, final_response, context)
+            
+            return final_response, invoked_tools       
+ 

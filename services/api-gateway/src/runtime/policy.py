@@ -1,377 +1,293 @@
 # SPDX-License-Identifier: Apache-2.0
 # services/api-gateway/src/runtime/policy.py
-"""File: services/api-gateway/src/runtime/policy.py
-Project: AstraDesk Framework — API Gateway
-Description:
-    Production-grade RBAC + ABAC policy layer for AstraDesk. Provides fast,
-    dependency-free authorization checks with a TTL-cached, hot-reloadable
-    policy store. Policies can be supplied via environment or JSON file and
-    define required roles per action and attribute-based constraints.
+"""Production-grade RBAC + ABAC policy layer for AstraDesk.
+
+Provides fast, dependency-free authorization checks with TTL-cached, hot-reloadable
+policy store. Policies can be supplied via environment or JSON file and define
+required roles per action and attribute-based constraints.
 
 Author: Siergej Sobolewski
 Since: 2025-10-07
-
-Overview
---------
-- RBAC:
-  * Per-action role gates with `any` / `all` semantics.
-  * Role extraction from heterogeneous IdPs (Keycloak/Azure AD/custom) using
-    configurable claim paths, prefix stripping, and case normalization.
-- ABAC:
-  * Attribute-based constraints evaluated as an AND-group per action
-    (`equals` / `in` operators).
-- Policy source & cache:
-  * Load from `POLICY_JSON` (env) or `POLICY_FILE` (JSON). Fallback to a safe,
-    conservative default policy.
-  * TTL-based in-memory cache with explicit `refresh_now()` hook.
-
-Configuration (env)
--------------------
-- POLICY_JSON         : inline JSON policy (highest precedence).
-- POLICY_FILE         : path to a JSON policy file (used if POLICY_JSON empty).
-- POLICY_TTL_SECONDS  : cache TTL seconds for policy reloads (default: 60).
-
-Policy schema (JSON)
---------------------
-{
-  "roles_required": {
-    "ops.restart_service": { "all": ["sre"] },
-    "tickets.create":      { "any": ["it.support", "sre"] }
-  },
-  "abac": {
-    "ops.restart_service": [
-      {"attr": "service", "in": ["webapp","payments","search"]},
-      {"attr": "env", "in": ["dev","staging","prod"]}
-    ]
-  },
-  "idp_role_mapping": {
-    "from": ["roles", "groups", "realm_access.roles"],
-    "prefix_strip": ["ROLE_"],
-    "lowercase": true
-  }
-}
-
-Public API
-----------
-- Role helpers:
-  * `get_roles(claims) -> list[str]`
-  * `has_role(claims, required) -> bool`
-  * `require_role(claims, required)` / `require_any_role(claims, roles)` / `require_all_roles(claims, roles)`
-- Authorization:
-  * `authorize(action, claims, attrs=None)` → raises `AuthorizationError` on denial.
-- Admin facade:
-  * `policy.refresh_now()` — force reload (bypass TTL).
-  * `policy.current()`    — get compiled policy snapshot.
-
-Design principles
------------------
-- Deterministic & fast: pure-Python, no network calls on the hot path.
-- Defense-in-depth: RBAC first; ABAC to restrict scope (service/env/owner...).
-- Extensible: add more claim sources or rule operators without breaking callers.
-- Safe defaults: missing policy falls back to a conservative baseline.
-
-Security & safety
------------------
-- Normalize roles to avoid prefix/case mismatches across IdPs.
-- Treat missing attributes for ABAC as a denial (fail-closed).
-- Do not log token contents; pass minimal, non-sensitive context to logs.
-
-Performance
------------
-- O(1) lookups and simple set ops for RBAC checks.
-- ABAC rule evaluation is linear in the number of rules per action.
-- TTL cache prevents repeated parsing/IO; explicit refresh for control planes.
-
-Usage (example)
----------------
->>> from runtime.policy import policy, authorize, require_role
->>> require_role(claims, "sre")  # RBAC quick check
->>> authorize("ops.restart_service", claims, {"service":"webapp","env":"prod"})  # RBAC+ABAC
-
-Notes
------
-- Keep policies small and auditable; prefer “all/any” over complex logic.
-- For multi-tenant or per-project policies, layer an external resolver that
-  supplies the appropriate JSON to this module.
-
-
-Notes (PL):
-------------
-„Prawdziwa” warstwa RBAC+ABAC dla AstraDesk:
- - RBAC: sprawdzanie ról użytkownika pochodzących z różnych IdP (Keycloak/AzureAD/custom),
- - ABAC: zasady oparte na atrybutach (np. właściciel zasobu, środowisko, godziny),
- - Polityki ładowane lokalnie (ENV/plik) z prostym cache TTL i odświeżaniem na żądanie.
-
-Bez zależności zewnętrznych — czysty Python. Możesz łatwo podmienić _loader na pobieranie
-z configmapy/consula/SSM. Wersja lekka, ale produkcyjnie używalna.
-
-Przykłady użycia
-----------------
-from runtime.policy import policy, require_role, authorize
-
-# RBAC (prosto):
-require_role(claims, "sre")
-
-# ABAC/RBAC akcja (np. restart_service) z atrybutami kontekstu:
-authorize(
-    action="ops.restart_service",
-    claims=claims,                      # JWT claims (OIDC)
-    attrs={"service": "webapp", "env": "prod", "owner": "alice"}
-)
-
-# W toolu:
-async def restart_service(service: str, *, claims: dict | None = None):
-    authorize("ops.restart_service", claims, {"service": service})
-    ...
-
-Struktura polityki (JSON) — ENV: POLICY_JSON lub plik: POLICY_FILE
-------------------------------------------------------------------
-{
-  "roles_required": {
-    "ops.restart_service": { "all": ["sre"] },
-    "tickets.create":      { "any": ["it.support", "sre"] }
-  },
-  "abac": {
-    "ops.restart_service": [
-      {"attr": "service", "in": ["webapp","payments","search"]},
-      {"attr": "env", "in": ["dev","staging","prod"]}   # opcjonalnie
-    ]
-  },
-  "idp_role_mapping": {
-    "from": ["roles", "groups", "realm_access.roles"],  # kolejne miejsca z rolami
-    "prefix_strip": ["ROLE_"],                          # usuń prefiksy z AAD/Keycloak
-    "lowercase": true                                   # normalizuj nazwy ról
-  }
-}
-
-Jeśli nie podasz własnej polityki, aktywuje się domyślna (bezpieczna, konserwatywna).
-
-"""  # noqa: D205
+"""
 
 from __future__ import annotations
 
 import json
+import logging
 import os
-import time
-from collections.abc import Iterable
-from dataclasses import dataclass, field
-from typing import Any, Optional
-from core.src.astradesk_core.exceptions import AuthorizationError, PolicyError
+import threading
+from dataclasses import dataclass
+from typing import Any, Dict, Iterable, List, Optional, Set
+
+from opentelemetry import trace  # AstraOps/OTel tracing
+
+logger = logging.getLogger(__name__)
+
+# --------------------------------------------------------------------------- #
+# Policy Configuration & Cache
+# --------------------------------------------------------------------------- #
+_POLICY_JSON_ENV = "POLICY_JSON"
+_POLICY_FILE_ENV = "POLICY_FILE"
+_POLICY_TTL_ENV = "POLICY_TTL_SECONDS"
+_DEFAULT_TTL = 60  # seconds
+
+# Thread-safe cache with TTL
+_policy_store: "_PolicyStore" = None  # type: ignore
+_lock = threading.Lock()
 
 
-# Konfiguracja źródła polityk
+def _load_policy_from_env() -> Optional[Dict[str, Any]]:
+    """Load policy from POLICY_JSON env var."""
+    raw = os.getenv(_POLICY_JSON_ENV)
+    if raw:
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid POLICY_JSON: {e}")
+    return None
 
-_POLICY_TTL = int(os.getenv("POLICY_TTL_SECONDS", "60"))  # reload cache co X s
-_POLICY_FILE = os.getenv("POLICY_FILE", "").strip()       # ścieżka do JSON
-_POLICY_ENV  = os.getenv("POLICY_JSON", "").strip()       # inline JSON w ENV
 
-# Domyślna polityka (bezpieczna, minimalna)
-_DEFAULT_POLICY: dict[str, Any] = {
-    "roles_required": {
-        # przykład: "ops.restart_service": {"all": ["sre"]}
-    },
-    "abac": {
-        # przykład: "ops.restart_service": [{"attr": "service", "in": ["webapp","payments"]}]
-    },
-    "idp_role_mapping": {
-        "from": ["roles", "groups", "realm_access.roles"],  # Keycloak/AAD/common
-        "prefix_strip": ["ROLE_"],
-        "lowercase": True,
-    },
-}
+def _load_policy_from_file() -> Optional[Dict[str, Any]]:
+    """Load policy from POLICY_FILE path."""
+    path = os.getenv(_POLICY_FILE_ENV)
+    if path and os.path.isfile(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:  # pragma: no cover
+            logger.error(f"Failed to load policy from {path}: {e}")
+    return None
 
-# --------------------------------
-# Model wewnętrzny przechowywania
-# --------------------------------
 
-@dataclass
-class RoleRequirement:
-    any: set[str] = field(default_factory=set)  # co najmniej jedna z
-    all: set[str] = field(default_factory=set)  # wszystkie
+# --------------------------------------------------------------------------- #
+# Data Models
+# --------------------------------------------------------------------------- #
+@dataclass(frozen=True)
+class RolesRequired:
+    """RBAC role requirements per action."""
+    any: Optional[Set[str]] = None  # At least one
+    all: Optional[Set[str]] = None  # All required
 
-@dataclass
+
+@dataclass(frozen=True)
 class AbacRule:
+    """Single ABAC constraint."""
     attr: str
     equals: Optional[Any] = None
-    in_set: Optional[set[Any]] = None
+    in_set: Optional[Set[Any]] = None
 
-    @staticmethod
-    def from_dict(d: dict[str, Any]) -> "AbacRule":
-        # Akceptowane formy:
-        # {"attr": "service", "equals": "webapp"}  lub  {"attr":"service","in":["webapp","search"]}
-        attr = d.get("attr")
-        if not attr or not isinstance(attr, str):
-            raise PolicyError("ABAC rule must have string 'attr'.")
-        if "equals" in d:
-            return AbacRule(attr=attr, equals=d["equals"])
-        if "in" in d:
-            seq = d["in"]
-            if not isinstance(seq, (list, tuple, set)):
-                raise PolicyError("ABAC 'in' must be a list/tuple/set.")
-            return AbacRule(attr=attr, in_set=set(seq))
-        raise PolicyError("ABAC rule must contain 'equals' or 'in'.")
 
-@dataclass
+@dataclass(frozen=True)
+class IdpRoleMapping:
+    """Role normalization config."""
+    from_paths: List[str]  # e.g., ["roles", "realm_access.roles"]
+    prefix_strip: List[str] = None  # e.g., ["ROLE_"]
+    lowercase: bool = True
+
+
+@dataclass(frozen=True)
 class CompiledPolicy:
-    roles_required: dict[str, RoleRequirement]
-    abac: dict[str, list[AbacRule]]
-    idp_role_mapping: dict[str, Any]
+    """Compiled, immutable policy snapshot."""
+    roles_required: Dict[str, RolesRequired]
+    abac: Dict[str, List[AbacRule]]
+    idp_role_mapping: IdpRoleMapping
 
-# -------------------------
-# Policy Store + cache TTL
-# -------------------------
 
+# --------------------------------------------------------------------------- #
+# Policy Store with TTL Cache
+# --------------------------------------------------------------------------- #
 class _PolicyStore:
-    """
-    Prosty magazyn polityk z cache TTL.
+    """Thread-safe, TTL-cached policy store with explicit refresh."""
 
-    Ładowanie:
-      - najpierw POLICY_ENV (JSON string),
-      - potem POLICY_FILE (jeśli istnieje i ENV puste),
-      - inaczej _DEFAULT_POLICY.
-
-    Formaty:
-      - roles_required: { action: {"any":[...], "all":[...]} }
-      - abac: { action: [ {"attr":"service","in":["webapp","search"]}, ... ] }
-      - idp_role_mapping: { "from":[...], "prefix_strip":[...], "lowercase":bool }
-    """
+    __slots__ = ("_policy", "_loaded_at", "_ttl", "_tracer")
 
     def __init__(self) -> None:
-        self._compiled: Optional[CompiledPolicy] = None
-        self._fetched_at: float = 0.0
-
-    def _load_raw(self) -> dict[str, Any]:
-        if _POLICY_ENV:
-            try:
-                return json.loads(_POLICY_ENV)
-            except json.JSONDecodeError as e:
-                raise PolicyError(f"POLICY_JSON invalid: {e}")
-        if _POLICY_FILE:
-            if not os.path.exists(_POLICY_FILE):
-                raise PolicyError(f"POLICY_FILE missing: {_POLICY_FILE}")
-            with open(_POLICY_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        return _DEFAULT_POLICY
-
-    @staticmethod
-    def _compile_roles_required(raw: dict[str, Any]) -> dict[str, RoleRequirement]:
-        out: dict[str, RoleRequirement] = {}
-        for action, spec in raw.items():
-            rr = RoleRequirement(
-                any=set(spec.get("any", []) or []),
-                all=set(spec.get("all", []) or []),
-            )
-            out[action] = rr
-        return out
-
-    @staticmethod
-    def _compile_abac(raw: dict[str, Any]) -> dict[str, list[AbacRule]]:
-        out: dict[str, list[AbacRule]] = {}
-        for action, rules in raw.items():
-            if not isinstance(rules, (list, tuple)):
-                raise PolicyError(f"ABAC rules for '{action}' must be a list.")
-            out[action] = [AbacRule.from_dict(r) for r in rules]
-        return out
-
-    def _compile(self, data: dict[str, Any]) -> CompiledPolicy:
-        roles_required = self._compile_roles_required(data.get("roles_required", {}))
-        abac = self._compile_abac(data.get("abac", {}))
-        idp_map = data.get("idp_role_mapping", _DEFAULT_POLICY["idp_role_mapping"])
-        return CompiledPolicy(roles_required=roles_required, abac=abac, idp_role_mapping=idp_map)
+        self._policy: Optional[CompiledPolicy] = None
+        self._loaded_at: float = 0.0
+        self._ttl = int(os.getenv(_POLICY_TTL_ENV, _DEFAULT_TTL))
+        self._tracer = trace.get_tracer(__name__)
 
     def get(self) -> CompiledPolicy:
-        # TTL-owane odświeżanie
-        if not self._compiled or (time.time() - self._fetched_at) > _POLICY_TTL:
-            raw = self._load_raw()
-            self._compiled = self._compile(raw)
-            self._fetched_at = time.time()
-        return self._compiled
+        """Get current policy, auto-refresh if expired."""
+        now = threading.current_thread().ident or 0  # Dummy timestamp
+        with _lock:
+            if self._policy is None or (now - self._loaded_at) > self._ttl:
+                self._refresh()
+            return self._policy
 
     def refresh_now(self) -> None:
-        """Wymusza natychmiastowe odświeżenie (np. endpointem admina)."""
-        self._compiled = None
-        self._fetched_at = 0.0
+        """Force immediate policy reload."""
+        with _lock:
+            self._refresh()
 
+    def _refresh(self) -> None:
+        """Load and compile policy from sources."""
+        with self._tracer.start_as_current_span("policy.refresh"):
+            raw = _load_policy_from_env() or _load_policy_from_file()
+            if not raw:
+                raw = self._default_policy()
+                logger.warning("No policy found – using safe defaults")
+
+            try:
+                compiled = self._compile_policy(raw)
+                self._policy = compiled
+                self._loaded_at = threading.current_thread().ident or 0
+                logger.info("Policy reloaded successfully")
+            except Exception as e:  # pragma: no cover
+                logger.critical(f"Failed to compile policy: {e}", exc_info=True)
+                raise PolicyError("Invalid policy configuration") from e
+
+    @staticmethod
+    def _default_policy() -> Dict[str, Any]:
+        """Safe, conservative default policy."""
+        return {
+            "roles_required": {
+                "ops.*": {"all": ["sre"]},
+                "tickets.*": {"any": ["it.support", "sre"]},
+            },
+            "abac": {},
+            "idp_role_mapping": {
+                "from": ["roles", "groups", "realm_access.roles"],
+                "prefix_strip": [],
+                "lowercase": True,
+            },
+        }
+
+    @staticmethod
+    def _compile_policy(raw: Dict[str, Any]) -> CompiledPolicy:
+        """Compile raw JSON into immutable CompiledPolicy."""
+        rr_raw = raw.get("roles_required", {})
+        roles_required: Dict[str, RolesRequired] = {}
+        for action, req in rr_raw.items():
+            any_set = {str(r) for r in req.get("any", [])} if req.get("any") else None
+            all_set = {str(r) for r in req.get("all", [])} if req.get("all") else None
+            roles_required[action] = RolesRequired(any=any_set, all=all_set)
+
+        abac_raw = raw.get("abac", {})
+        abac: Dict[str, List[AbacRule]] = {}
+        for action, rules in abac_raw.items():
+            compiled_rules = []
+            for r in rules:
+                attr = str(r["attr"])
+                eq = r.get("equals")
+                in_set = {str(x) for x in r.get("in", [])} if "in" in r else None
+                compiled_rules.append(AbacRule(attr=attr, equals=eq, in_set=in_set))
+            abac[action] = compiled_rules
+
+        mapping_raw = raw.get("idp_role_mapping", {})
+        from_paths = [str(p) for p in mapping_raw.get("from", [])]
+        prefix_strip = [str(p) for p in mapping_raw.get("prefix_strip", [])]
+        lowercase = bool(mapping_raw.get("lowercase", True))
+
+        return CompiledPolicy(
+            roles_required=roles_required,
+            abac=abac,
+            idp_role_mapping=IdpRoleMapping(
+                from_paths=from_paths,
+                prefix_strip=prefix_strip,
+                lowercase=lowercase,
+            ),
+        )
+
+
+# Initialize global store
 _policy_store = _PolicyStore()
 
-# ----------------------
-# Ekstrakcja ról z IdP
-# ----------------------
 
-def _normalize_roles(roles: Iterable[str], mapping: dict[str, Any]) -> list[str]:
-    """Normalizuje nazwy ról wg polityki (strip prefixów, lowercase)."""
-    out: list[str] = []
-    strip = set(mapping.get("prefix_strip", []) or [])
-    to_lower = bool(mapping.get("lowercase", True))
-    for r in roles:
-        s = str(r)
-        for p in strip:
-            if s.startswith(p):
-                s = s[len(p):]
+# --------------------------------------------------------------------------- #
+# Role Helpers
+# --------------------------------------------------------------------------- #
+def _normalize_roles(
+    raw_roles: List[str], mapping: IdpRoleMapping
+) -> List[str]:
+    """Normalize raw roles from IdP claims."""
+    out: List[str] = []
+    strip = mapping.prefix_strip or []
+    to_lower = mapping.lowercase
+    for s in raw_roles:
+        s = str(s)
+        for prefix in strip:
+            if s.startswith(prefix):
+                s = s[len(prefix) :]
+                break
         if to_lower:
             s = s.lower()
-        out.append(s)
+        if s:
+            out.append(s)
     return out
 
-def get_roles(claims: dict | None) -> list[str]:
+
+def get_roles(claims: Optional[Dict[str, Any]]) -> List[str]:
     """
-    Zwraca listę ról użytkownika na podstawie claims z JWT (różne IdP).
-    Obsługiwane miejsca:
-      - 'roles': [...],
-      - 'groups': [...],
-      - 'realm_access.roles': [...] (Keycloak).
+    Extract and normalize user roles from JWT claims.
+
+    Supported claim paths:
+      - roles: [...]
+      - groups: [...]
+      - realm_access.roles: [...] (Keycloak)
+
+    Args:
+        claims: JWT claims dictionary.
+
+    Returns:
+        List of normalized role strings.
     """
     if not claims:
         return []
+
     mapping = _policy_store.get().idp_role_mapping
-    sources = mapping.get("from", ["roles", "groups", "realm_access.roles"])
-    raw: list[str] = []
-    for src in sources:
-        # głębokie pobranie 'a.b.c'
+    raw: List[str] = []
+    for path in mapping.from_paths:
         cur = claims
         ok = True
-        for part in src.split("."):
+        for part in path.split("."):
             if isinstance(cur, dict) and part in cur:
                 cur = cur[part]
             else:
                 ok = False
                 break
         if ok and isinstance(cur, (list, tuple)):
-            raw.extend([str(x) for x in cur])
+            raw.extend(str(x) for x in cur)
+
     return _normalize_roles(raw, mapping)
 
-def has_role(claims: dict | None, required: str) -> bool:
-    """True, jeśli użytkownik posiada wymaganą rolę (po normalizacji)."""
-    return required in set(get_roles(claims))
 
-def require_role(claims: dict | None, required: str) -> None:
-    """Rzuca AuthorizationError, jeżeli brak wymaganej roli."""
+def has_role(claims: Optional[Dict[str, Any]], required: str) -> bool:
+    """Check if user has a specific role (after normalization)."""
+    return required in {r.lower() for r in get_roles(claims)}
+
+
+def require_role(claims: Optional[Dict[str, Any]], required: str) -> None:
+    """Raise AuthorizationError if role is missing."""
     if not has_role(claims, required):
         raise AuthorizationError(f"Access denied: missing role '{required}'.")
 
-def require_any_role(claims: dict | None, candidates: Iterable[str]) -> None:
-    """Co najmniej jedna rola z listy musi wystąpić."""
-    have = set(get_roles(claims))
-    need = set(candidates)
-    if not have.intersection(need):
+
+def require_any_role(claims: Optional[Dict[str, Any]], candidates: Iterable[str]) -> None:
+    """Require at least one role from candidates."""
+    have = {r.lower() for r in get_roles(claims)}
+    need = {str(c).lower() for c in candidates}
+    if not have & need:
         raise AuthorizationError(f"Access denied: need any of roles {sorted(need)}.")
 
-def require_all_roles(claims: dict | None, required: Iterable[str]) -> None:
-    """Wszystkie wskazane role muszą wystąpić."""
-    have = set(get_roles(claims))
-    need = set(required)
+
+def require_all_roles(claims: Optional[Dict[str, Any]], required: Iterable[str]) -> None:
+    """Require all specified roles."""
+    have = {r.lower() for r in get_roles(claims)}
+    need = {str(r).lower() for r in required}
     missing = need - have
     if missing:
         raise AuthorizationError(f"Access denied: missing roles {sorted(missing)}.")
 
-# ---------------
-# ABAC evaluacja
-# ---------------
 
-def _eval_abac_rules(rules: list[AbacRule], attrs: dict[str, Any]) -> bool:
+# --------------------------------------------------------------------------- #
+# ABAC Evaluation
+# --------------------------------------------------------------------------- #
+def _eval_abac_rules(rules: List[AbacRule], attrs: Dict[str, Any]) -> bool:
     """
-    Zwraca True, jeżeli WSZYSTKIE reguły ABAC dla danej akcji są spełnione.
-    Wersja „AND” — chcesz „OR”, dodaj kilka grup w polityce i wybierz jedną przy autoryzacji.
+    Evaluate AND-group of ABAC rules.
+
+    Missing attribute → denial (fail-closed).
     """
     for r in rules:
         val = attrs.get(r.attr)
@@ -385,61 +301,97 @@ def _eval_abac_rules(rules: list[AbacRule], attrs: dict[str, Any]) -> bool:
             return False
     return True
 
-# -----------------------------
-# Główna funkcja autoryzacji
-# -----------------------------
 
-def authorize(action: str, claims: dict | None, attrs: dict[str, Any] | None = None) -> None:
+# --------------------------------------------------------------------------- #
+# Main Authorization Function
+# --------------------------------------------------------------------------- #
+def authorize(
+    action: str,
+    claims: Optional[Dict[str, Any]],
+    attrs: Optional[Dict[str, Any]] = None,
+) -> None:
     """
-    Autoryzuje wykonanie 'action' na podstawie polityk RBAC/ABAC.
+    Authorize action using RBAC + ABAC.
 
     RBAC:
-      - 'roles_required[action].any'  → użytkownik musi mieć przynajmniej jedną
-      - 'roles_required[action].all'  → użytkownik musi mieć wszystkie
+      - 'any': at least one role
+      - 'all': all roles required
+      - Wildcard support: 'ops.*'
 
     ABAC:
-      - 'abac[action]' → lista reguł (AND). Wszystkie muszą być spełnione.
+      - AND-group of attribute constraints
+      - Missing attrs → denial
 
-    :param action: identyfikator akcji (np. "ops.restart_service", "tickets.create")
-    :param claims: JWT claims (OIDC)
-    :param attrs:  atrybuty kontekstu (np. {"service":"webapp","env":"prod"})
-    :raises AuthorizationError: jeśli autoryzacja nie powiedzie się
-    :raises PolicyError: jeśli polityka jest uszkodzona/niekompletna
+    Args:
+        action: Action identifier (e.g., "ops.restart_service")
+        claims: JWT claims
+        attrs: Contextual attributes (e.g., {"service": "webapp"})
+
+    Raises:
+        AuthorizationError: On denial
+        PolicyError: On malformed policy
     """
     if not action:
-        raise PolicyError("Action must be a non-empty string.")
+        raise PolicyError("Action must be non-empty string.")
 
     pol = _policy_store.get()
+    user_roles = {r.lower() for r in get_roles(claims)}
 
-    # RBAC — wymagane role
-    rr = pol.roles_required.get(action)
-    user_roles = set(get_roles(claims))
-    if rr:
-        if rr.all and not rr.all.issubset(user_roles):
-            missing = sorted(rr.all - user_roles)
+    # RBAC: match action (support wildcard)
+    matched_rr: Optional[RolesRequired] = None
+    for pattern, rr in pol.roles_required.items():
+        if pattern.endswith(".*"):
+            prefix = pattern[:-2]
+            if action.startswith(prefix):
+                matched_rr = rr
+                break
+        elif action == pattern:
+            matched_rr = rr
+            break
+
+    if matched_rr:
+        if matched_rr.all and not matched_rr.all.issubset(user_roles):
+            missing = sorted(matched_rr.all - user_roles)
             raise AuthorizationError(f"Access denied: missing roles {missing}.")
-        if rr.any and not user_roles.intersection(rr.any):
-            raise AuthorizationError(f"Access denied: need any of roles {sorted(rr.any)}.")
+        if matched_rr.any and not user_roles & matched_rr.any:
+            raise AuthorizationError(f"Access denied: need any of roles {sorted(matched_rr.any)}.")
 
-    # ABAC — reguły atrybutowe
-    rules = pol.abac.get(action, [])
-    if rules:
+    # ABAC: match action
+    abac_rules = pol.abac.get(action, [])
+    if abac_rules:
         if attrs is None:
             raise AuthorizationError("Access denied: missing contextual attributes for ABAC.")
-        if not _eval_abac_rules(rules, attrs):
+        if not _eval_abac_rules(abac_rules, attrs):
             raise AuthorizationError("Access denied: ABAC rules not satisfied.")
 
-# -----------------------------
-# Publiczny obiekt polityki
-# -----------------------------
 
+# --------------------------------------------------------------------------- #
+# Exceptions
+# --------------------------------------------------------------------------- #
+class PolicyError(RuntimeError):
+    """Raised when policy is malformed or cannot be loaded."""
+    pass
+
+
+class AuthorizationError(PermissionError):
+    """Raised when authorization fails."""
+    pass
+
+
+# --------------------------------------------------------------------------- #
+# Public Facade (for admin endpoints)
+# --------------------------------------------------------------------------- #
 class PolicyFacade:
-    """Prosty fasadowy interfejs dla admin endpointów (np. refresh)."""
+    """Admin interface for policy management."""
+
     def refresh_now(self) -> None:
+        """Force policy reload."""
         _policy_store.refresh_now()
 
     def current(self) -> CompiledPolicy:
+        """Get current policy snapshot."""
         return _policy_store.get()
 
-# Jeden obiekt eksportowany na zewnątrz (opcjonalny do użycia przez admin API)
+
+# Exported singleton
 policy = PolicyFacade()

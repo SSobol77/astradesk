@@ -236,7 +236,7 @@ Udostępnij małą powierzchnię REST **dla klientów nie-MCP**; wewnętrznie na
 
 ```yaml
 openapi: 3.1.0
-info: { title: "AstraDesk Gateway Shim", version: "1.0.0" }
+info: { title: "AstraDesk Gateway Shim", version: "1.2.0" }
 paths:
   /invoke:
     post:

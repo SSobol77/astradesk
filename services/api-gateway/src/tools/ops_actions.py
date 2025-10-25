@@ -1,107 +1,103 @@
 # SPDX-License-Identifier: Apache-2.0
 # services/api-gateway/src/tools/ops_actions.py
-"""Narzędzie do wykonywania akcji operacyjnych w klastrze Kubernetes.
-
-Moduł ten dostarcza funkcje, które mogą być wywoływane przez agentów SRE/DevOps
-do zarządzania aplikacjami w środowisku Kubernetes. Każda akcja jest chroniona
-przez mechanizmy RBAC i walidację, aby zapewnić bezpieczeństwo.
-
-Główne cechy:
-- **Integracja z Kubernetes**: Używa oficjalnej biblioteki `kubernetes-asyncio`
-  do asynchronicznej komunikacji z API Kubernetes.
-- **Uwierzytelnianie w Klastrze**: Automatycznie wykorzystuje Service Account
-  poda, w którym działa aplikacja, co jest standardem produkcyjnym.
-- **Bezpieczeństwo "Defense in Depth"**:
-  1. **RBAC Użytkownika**: Najpierw sprawdza, czy użytkownik ma wymaganą rolę
-     (np. 'sre') za pomocą `runtime.policy`.
-  2. **Biała Lista Usług**: Następnie weryfikuje, czy usługa znajduje się na
-     predefiniowanej liście dozwolonych operacji.
-  3. **RBAC Aplikacji**: Ostatecznie, sam Service Account aplikacji musi mieć
-     odpowiednie uprawnienia w Kubernetes (np. do patchowania wdrożeń),
-     co stanowi ostatnią linię obrony.
-- **Solidna Obsługa Błędów**: Przechwytuje i obsługuje błędy API Kubernetes,
-  takie jak brak zasobu (404) czy brak uprawnień (403), zwracając
-  czytelne komunikaty.
-- **Obserwowalność**: Wszystkie kluczowe kroki i błędy są logowane.
+"""Tool for performing operational actions in Kubernetes.
+Integrates kubernetes-asyncio, OPA, OTel tracing, RBAC, whitelist, and RFC 7807 errors.
+Author: Siergej Sobolewski
+Since: 2025-10-25
 """
+
 from __future__ import annotations
 
+import asyncio
 import datetime
 import logging
 import os
-from typing import Final
+from typing import Final, Optional
 
 from kubernetes_asyncio import client, config
 from kubernetes_asyncio.client.exceptions import ApiException
 
+from opentelemetry import trace
+from opa_python_client import OPAClient
+
 from runtime.policy import AuthorizationError, require_role
+from services.api_gateway.src.model_gateway.base import ProblemDetail
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
-# --- Konfiguracja ---
-
-# Przestrzeń nazw Kubernetes, w której działają usługi.
-# W produkcji, powinna być ustawiona na konkretną przestrzeń, np. 'production'.
+# Configuration
 KUBERNETES_NAMESPACE: Final[str] = os.getenv("KUBERNETES_NAMESPACE", "default")
-
-# Biała lista nazw wdrożeń (Deployments), które można restartować.
-# To kluczowe zabezpieczenie przed przypadkowym lub złośliwym restartem krytycznych komponentów.
 ALLOWED_SERVICES: Final[set[str]] = {"webapp", "payments-api", "search-service"}
-
-# Rola wymagana w claims JWT, aby móc wywołać tę funkcję.
 REQUIRED_ROLE_RESTART: Final[str] = "sre"
 
-# --- Inicjalizacja klienta Kubernetes ---
-
-# Ten blok próbuje załadować konfigurację z wewnątrz klastra.
-# Jeśli się nie uda (np. podczas lokalnego developmentu), loguje ostrzeżenie.
+# In-cluster config
 try:
     config.load_incluster_config()
-    logger.info("Pomyślnie załadowano konfigurację Kubernetes z wewnątrz klastra.")
+    logger.info("Loaded in-cluster Kubernetes config.")
 except config.ConfigException:
-    logger.warning(
-        "Nie udało się załadować konfiguracji 'in-cluster'. "
-        "Funkcja restart_service będzie działać tylko wewnątrz klastra Kubernetes."
-    )
+    logger.warning("Failed to load in-cluster config. Ops actions require Kubernetes environment.")
 
 
-async def restart_service(service: str, *, claims: dict | None = None) -> str:
-    """Restartuje wdrożenie (Deployment) w Kubernetes poprzez mechanizm 'rollout restart'.
+def redact_service_name(service: str) -> str:
+    """Redacts service name if not allowed."""
+    return "[REDACTED]" if service not in ALLOWED_SERVICES else service
 
-    Funkcja wykonuje następujące kroki:
-    1. Weryfikuje, czy użytkownik ma wymaganą rolę ('sre').
-    2. Sprawdza, czy usługa znajduje się na białej liście dozwolonych usług.
-    3. Łączy się z API Kubernetes i wysyła żądanie 'patch', które aktualizuje
-       adnotację wdrożenia, co wyzwala kontrolowany restart podów.
 
-    Args:
-        service: Nazwa wdrożenia (Deployment) do zrestartowania.
-        claims: Claims z tokena JWT, używane do weryfikacji RBAC.
+class OpsActionError(Exception):
+    """Base error for ops actions."""
+    def __init__(self, message: str):
+        super().__init__(message)
+        self.message = message
 
-    Returns:
-        Komunikat o statusie operacji.
+    def to_problem_detail(self) -> ProblemDetail:
+        return ProblemDetail(
+            type="https://astradesk.com/errors/ops",
+            title="Ops Action Error",
+            detail=self.message,
+            status=500
+        )
 
-    Raises:
-        AuthorizationError: Jeśli użytkownik nie ma wymaganych uprawnień.
-    """
-    logger.info(f"Otrzymano żądanie restartu dla usługi: '{service}'")
 
-    # Krok 1: Weryfikacja uprawnień użytkownika (RBAC)
-    try:
-        require_role(claims, REQUIRED_ROLE_RESTART)
-    except AuthorizationError:
-        logger.warning(f"Odmowa dostępu dla restartu usługi '{service}': brak wymaganej roli '{REQUIRED_ROLE_RESTART}'.")
-        raise  # Rzuć wyjątek dalej, aby globalny handler go obsłużył
+async def restart_service(
+    service: str,
+    *,
+    claims: Optional[dict] = None,
+    opa_client: Optional[OPAClient] = None,
+) -> str:
+    """Restarts a Kubernetes Deployment using rollout restart with full governance."""
+    with tracer.start_as_current_span("tool.ops.restart_service") as span:
+        span.set_attribute("service", service)
+        span.set_attribute("namespace", KUBERNETES_NAMESPACE)
 
-    # Krok 2: Walidacja względem białej listy usług
-    if service not in ALLOWED_SERVICES:
-        logger.warning(f"Odmowa restartu: usługa '{service}' nie znajduje się na białej liście.")
-        return f"Błąd: Usługa '{service}' nie jest autoryzowana do restartu."
+        logger.info(f"Restart request for service: '{service}'")
 
-    # Krok 3: Wykonanie akcji w Kubernetes
-    try:
-        # Tworzymy ciało patcha. Ustawienie tej adnotacji to standardowy
-        # sposób na wywołanie 'rollout restart' przez API.
+        # 1. User RBAC
+        try:
+            require_role(claims, REQUIRED_ROLE_RESTART)
+        except AuthorizationError as e:
+            logger.warning(f"Access denied: missing role '{REQUIRED_ROLE_RESTART}' for service '{service}'")
+            span.add_event("rbac_denied")
+            raise OpsActionError("Insufficient permissions") from e
+
+        # 2. Whitelist
+        if service not in ALLOWED_SERVICES:
+            logger.warning(f"Service '{service}' not in allowlist")
+            span.add_event("whitelist_denied")
+            raise OpsActionError(f"Service '{service}' not authorized for restart")
+
+        # 3. OPA governance
+        if opa_client:
+            decision = await opa_client.check_policy(
+                input={"service": service, "action": "restart", "user": claims.get("sub") if claims else None},
+                policy_path="astradesk/tools/ops"
+            )
+            if not decision.get("result", True):
+                logger.warning(f"OPA denied restart for {service}")
+                span.add_event("opa_denied")
+                raise OpsActionError("Access denied by policy")
+
+        # 4. Kubernetes action
         patch_body = {
             "spec": {
                 "template": {
@@ -114,28 +110,36 @@ async def restart_service(service: str, *, claims: dict | None = None) -> str:
             }
         }
 
-        async with client.ApiClient() as api_client:
-            api = client.AppsV1Api(api_client)
-            await api.patch_namespaced_deployment(
-                name=service, namespace=KUBERNETES_NAMESPACE, body=patch_body
-            )
+        try:
+            async with client.ApiClient() as api_client:
+                api = client.AppsV1Api(api_client)
+                await asyncio.wait_for(
+                    api.patch_namespaced_deployment(
+                        name=service,
+                        namespace=KUBERNETES_NAMESPACE,
+                        body=patch_body
+                    ),
+                    timeout=10.0
+                )
+            logger.info(f"Restart triggered for '{service}' in namespace '{KUBERNETES_NAMESPACE}'")
+            span.add_event("restart_triggered")
+            return f"Restart initiated for service '{service}'."
 
-        logger.info(f"Pomyślnie zlecono restart wdrożenia '{service}' w przestrzeni nazw '{KUBERNETES_NAMESPACE}'.")
-        return f"Pomyślnie zlecono restart usługi '{service}'."
-
-    except ApiException as e:
-        if e.status == 404:
-            logger.error(f"Nie udało się zrestartować usługi: wdrożenie '{service}' nie zostało znalezione w przestrzeni nazw '{KUBERNETES_NAMESPACE}'.")
-            return f"Błąd: Usługa '{service}' nie została znaleziona."
-        elif e.status == 403:
-            logger.critical(
-                f"KRYTYCZNY BŁĄD UPRAWNIEŃ: Service Account aplikacji nie ma uprawnień do "
-                f"patchowania wdrożeń w przestrzeni nazw '{KUBERNETES_NAMESPACE}'. Treść błędu: {e.body}"
-            )
-            return "Błąd: Wystąpił wewnętrzny problem z uprawnieniami. Skontaktuj się z administratorem."
-        else:
-            logger.error(f"Nieoczekiwany błąd API Kubernetes podczas restartu usługi '{service}': {e.body}", exc_info=True)
-            return f"Błąd: Wystąpił nieoczekiwany błąd API Kubernetes (status: {e.status})."
-    except Exception as e:
-        logger.critical(f"Nieoczekiwany błąd podczas próby restartu usługi '{service}': {e}", exc_info=True)
-        return "Błąd: Wystąpił krytyczny błąd wewnętrzny."
+        except asyncio.TimeoutException:
+            logger.error(f"Timeout patching deployment '{service}'")
+            span.record_exception(asyncio.TimeoutException())
+            raise OpsActionError("Timeout during Kubernetes operation")
+        except ApiException as e:
+            if e.status == 404:
+                logger.error(f"Deployment '{service}' not found in namespace '{KUBERNETES_NAMESPACE}'")
+                return f"Error: Service '{service}' not found."
+            elif e.status == 403:
+                logger.critical(f"Service Account lacks permissions to patch deployments in '{KUBERNETES_NAMESPACE}': {e.body}")
+                return "Error: Internal permission issue. Contact admin."
+            else:
+                logger.error(f"Kubernetes API error (status {e.status}): {e.body}")
+                raise OpsActionError(f"Kubernetes error (status {e.status})")
+        except Exception as e:
+            logger.critical(f"Unexpected error during restart of '{service}': {e}", exc_info=True)
+            span.record_exception(e)
+            raise OpsActionError("Internal error during operation")

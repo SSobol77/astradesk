@@ -1,13 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
-# File: Makefile v.2 alfa   --refactoring--
+# File: Makefile v.2.0 --refactored--
 # Description:
-#     Central Makefile for the AstraDesk monorepo project.
-#     Automates development tasks including dependency management, linting, testing,
-#     building, Docker management, Terraform infrastructure, configuration management
-#     (Ansible/Puppet/Salt), Istio configuration, Helm deployment, and certificate handling.
-#     Supports polyglot stack: Python 3.11+, Java 21, Node.js 22, Postgres 17.
+#     Central Makefile for AstraDesk monorepo.
+#     Automates dev tasks: deps, lint, test, build, Docker, Terraform, CM (Ansible/Puppet/Salt), Istio, Helm, certs.
+#     Supports polyglot: Python 3.14+, Java 25, Node 22+, Postgres 18.
 # Author: Siergej Sobolewski
-# Since: 2025-10-22
+# Since: 2025-10-25
 
 # --- Configuration Variables ---
 DOCKER_COMPOSE := docker compose
@@ -21,9 +19,9 @@ ANSIBLE := ansible-playbook
 PUPPET := puppet
 SALT := salt
 HELM := helm
-PYTHON_VERSION := 3.11
-JAVA_VERSION := 21
-NODE_VERSION := 22
+PYTHON_VERSION := 3.14
+JAVA_VERSION := 25
+NODE_VERSION := 22.21
 TERRAFORM_DIR := infra
 ANSIBLE_INVENTORY := ansible/inventories/dev/hosts.ini
 PUPPET_MANIFEST := puppet/manifests/astradesk.pp
@@ -51,7 +49,7 @@ HAS_HELM := $(shell command -v $(HELM) 2> /dev/null)
 
 # --- Main Targets ---
 
-help: ## Display this help message
+help:
 	@echo "AstraDesk Monorepo Makefile"
 	@echo ""
 	@echo "Usage: make <target>"
@@ -62,15 +60,20 @@ help: ## Display this help message
 	@echo "Helper Targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep '## Helper' | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-all: lint test build apply-istio terraform-apply helm-deploy verify-mtls ## Run lint, tests, build, Istio, Terraform, Helm deploy, and mTLS verification
+all: lint test build apply-istio terraform-apply helm-deploy verify-mtls ## Run lint, tests, build, Istio, Terraform, Helm deploy, mTLS verification
 
 # --- Python Environment Management (uv workspace) ---
 
-sync: ## Synchronize Python dependencies for the workspace
+sync: ## Sync Python dependencies with uv
 ifndef HAS_UV
-	@echo "Error: 'uv' not found. Install: https://github.com/astral-sh/uv" >&2; exit 1
+	@echo "Error: 'uv' command not found."
+	@exit 1
 endif
-	$(UV) sync --all-extras --frozen --python $(PYTHON_VERSION)
+	$(UV) sync --all-extras --frozen
+
+sync-cu121: ## Sync with PyTorch CU121 optional deps
+	$(UV) sync --all-extras --extra cu121 --frozen
+
 
 lint: ## Run linter (ruff) on the entire project
 ifndef HAS_UV
@@ -314,6 +317,35 @@ endif
 		--wait --timeout 5m \
 		--set database.postgres.host=$(shell $(TERRAFORM) -chdir=$(TERRAFORM_DIR) output -raw rds_postgres_endpoint) \
 		--set database.mysql.host=$(shell $(TERRAFORM) -chdir=$(TERRAFORM_DIR) output -raw rds_mysql_endpoint)
+
+
+# --- Domain Packs Management ---
+
+pack-build: ## Builds a specific Domain Pack (make pack-build PACK=domain-support)
+ifndef PACK
+	@echo "Error: Specify PACK=domain-support or similar."
+	@exit 1
+endif
+	cd packages/$(PACK) && uv sync && uv run pytest
+
+pack-publish: ## Publishes Domain Pack to PyPI (requires credentials)
+ifndef PACK
+	@echo "Error: Specify PACK=domain-support."
+	@exit 1
+endif
+	cd packages/$(PACK) && uv build && uv publish
+
+
+# --- NL2Flow Tools ---
+
+nl2flow-generate: ## Generates YAML flow from natural language prompt (make nl2flow-generate PROMPT="Build JIRA monitor")
+ifndef PROMPT
+	@echo "Error: Specify PROMPT='your natural language description'."
+	@exit 1
+endif
+	uv run python scripts/nl2flow.py "$(PROMPT)" > generated_flow.yaml
+	@echo "Generated flow saved to generated_flow.yaml"
+
 
 # --- Cleanup ---
 

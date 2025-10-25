@@ -80,17 +80,50 @@ watch:
 
 nav:
   - Home: README.md
-  - 1. Introduction: 01_introduction.md
-  - 2. Architecture Overview: 02_architecture_overview.md
-  - 3. Plan Phase: 03_plan_phase.md
-  - 4. Build Phase: 04_build_phase.md
-  - 5. Test & Optimize: 05_test_optimize.md
-  - 6. Deploy Phase: 06_deploy_phase.md
-  - 7. Monitor & Operate: 07_monitor_operate.md
-  - 8. Security & Governance: 08_security_governance.md
-  - 9. MCP Gateway & Domain Packs: 09_mcp_gateway_domain_packs.md
-  - 10. Future Roadmap: 10_future_roadmap.md
-  - Glossary: glossary.md
+
+  - Guides (EN):
+      - Introduction: en/01_introduction.md
+      - Architecture Overview: en/02_architecture_overview.md
+      - Plan Phase: en/03_plan_phase.md
+      - Build Phase: en/04_build_phase.md
+      - Test & Optimize: en/05_test_optimize.md
+      - Deploy Phase: en/06_deploy_phase.md
+      - Monitor & Operate: en/07_monitor_operate.md
+      - Security & Governance: en/08_security_governance.md
+      - MCP Gateway & Domain Packs: en/09_mcp_gateway_domain_packs.md
+      - Future Roadmap: en/10_future_roadmap.md
+      - Glossary: en/glossary.md
+
+  - Przewodniki (PL):
+      - Wprowadzenie: pl/01_introduction.md
+      - Przegląd Architektury: pl/02_architecture_overview.md
+      - Faza Planowania: pl/03_plan_phase.md
+      - Faza Budowy: pl/04_build_phase.md
+      - Testy i Optymalizacja: pl/05_test_optimize.md
+      - Faza Wdrożenia: pl/06_deploy_phase.md
+      - Monitorowanie i Operacje: pl/07_monitor_operate.md
+      - Bezpieczeństwo i Ład: pl/08_security_governance.md
+      - MCP Gateway & Domain Packs: pl/09_mcp_gateway_domain_packs.md
+      - Roadmapa: pl/10_future_roadmap.md
+      - Słownik: pl/glossary.md
+
+  - 指南 (ZH):
+      - 介绍: zh/01_introduction.md
+      - 架构概览: zh/02_architecture_overview.md
+      - 规划阶段: zh/03_plan_phase.md
+      - 构建阶段: zh/04_build_phase.md
+      - 测试与优化: zh/05_test_optimize.md
+      - 部署阶段: zh/06_deploy_phase.md
+      - 监控与运维: zh/07_monitor_operate.md
+      - 安全与治理: zh/08_security_governance.md
+      - MCP 网关与领域包: zh/09_mcp_gateway_domain_packs.md
+      - 路线图: zh/10_future_roadmap.md
+      - 术语表: zh/glossary.md
+
+  - API (Redoc):
+      - Overview: api/index.md
+      - Admin API v1.2.0 — Reference: !redoc openapi/astradesk-admin.v1.yaml
+
 
 extra:
   social:

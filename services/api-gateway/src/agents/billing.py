@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
-# services/api-gateway/src/agents/support.py
-"""Production-grade Support Agent for AstraDesk.
+# services/api-gateway/src/agents/billing.py
+"""Production-grade Billing Agent for AstraDesk.
 
-Handles technical support queries, ticket management, and knowledge base lookup.
+Handles invoice queries, payment status, usage reports, and financial RAG.
 Features:
 - Hybrid RAG (PostgreSQL 18+ PGVector + Redis BM25)
-- LLM-based self-reflection on snippet relevance
+- LLM-based financial relevance reflection
 - OPA governance (RBAC/ABAC)
 - OTel tracing
 - PyTorch 2.9 embeddings
@@ -17,7 +17,6 @@ Since: 2025-10-25
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from typing import Any, Dict, List, Optional
@@ -33,15 +32,15 @@ from agents.base import BaseAgent
 logger = logging.getLogger(__name__)
 
 
-class SupportAgent(BaseAgent):
+class BillingAgent(BaseAgent):
     """
-    Support Agent: processes natural language support queries.
+    Billing Agent: processes natural language financial queries.
 
     Workflow:
-    1. OPA policy check (RBAC + ABAC on user/ticket)
-    2. RAG retrieval (KB articles, docs, tickets)
+    1. OPA policy check (RBAC + ABAC on tenant/amount)
+    2. RAG retrieval (financial docs, invoices, policies)
     3. LLM reflection on snippet relevance
-    4. Tool planning (create_ticket, search_kb, etc.)
+    4. Tool planning (get_invoice, generate_report, etc.)
     5. Final response composition
     """
 
@@ -51,7 +50,7 @@ class SupportAgent(BaseAgent):
         llm_planner: Any,  # LLMPlannerProtocol
         tools: Dict[str, Any],
     ) -> None:
-        super().__init__(name="support", tools=tools)
+        super().__init__(name="billing", tools=tools)
         self.rag = rag
         self.llm_planner = llm_planner
         self.tracer = trace.get_tracer(__name__)
@@ -63,28 +62,28 @@ class SupportAgent(BaseAgent):
         self, query: str, context: Optional[Dict[str, Any]] = None
     ) -> tuple[str, List[ToolCall]]:
         """
-        Execute support query with RAG + reflection.
+        Execute billing query with RAG + reflection.
 
         Args:
-            query: User input (e.g., "Problem z VPN").
+            query: User input (e.g., "Pokaż fakturę za marzec").
             context: JWT claims + metadata.
 
         Returns:
             (response, tool_calls)
         """
         claims = context.get("claims", {}) if context else {}
-        user_id = claims.get("user_id", "unknown")
+        tenant = claims.get("tenant", "unknown")
 
-        with self.tracer.start_as_current_span("support.run") as span:
+        with self.tracer.start_as_current_span("billing.run") as span:
             span.set_attribute("query", query[:100])
-            span.set_attribute("user_id", user_id)
+            span.set_attribute("tenant", tenant)
 
             # 1. OPA Governance
             try:
                 opa_policy.authorize(
-                    "support.query",
+                    "billing.query",
                     claims,
-                    {"query": query, "user_id": user_id},
+                    {"query": query, "tenant": tenant},
                 )
             except Exception as e:
                 span.record_exception(e)
@@ -105,8 +104,8 @@ class SupportAgent(BaseAgent):
                 span.record_exception(e)
                 logger.warning(f"RAG failed: {e}")
 
-            # 3. Reflection on relevance
-            relevant_snippets = await self._reflect_support_context(query, snippets)
+            # 3. Reflection on financial relevance
+            relevant_snippets = await self._reflect_financial_context(query, snippets)
 
             # 4. Planning
             plan = await self._make_plan(query, relevant_snippets, claims)
@@ -116,13 +115,13 @@ class SupportAgent(BaseAgent):
             return response, plan
 
     # ----------------------------------------------------------------------- #
-    # Support Relevance Reflection
+    # Financial Relevance Reflection
     # ----------------------------------------------------------------------- #
-    async def _reflect_support_context(
+    async def _reflect_financial_context(
         self, query: str, snippets: List[RAGSnippet]
     ) -> List[RAGSnippet]:
         """
-        Use LLM to score support relevance of each snippet.
+        Use LLM to score financial relevance of each snippet.
 
         Returns filtered + re-ranked list.
         """
@@ -130,7 +129,7 @@ class SupportAgent(BaseAgent):
             return snippets
 
         tasks = [
-            self._reflect_support_relevance(query, s.content)
+            self._reflect_financial_relevance(query, s.content)
             for s in snippets
         ]
         scores = await asyncio.gather(*tasks, return_exceptions=True)
@@ -140,7 +139,7 @@ class SupportAgent(BaseAgent):
             if isinstance(score, Exception):
                 logger.warning(f"Reflection failed for snippet: {score}")
                 continue
-            if score >= 0.7:  # Strict threshold for support accuracy
+            if score >= 0.6:  # Threshold
                 snippet.score = score
                 enriched.append((snippet, score))
 
@@ -148,16 +147,16 @@ class SupportAgent(BaseAgent):
         enriched.sort(key=lambda x: x[1], reverse=True)
         return [s[0] for s in enriched[:3]]
 
-    async def _reflect_support_relevance(self, query: str, content: str) -> float:
+    async def _reflect_financial_relevance(self, query: str, content: str) -> float:
         """
         Single snippet reflection via LLM.
         """
         system = (
-            "You are a technical support expert. "
-            "Score how well this KB article resolves the query. "
+            "You are a financial compliance expert. "
+            "Score relevance of the document to the billing query. "
             "Return JSON: {'score': float(0.0-1.0)}. No explanations."
         )
-        user = f"Query: {query}\nArticle: {content}"
+        user = f"Query: {query}\nDocument: {content}"
 
         try:
             raw: str = await self.llm_planner.chat(
@@ -170,7 +169,7 @@ class SupportAgent(BaseAgent):
             data = json.loads(raw.strip())
             return max(0.0, min(1.0, float(data.get("score", 0.5))))
         except Exception as e:
-            logger.warning(f"Support reflection failed: {e}")
+            logger.warning(f"Financial reflection failed: {e}")
             return 0.5
 
     # ----------------------------------------------------------------------- #
@@ -184,56 +183,57 @@ class SupportAgent(BaseAgent):
         """
         # Simple keyword + RAG heuristic
         low = query.lower()
-        user_id = claims.get("user_id", "unknown")
+        tenant = claims.get("tenant", "unknown")
 
-        if any(k in low for k in ("ticket", "zgłoszenie", "incydent", "create ticket")):
-            title = self._extract_ticket_title(query)
-            body = self._extract_ticket_body(query)
-            return [
-                ToolCall(
-                    name="create_ticket",
-                    arguments={"title": title or query[:80], "body": body or query, "user_id": user_id},
-                )
-            ]
-
-        if any(k in low for k in ("status", "sprawdź", "check ticket")):
-            ticket_id = self._extract_ticket_id(query)
-            if ticket_id:
+        if any(k in low for k in ("faktura", "invoice", "bill", "płatność")):
+            invoice_id = self._extract_invoice_id(query)
+            if invoice_id:
                 return [
                     ToolCall(
-                        name="get_ticket_status",
-                        arguments={"ticket_id": ticket_id, "user_id": user_id},
+                        name="get_invoice",
+                        arguments={"invoice_id": invoice_id, "tenant": tenant},
                     )
                 ]
+
+        if any(k in low for k in ("raport", "report", "użycie", "usage")):
+            period = self._extract_period(query) or "last_month"
+            return [
+                ToolCall(
+                    name="generate_usage_report",
+                    arguments={"period": period, "tenant": tenant},
+                )
+            ]
 
         # Fallback: search knowledge base
         if snippets:
             return [
                 ToolCall(
-                    name="search_support_kb",
-                    arguments={"query": query, "user_id": user_id},
+                    name="search_billing_kb",
+                    arguments={"query": query, "tenant": tenant},
                 )
             ]
 
         return []
 
     @staticmethod
-    def _extract_ticket_title(query: str) -> Optional[str]:
+    def _extract_invoice_id(query: str) -> Optional[str]:
         import re
-        m = re.search(r"(?:tytuł|title)[\s:]*([^\.]+)", query, re.I)
-        return m.group(1).strip() if m else None
-
-    @staticmethod
-    def _extract_ticket_body(query: str) -> Optional[str]:
-        import re
-        m = re.search(r"(?:opis|body|description)[\s:]*([^\.]+)", query, re.I)
-        return m.group(1).strip() if m else None
-
-    @staticmethod
-    def _extract_ticket_id(query: str) -> Optional[str]:
-        import re
-        m = re.search(r"(?:ticket|zgłoszenie)[\s#:]*([A-Z0-9]{4,20})", query, re.I)
+        m = re.search(r"(?:faktur[ęa]|invoice)[\s#:]*([A-Z0-9]{4,20})", query, re.I)
         return m.group(1) if m else None
+
+    @staticmethod
+    def _extract_period(query: str) -> Optional[str]:
+        import re
+        patterns = [
+            r"za\s+(styczeń|luty|marzec|kwiecień|maj|czerwiec|lipiec|sierpień|wrzesień|październik|listopad|grudzień)",
+            r"za\s+(\d{4}-\d{2})",
+            r"z\s+ostatniego?\s+(miesi[ąa]ca|kwartału|roku)",
+        ]
+        for pat in patterns:
+            m = re.search(pat, query, re.I)
+            if m:
+                return m.group(1).lower()
+        return None
 
     # ----------------------------------------------------------------------- #
     # Response Composition
@@ -246,23 +246,23 @@ class SupportAgent(BaseAgent):
         """
         if not plan:
             return (
-                "Nie znalazłem dokładnej akcji dla Twojego zapytania supportowego. "
-                "Spróbuj: „Utwórz ticket dla problemu z VPN” lub „Sprawdź status ticket TKT-123”."
+                "Nie znalazłem dokładnej akcji dla Twojego zapytania o rozliczenia. "
+                "Spróbuj: „Pokaż fakturę INV-2025-001” lub „Raport użycia za marzec”."
             )
 
-        lines = ["Oto wynik Twojego zapytania supportowego:", ""]
+        lines = ["Oto wynik Twojego zapytania finansowego:", ""]
 
         for tool in plan:
-            if tool.name == "create_ticket":
-                lines.append(f"• Tworzę ticket z tytułem: **{tool.arguments.get('title')}**.")
-            elif tool.name == "get_ticket_status":
-                lines.append(f"• Sprawdzam status ticket **{tool.arguments.get('ticket_id')}**.")
-            elif tool.name == "search_support_kb":
-                lines.append("• Przeszukuję bazę wiedzy supportowej...")
+            if tool.name == "get_invoice":
+                lines.append(f"• Pobieram fakturę **{tool.arguments.get('invoice_id')}**.")
+            elif tool.name == "generate_usage_report":
+                lines.append(f"• Generuję raport użycia za okres **{tool.arguments.get('period')}**.")
+            elif tool.name == "search_billing_kb":
+                lines.append("• Przeszukuję bazę wiedzy finansowej...")
 
         if snippets:
             lines.append("")
-            lines.append("**Pomocne artykuły z KB:**")
+            lines.append("**Kontekst z dokumentów:**")
             for s in snippets[:2]:
                 preview = s.content.strip().replace("\n", " ")[:200]
                 lines.append(f"  - {preview}...")
@@ -271,6 +271,6 @@ class SupportAgent(BaseAgent):
 
 
 # --------------------------------------------------------------------------- #
-# Asyncio import at bottom
+# Asyncio import at bottom to avoid top-level import issues
 # --------------------------------------------------------------------------- #
 import asyncio
