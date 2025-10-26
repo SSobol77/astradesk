@@ -5,8 +5,8 @@ Provides a stable, provider-agnostic interface for chat models (LLMs), a shared 
 message/parameter schemas, streaming primitives, and adapters for common wire formats (e.g., OpenAI-/Anthropic-style messages).
 Integrates self-reflection hook, PyTorch for token estimation, OPA optional governance, and OTel tracing.
 Author: Siergej Sobolewski
-Since: 2025-10-25
-"""
+Since: 2025-10-25.
+"""  # noqa: D205
 
 from __future__ import annotations
 

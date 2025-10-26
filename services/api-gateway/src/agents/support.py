@@ -8,7 +8,6 @@ Features:
 - LLM-based self-reflection on snippet relevance
 - OPA governance (RBAC/ABAC)
 - OTel tracing
-- PyTorch 2.9 embeddings
 - Async-native, hardened validation
 
 Author: Siergej Sobolewski
@@ -18,24 +17,66 @@ Since: 2025-10-25
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import logging
 from typing import Any, Dict, List, Optional
 
-import torch
+from .base import BaseAgent
 from opentelemetry import trace
-
+from runtime import KeywordPlanner, LLMPlanner, Memory, ToolRegistry
 from runtime.models import ToolCall
-from runtime.rag import RAG, RAGSnippet
 from runtime.policy import policy as opa_policy
-from agents.base import BaseAgent
+from runtime.rag import RAG, RAGSnippet
 
 logger = logging.getLogger(__name__)
 
 
-class SupportAgent(BaseAgent):
+def _as_score(value: object) -> Optional[float]:
+    """Return value as float score if numeric, otherwise None (handles Exceptions etc.)."""
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
+async def _maybe_await(value: Any) -> Any:
+    """Await value if it's awaitable; otherwise return as-is."""
+    return await value if inspect.isawaitable(value) else value
+
+
+async def _authorize(policy: Any, action: str, claims: Dict[str, Any], payload: Dict[str, Any]) -> None:
+    """Generic authorizer that supports various PolicyFacade shapes.
+
+    Tries, in order: authorize / enforce / check / evaluate / eval.
+    Accepts sync or async functions. Interprets bool or dict results.
+    Raises PermissionError on explicit deny, AttributeError if no method exists.
     """
-    Support Agent: processes natural language support queries.
+    for name in ("authorize", "enforce", "check", "evaluate", "eval"):
+        fn = getattr(policy, name, None)
+        if callable(fn):
+            res = await _maybe_await(fn(action, claims, payload))
+            # Interpret common patterns
+            if isinstance(res, bool):
+                if res:
+                    return
+                raise PermissionError(f"OPA denied: {action}")
+            if isinstance(res, dict):
+                allow = res.get("allow")
+                if allow is None:
+                    allow = res.get("result")
+                if isinstance(allow, bool):
+                    if allow:
+                        return
+                    raise PermissionError(f"OPA denied: {action}")
+                # If dict without explicit allow/result -> treat as success
+                return
+            # If method returns None or other truthy sentinel, treat as success
+            return
+    raise AttributeError("Policy facade exposes no authorize/enforce/check/evaluate methods")
+
+
+class SupportAgent(BaseAgent):
+    """Support Agent: processes natural language support queries.
 
     Workflow:
     1. OPA policy check (RBAC + ABAC on user/ticket)
@@ -47,13 +88,20 @@ class SupportAgent(BaseAgent):
 
     def __init__(
         self,
+        tools: ToolRegistry,
+        memory: Memory,
+        planner: KeywordPlanner,
         rag: RAG,
-        llm_planner: Any,  # LLMPlannerProtocol
-        tools: Dict[str, Any],
+        llm_planner: LLMPlanner,
     ) -> None:
-        super().__init__(name="support", tools=tools)
-        self.rag = rag
-        self.llm_planner = llm_planner
+        super().__init__(
+            tools=tools,
+            memory=memory,
+            planner=planner,
+            rag=rag,
+            llm_planner=llm_planner,
+            agent_name="support",
+        )
         self.tracer = trace.get_tracer(__name__)
 
     # ----------------------------------------------------------------------- #
@@ -62,8 +110,7 @@ class SupportAgent(BaseAgent):
     async def run(
         self, query: str, context: Optional[Dict[str, Any]] = None
     ) -> tuple[str, List[ToolCall]]:
-        """
-        Execute support query with RAG + reflection.
+        """Execute support query with RAG + reflection.
 
         Args:
             query: User input (e.g., "Problem z VPN").
@@ -81,7 +128,8 @@ class SupportAgent(BaseAgent):
 
             # 1. OPA Governance
             try:
-                opa_policy.authorize(
+                await _authorize(
+                    opa_policy,
                     "support.query",
                     claims,
                     {"query": query, "user_id": user_id},
@@ -96,7 +144,7 @@ class SupportAgent(BaseAgent):
                 with self.tracer.start_as_current_span("rag.retrieve"):
                     snippets = await self.rag.retrieve(
                         query=query,
-                        agent_name=self.name,
+                        agent_name=self.agent_name,
                         k=5,
                         use_reflection=True,
                     )
@@ -121,37 +169,29 @@ class SupportAgent(BaseAgent):
     async def _reflect_support_context(
         self, query: str, snippets: List[RAGSnippet]
     ) -> List[RAGSnippet]:
-        """
-        Use LLM to score support relevance of each snippet.
+        """Use LLM to score support relevance of each snippet.
 
         Returns filtered + re-ranked list.
         """
         if not self.llm_planner or not snippets:
             return snippets
 
-        tasks = [
-            self._reflect_support_relevance(query, s.content)
-            for s in snippets
-        ]
+        tasks = [self._reflect_support_relevance(query, s.content) for s in snippets]
         scores = await asyncio.gather(*tasks, return_exceptions=True)
 
         enriched: List[tuple[RAGSnippet, float]] = []
-        for snippet, score in zip(snippets, scores):
-            if isinstance(score, Exception):
-                logger.warning(f"Reflection failed for snippet: {score}")
-                continue
-            if score >= 0.7:  # Strict threshold for support accuracy
-                snippet.score = score
-                enriched.append((snippet, score))
+        for snippet, raw_score in zip(snippets, scores):
+            score_val = _as_score(raw_score)
+            if score_val is not None and score_val >= 0.7:
+                snippet.score = score_val  # type: ignore[attr-defined]
+                enriched.append((snippet, score_val))
 
         # Re-rank by reflection score
         enriched.sort(key=lambda x: x[1], reverse=True)
         return [s[0] for s in enriched[:3]]
 
     async def _reflect_support_relevance(self, query: str, content: str) -> float:
-        """
-        Single snippet reflection via LLM.
-        """
+        """Single snippet reflection via LLM."""
         system = (
             "You are a technical support expert. "
             "Score how well this KB article resolves the query. "
@@ -179,10 +219,7 @@ class SupportAgent(BaseAgent):
     async def _make_plan(
         self, query: str, snippets: List[RAGSnippet], claims: Dict[str, Any]
     ) -> List[ToolCall]:
-        """
-        Generate tool calls based on query + RAG context.
-        """
-        # Simple keyword + RAG heuristic
+        """Generate tool calls based on query + RAG context."""
         low = query.lower()
         user_id = claims.get("user_id", "unknown")
 
@@ -192,7 +229,11 @@ class SupportAgent(BaseAgent):
             return [
                 ToolCall(
                     name="create_ticket",
-                    arguments={"title": title or query[:80], "body": body or query, "user_id": user_id},
+                    arguments={
+                        "title": title or query[:80],
+                        "body": body or query,
+                        "user_id": user_id,
+                    },
                 )
             ]
 
@@ -220,18 +261,21 @@ class SupportAgent(BaseAgent):
     @staticmethod
     def _extract_ticket_title(query: str) -> Optional[str]:
         import re
+
         m = re.search(r"(?:tytuł|title)[\s:]*([^\.]+)", query, re.I)
         return m.group(1).strip() if m else None
 
     @staticmethod
     def _extract_ticket_body(query: str) -> Optional[str]:
         import re
+
         m = re.search(r"(?:opis|body|description)[\s:]*([^\.]+)", query, re.I)
         return m.group(1).strip() if m else None
 
     @staticmethod
     def _extract_ticket_id(query: str) -> Optional[str]:
         import re
+
         m = re.search(r"(?:ticket|zgłoszenie)[\s#:]*([A-Z0-9]{4,20})", query, re.I)
         return m.group(1) if m else None
 
@@ -241,9 +285,7 @@ class SupportAgent(BaseAgent):
     def _compose_response(
         self, query: str, plan: List[ToolCall], snippets: List[RAGSnippet]
     ) -> str:
-        """
-        Build user-facing response.
-        """
+        """Build user-facing response."""
         if not plan:
             return (
                 "Nie znalazłem dokładnej akcji dla Twojego zapytania supportowego. "
@@ -268,9 +310,3 @@ class SupportAgent(BaseAgent):
                 lines.append(f"  - {preview}...")
 
         return "\n".join(lines)
-
-
-# --------------------------------------------------------------------------- #
-# Asyncio import at bottom
-# --------------------------------------------------------------------------- #
-import asyncio

@@ -17,24 +17,24 @@ Since: 2025-10-25
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any, Dict, List, Optional
 
-import torch
 from opentelemetry import trace
-
+from runtime import KeywordPlanner, LLMPlanner, Memory, ToolRegistry
 from runtime.models import ToolCall
-from runtime.rag import RAG, RAGSnippet
 from runtime.policy import policy as opa_policy
-from agents.base import BaseAgent
+from runtime.rag import RAG, RAGSnippet
+
+from .base import BaseAgent
 
 logger = logging.getLogger(__name__)
 
 
 class BillingAgent(BaseAgent):
-    """
-    Billing Agent: processes natural language financial queries.
+    """Billing Agent: processes natural language financial queries.
 
     Workflow:
     1. OPA policy check (RBAC + ABAC on tenant/amount)
@@ -46,13 +46,20 @@ class BillingAgent(BaseAgent):
 
     def __init__(
         self,
+        tools: ToolRegistry,
+        memory: Memory,
+        planner: KeywordPlanner,
         rag: RAG,
-        llm_planner: Any,  # LLMPlannerProtocol
-        tools: Dict[str, Any],
+        llm_planner: LLMPlanner,
     ) -> None:
-        super().__init__(name="billing", tools=tools)
-        self.rag = rag
-        self.llm_planner = llm_planner
+        super().__init__(
+            tools=tools,
+            memory=memory,
+            planner=planner,
+            rag=rag,
+            llm_planner=llm_planner,
+            agent_name="billing",
+        )
         self.tracer = trace.get_tracer(__name__)
 
     # ----------------------------------------------------------------------- #
@@ -61,8 +68,7 @@ class BillingAgent(BaseAgent):
     async def run(
         self, query: str, context: Optional[Dict[str, Any]] = None
     ) -> tuple[str, List[ToolCall]]:
-        """
-        Execute billing query with RAG + reflection.
+        """Execute billing query with RAG + reflection.
 
         Args:
             query: User input (e.g., "Pokaż fakturę za marzec").
@@ -70,6 +76,7 @@ class BillingAgent(BaseAgent):
 
         Returns:
             (response, tool_calls)
+
         """
         claims = context.get("claims", {}) if context else {}
         tenant = claims.get("tenant", "unknown")
@@ -95,7 +102,7 @@ class BillingAgent(BaseAgent):
                 with self.tracer.start_as_current_span("rag.retrieve"):
                     snippets = await self.rag.retrieve(
                         query=query,
-                        agent_name=self.name,
+                        agent_name=self.agent_name,
                         k=5,
                         use_reflection=True,
                     )
@@ -120,8 +127,7 @@ class BillingAgent(BaseAgent):
     async def _reflect_financial_context(
         self, query: str, snippets: List[RAGSnippet]
     ) -> List[RAGSnippet]:
-        """
-        Use LLM to score financial relevance of each snippet.
+        """Use LLM to score financial relevance of each snippet.
 
         Returns filtered + re-ranked list.
         """
@@ -148,9 +154,7 @@ class BillingAgent(BaseAgent):
         return [s[0] for s in enriched[:3]]
 
     async def _reflect_financial_relevance(self, query: str, content: str) -> float:
-        """
-        Single snippet reflection via LLM.
-        """
+        """Single snippet reflection via LLM."""
         system = (
             "You are a financial compliance expert. "
             "Score relevance of the document to the billing query. "
@@ -178,9 +182,7 @@ class BillingAgent(BaseAgent):
     async def _make_plan(
         self, query: str, snippets: List[RAGSnippet], claims: Dict[str, Any]
     ) -> List[ToolCall]:
-        """
-        Generate tool calls based on query + RAG context.
-        """
+        """Generate tool calls based on query + RAG context."""
         # Simple keyword + RAG heuristic
         low = query.lower()
         tenant = claims.get("tenant", "unknown")
@@ -241,9 +243,7 @@ class BillingAgent(BaseAgent):
     def _compose_response(
         self, query: str, plan: List[ToolCall], snippets: List[RAGSnippet]
     ) -> str:
-        """
-        Build user-facing response.
-        """
+        """Build user-facing response."""
         if not plan:
             return (
                 "Nie znalazłem dokładnej akcji dla Twojego zapytania o rozliczenia. "
@@ -273,4 +273,4 @@ class BillingAgent(BaseAgent):
 # --------------------------------------------------------------------------- #
 # Asyncio import at bottom to avoid top-level import issues
 # --------------------------------------------------------------------------- #
-import asyncio
+

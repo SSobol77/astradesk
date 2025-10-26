@@ -71,13 +71,14 @@ format = { quote-style = "single" }
 
 [tool.ruff.lint]
 # Nowy schemat Ruff 0.5+: sekcja lint w osobnym bloku (masz już zgodny zapis)
-ignore = ["TC003", "E501", "F841"]
+ignore = ["TC003", "E501", "F841","D401"]
 select = ["E", "F", "W", "I", "N", "D", "UP", "S", "B", "A", "C4", "T20", "RUF"]
 
 [tool.mypy]
 python_version = "3.14"
 strict = true
 ignore_missing_imports = true
+mypy_path = "services/api-gateway/src"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
