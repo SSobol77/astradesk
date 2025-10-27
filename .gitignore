@@ -92,6 +92,7 @@ logs/
 *.log.*
 npm-debug.log*
 yarn-error.log*
+*.txt
 
 # IDE and Editor Files
 .idea/
