@@ -90,7 +90,7 @@ def get_roles(claims: Optional[Dict[str, Any]]) -> Set[str]:
 
 
 def has_role(claims: Optional[Dict[str, Any]], role: str) -> bool:
-    return role in get_roles(claims)
+    return role.lower() in {r.lower() for r in get_roles(claims)}
 
 
 def require_role(claims: Optional[Dict[str, Any]], role: str) -> None:
@@ -99,24 +99,29 @@ def require_role(claims: Optional[Dict[str, Any]], role: str) -> None:
 
 
 def require_any_role(claims: Optional[Dict[str, Any]], roles: Iterable[str]) -> None:
-    available = get_roles(claims)
-    if not any(role in available for role in roles):
+    available = {r.lower() for r in get_roles(claims)}
+    if not any(role.lower() in available for role in roles):
         raise AuthorizationError("Missing any of the required roles.")
 
 
 def require_all_roles(claims: Optional[Dict[str, Any]], roles: Iterable[str]) -> None:
-    available = get_roles(claims)
-    if not all(role in available for role in roles):
+    available = {r.lower() for r in get_roles(claims)}
+    if not all(role.lower() in available for role in roles):
         raise AuthorizationError("Missing required roles.")
 
 
 def _check_rbac(action: str, claims: Optional[Dict[str, Any]], snapshot: PolicySnapshot) -> None:
     gate = snapshot.roles_required.get(action)
+    if gate is None:
+        for pattern, candidate in snapshot.roles_required.items():
+            if pattern.endswith("*") and action.startswith(pattern[:-1]):
+                gate = candidate
+                break
     if not gate:
         return
-    available = get_roles(claims)
-    required_any = [role for role in gate.get("any", [])]
-    required_all = [role for role in gate.get("all", [])]
+    available = {r.lower() for r in get_roles(claims)}
+    required_any = [role.lower() for role in gate.get("any", [])]
+    required_all = [role.lower() for role in gate.get("all", [])]
 
     if required_any and not any(role in available for role in required_any):
         raise AuthorizationError("RBAC any-of requirement failed.")

@@ -47,8 +47,6 @@ class ToolCall(AstraDeskBaseModel):
             raise ValidationError("Tool name must be between 1 and 128 characters.")
         if not _TOOL_NAME_PATTERN.fullmatch(value):
             raise ValidationError("Tool name contains invalid characters.")
-        if value.startswith(".") or value.endswith(".") or ".." in value:
-            raise ValidationError("Tool name cannot start/end with '.' or contain consecutive dots.")
         return value
 
     @staticmethod

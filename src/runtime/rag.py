@@ -4,8 +4,12 @@ Simplified Retrieval-Augmented Generation utilities for unit testing.
 
 from __future__ import annotations
 
-import numpy as np
+import logging
 from typing import Iterable, List, Optional, Sequence, Tuple
+
+import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 try:  # pragma: no cover - fallback when sentence_transformers is unavailable
@@ -60,7 +64,7 @@ class RAG:
         for chunk in chunks:
             if chunk is None:
                 continue
-            text = chunk
+            text = chunk.rstrip("\r\n")
             if self.normalize:
                 text = _normalize_text(text)
             if len(text) < self.min_chars:
@@ -143,20 +147,69 @@ class RAG:
 
         return [(candidates[i]["chunk"], score) for i, score in zip(selected, scores)]
 
-    async def upsert(self, source: str, chunks: Sequence[str]) -> None:
-        prepared = self._prepare_chunks(chunks)
-        embeddings = self._embed(prepared)
-        for chunk, vector in zip(prepared, embeddings):
-            await self.pg_pool._conn.execute("UPSERT", source, chunk, vector)  # type: ignore[attr-defined]
+    async def upsert(self, source: str, chunks: Sequence[str]) -> int:
+        source_clean = (source or "").strip()
+        if not source_clean:
+            raise ValueError("source must not be empty")
 
-    async def delete_source(self, source: str) -> None:
-        await self.pg_pool._conn.execute("DELETE", source)  # type: ignore[attr-defined]
+        prepared = self._prepare_chunks(chunks)
+        if not prepared:
+            return 0
+
+        embeddings = self._embed(prepared)
+        inserted = 0
+        try:
+            for chunk, vector in zip(prepared, embeddings):
+                await self.pg_pool._conn.execute("UPSERT", source_clean, chunk, vector)  # type: ignore[attr-defined]
+                inserted += 1
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Nie udało się wstawić dokumentów: %s", exc)
+            raise
+        return inserted
+
+    async def delete_source(self, source: str) -> int:
+        source_clean = (source or "").strip()
+        if not source_clean:
+            raise ValueError("source must not be empty")
+
+        try:
+            status = await self.pg_pool._conn.execute("DELETE", source_clean)  # type: ignore[attr-defined]
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Nie udało się usunąć dokumentów: %s", exc)
+            raise
+
+        if isinstance(status, str):
+            parts = status.strip().split()
+            if len(parts) == 2 and parts[0].upper() == "DELETE":
+                try:
+                    return int(parts[1])
+                except ValueError:
+                    return 0
+            return 0
+
+        try:
+            return int(status)
+        except (TypeError, ValueError):
+            return 0
 
     async def count_documents(self) -> int:
-        result = await self.pg_pool._conn.fetchrow("COUNT")  # type: ignore[attr-defined]
+        try:
+            result = await self.pg_pool._conn.fetchrow("COUNT")  # type: ignore[attr-defined]
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Nie udało się policzyć dokumentów: %s", exc)
+            return 0
+
         if isinstance(result, dict):
-            return int(next(iter(result.values())))
-        return int(result or 0)
+            try:
+                first_value = next(iter(result.values()))
+                return int(first_value)
+            except (StopIteration, ValueError, TypeError):
+                return 0
+
+        try:
+            return int(result)
+        except (TypeError, ValueError):
+            return 0
 
 
 def _cosine_similarity(a, b) -> float:

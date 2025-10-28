@@ -83,7 +83,7 @@ class Events:
             return
         except Exception as exc:  # noqa: BLE001
             logger.warning("Pierwsza próba publikacji nie powiodła się: %s", exc)
-            await self._close_connection()
+            await self._close_connection(graceful=False)
 
         try:
             logger.info("Ponowne połączenie z NATS po błędzie publikacji.")
@@ -91,23 +91,25 @@ class Events:
             await nc.publish(subject, data)
         except Exception as exc:  # noqa: BLE001
             logger.error("Nie udało się opublikować zdarzenia po ponownej próbie: %s", exc, exc_info=True)
+            await self._close_connection(graceful=False)
 
-    async def _close_connection(self) -> None:
+    async def _close_connection(self, *, graceful: bool) -> None:
         if not self._nc:
             return
+        nc, self._nc = self._nc, None
         try:
-            await self._nc.drain()
+            if graceful:
+                await nc.drain()
+                return
         except Exception as exc:  # noqa: BLE001
             logger.warning("Błąd podczas drain(), używam close(): %s", exc)
-            try:
-                await self._nc.close()
-            except Exception:  # pragma: no cover - best effort
-                pass
-        finally:
-            self._nc = None
+        try:
+            await nc.close()
+        except Exception:  # pragma: no cover - best effort
+            pass
 
     async def close(self) -> None:
-        await self._close_connection()
+        await self._close_connection(graceful=True)
 
 
 events = Events()

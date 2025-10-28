@@ -33,8 +33,33 @@ class _Rule:
 class KeywordPlanner:
     def __init__(self) -> None:
         self.rules: List[_Rule] = [
-            _Rule("create_ticket", ["ticket", "zgłoszenie", "incydent"]),
-            _Rule("get_metrics", ["cpu", "latency", "metryki", "p95", "p99"]),
+            _Rule(
+                "create_ticket",
+                [
+                    "ticket",
+                    "zgłos",
+                    "zglos",  # fallback without diacritics
+                    "zgłoś",
+                    "incident",
+                    "incydent",
+                    "zgłoszenie",
+                    "bilet serwisowy",
+                ],
+            ),
+            _Rule(
+                "get_metrics",
+                [
+                    "cpu",
+                    "latency",
+                    "metryk",
+                    "p95",
+                    "p99",
+                    "użycie",
+                    "uzycie",  # fallback without diacritics
+                    "pamię",
+                    "pamie",  # fallback without diacritics
+                ],
+            ),
         ]
 
     def make_plan(self, query: str) -> List[ToolCall]:

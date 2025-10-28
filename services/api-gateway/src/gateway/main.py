@@ -4,16 +4,16 @@
 
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 
 app = FastAPI(title="AstraDesk API Gateway (stub)", version="0.1.0")
 
 
 @app.get("/healthz")
-def healthz():
+def healthz(request: Request | None = None) -> dict[str, str]:
     return {"status": "ok"}
 
 
 @app.get("/health")
-def health():
+def health(request: Request | None = None) -> dict[str, str]:
     return {"status": "ok"}

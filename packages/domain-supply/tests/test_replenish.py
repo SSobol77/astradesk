@@ -9,6 +9,11 @@ Author: Siergej Sobolewski
 Since: 2025-10-16
 """
 
+if not (__package__ or "").startswith("packages.domain_supply"):
+    __package__ = "packages.domain_supply.tests"
+    if __spec__ is not None:
+        globals()["__spec__"] = None
+
 import pytest
 import httpx
 from respx import MockRouter

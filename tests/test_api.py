@@ -1,4 +1,4 @@
-# tests/tesyt_api.py
+# tests/test_api.py
 
 from fastapi.testclient import TestClient
 from gateway.main import app
