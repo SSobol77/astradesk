@@ -1,44 +1,49 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: packages/domain-support/agents/triage.py
-Project: AstraDesk Domain Support Pack
-Description:
-    Asynchronous agent with Asana/Slack for ticket triage with Asana and Slack integration.
-    Integrates via Admin API v1.2.0 for agent creation, testing, and run monitoring.
-    No direct imports from core modules; all interactions through HTTP calls.
+"""Support ticket triage agent that works with the testing stubs."""
 
-Author: Siergej Sobolewski
-Since: 2025-10-16
-"""
+from __future__ import annotations
 
-from typing import AsyncIterator, List, Dict
+import asyncio
+from dataclasses import dataclass
+from typing import AsyncIterator, Dict, List
+
 from ..clients.api import AdminApiClient, ProblemDetail
 from ..tools.asana_adapter import AsanaAdapter
 from ..tools.slack_adapter import SlackAdapter
 
-class TriageResult(BaseModel):
+
+@dataclass
+class TriageResult:
     ticket_id: str
     priority: str
     action: str
+    asana_task_id: str | None = None
+    slack_message_id: str | None = None
 
-async def triage_tickets(tickets: List[Dict], api_url: str = "http://localhost:8080/api/admin/v1", token: str = "") -> AsyncIterator[TriageResult]:
+
+async def triage_tickets(
+    tickets: List[Dict],
+    api_url: str = "http://localhost:8080/api/admin/v1",
+    token: str = "",
+) -> AsyncIterator[TriageResult]:
     client = AdminApiClient(api_url, token)
-    asana = AsanaAdapter(api_url, token)
-    slack = SlackAdapter(api_url, token)
+    asana = AsanaAdapter()
+    slack = SlackAdapter()
 
-    agent_data = {"name": "support_triage", "config": {"type": "triage"}}
-    agent = await client.create_agent(agent_data)
-
-    input_data = {"tickets": tickets}
-    run_id = await client.test_agent(agent["id"], input_data)
+    agent = await client.create_agent({"name": "support_triage", "config": {"type": "triage"}})
+    run_id = await client.test_agent(agent["id"], {"tickets": tickets})
 
     while True:
         run = await client.get_run(run_id)
-        if run["status"] == "completed":
-            for result in run["output"]:
-                triage = TriageResult(**result)
-                if triage.priority == "Critical":
-                    await asana.create_task({"name": f"Ticket {triage.ticket_id}", "project_gid": "your_gid"})
-                    await slack.post_message({"channel": "#support", "text": f"Critical: {triage.ticket_id}"})
-                yield triage
-            break
-        await asyncio.sleep(1)
+        if run.get("status") != "completed":
+            await asyncio.sleep(1)
+            continue
+
+        for raw in run.get("output", []):
+            result = TriageResult(**raw)
+            if result.priority.lower() == "critical":
+                asana_task = await asana.create_task({"ticket_id": result.ticket_id})
+                slack_message = await slack.post_message({"ticket_id": result.ticket_id})
+                result.asana_task_id = asana_task.get("task_id")
+                result.slack_message_id = slack_message.get("message_id")
+            yield result
+        break

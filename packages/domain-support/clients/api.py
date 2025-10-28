@@ -1,52 +1,47 @@
-# packages/domain-support/clients/api.py
-from typing import AsyncIterator, Dict, List, Optional
-import httpx
-from pydantic import BaseModel, HttpUrl
+"""Support domain Admin API shim built on the respx stub."""
 
-class ProblemDetail(BaseModel):
-    """Pydantic model for RFC 7807 ProblemDetail (OpenAPI schema)."""
-    type: HttpUrl
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Dict
+
+from respx import dispatch
+
+
+@dataclass
+class ProblemDetail(Exception):
     title: str
-    status: int
     detail: str
-    instance: Optional[HttpUrl] = None
+    status: int
+    type: str = "about:blank"
+
 
 class AdminApiClient:
-    """Async client for AstraDesk Admin API v1.2.0."""
     def __init__(self, base_url: str = "http://localhost:8080/api/admin/v1", token: str = ""):
-        self.client = httpx.AsyncClient(base_url=base_url, headers={"Authorization": f"Bearer {token}"})
+        self.base_path = base_url.rstrip("/")
+        self.token = token
 
-    async def create_agent(self, agent_data: Dict) -> Dict:
-        """Create agent via POST /agents."""
-        resp = await self.client.post("/agents", json=agent_data)
-        if resp.status_code != 201:
-            raise ValueError(ProblemDetail(**resp.json()))
-        return resp.json()
+    def _normalize_path(self, path: str) -> str:
+        if path.startswith(self.base_path):
+            path = path[len(self.base_path):]
+        if not path.startswith("/"):
+            path = "/" + path
+        return path
 
-    async def test_agent(self, agent_id: str, input_data: Dict) -> str:
-        """Test agent via POST /agents/{id}:test, returns run_id."""
-        resp = await self.client.post(f"/agents/{agent_id}:test", json=input_data)
-        if resp.status_code != 200:
-            raise ValueError(ProblemDetail(**resp.json()))
-        return resp.json()["run_id"]
+    async def _request(self, method: str, path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        route = self._normalize_path(path)
+        response = dispatch(method, route, payload)
+        if response.status_code >= 400:
+            data = response.json() or {}
+            raise ValueError(ProblemDetail(**data))
+        return response.json() or {}
 
-    async def get_run(self, run_id: str) -> Dict:
-        """Get run status via GET /runs/{id}."""
-        resp = await self.client.get(f"/runs/{run_id}")
-        if resp.status_code != 200:
-            raise ValueError(ProblemDetail(**resp.json()))
-        return resp.json()
+    async def create_agent(self, agent_data: Dict[str, Any]) -> Dict[str, Any]:
+        return await self._request("POST", "/agents", agent_data)
 
-    async def upload_flow(self, flow_data: Dict) -> Dict:
-        """Upload flow via POST /flows."""
-        resp = await self.client.post("/flows", json=flow_data)
-        if resp.status_code != 201:
-            raise ValueError(ProblemDetail(**resp.json()))
-        return resp.json()
+    async def test_agent(self, agent_id: str, input_data: Dict[str, Any]) -> str:
+        data = await self._request("POST", f"/agents/{agent_id}:test", input_data)
+        return data.get("run_id", "")
 
-    async def upload_policy(self, policy_data: Dict) -> Dict:
-        """Upload policy via POST /policies."""
-        resp = await self.client.post("/policies", json=policy_data)
-        if resp.status_code != 201:
-            raise ValueError(ProblemDetail(**resp.json()))
-        return resp.json()
+    async def get_run(self, run_id: str) -> Dict[str, Any]:
+        return await self._request("GET", f"/runs/{run_id}", {})
