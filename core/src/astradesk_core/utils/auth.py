@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""File: services/gateway-python/src/runtime/auth.py
+"""File: core/src/astradesk_core/utils/auth.py
 Project: AstraDesk Framework — API Gateway
 Description:
     OIDC/JWT verification utilities for the API layer. Fetches and short-term

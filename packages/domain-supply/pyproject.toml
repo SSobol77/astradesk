@@ -1,37 +1,34 @@
 # SPDX-License-Identifier: Apache-2.0
 # File: packages/domain-supply/pyproject.toml
 # Author: Siergej Sobolewski
-# Since: 2025-10-26
+# Since: 2025-10-27
 
 [project]
 name = "astradesk-domain-supply"
 version = "0.3.0"
 description = "Supply chain domain pack for AstraDesk — replenishment and SAP integration."
 authors = [{ name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com" }]
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
 requires-python = ">=3.14"
 
 dependencies = [
-  # Zależności od innych pakietów w naszym monorepo.
   "astradesk-core",
-
-  # Zależności produkcyjne specyficzne dla tej paczki.
-  # Na podstawie struktury plików, ta paczka również używa gRPC.
   "grpcio>=1.66,<2.0",
   "protobuf>=5.0",
 ]
 
 [project.optional-dependencies]
-# Zależności deweloperskie specyficzne dla testowania tej paczki.
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.23",
-    # Do mockowania zapytań HTTP w testach
     "respx>=0.20,<1.0",
-    # Do testowania i pracy z gRPC
     "grpcio-tools>=1.66,<2.0",
 ]
 
-# Konfiguracja narzędzi (ruff, mypy, pytest) jest zdefiniowana w głównym
-# `pyproject.toml` i jest automatycznie stosowana do tego pakietu
-# przez `uv workspace`. Nie trzeba jej tutaj powtarzać.
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["proto*", "flows*", "agents*", "clients*", "policies*"]

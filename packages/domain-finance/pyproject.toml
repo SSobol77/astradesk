@@ -1,21 +1,18 @@
 # SPDX-License-Identifier: Apache-2.0
 # File: packages/domain-finance/pyproject.toml
 # Author: Siergej Sobolewski
-# Since: 2025-10-26
+# Since: 2025-10-27
 
 [project]
 name = "astradesk-domain-finance"
 version = "0.3.0"
 description = "Finance domain pack for AstraDesk — forecasting and ERP integration."
 authors = [{ name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com" }]
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
 requires-python = ">=3.14"
 
 dependencies = [
-  # lokalne pakiety wyłącznie nazwą (wiąże je root [tool.uv.sources])
   "astradesk-core",
-
-  # prod deps tej paczki
   "prophet>=1.1,<2.0",
   "grpcio>=1.66,<2.0",
   "protobuf>=5.0",
@@ -33,7 +30,5 @@ dev = [
 requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
 
-# Konfiguracja narzędzi (ruff, mypy, pytest) jest zdefiniowana w głównym
-# `pyproject.toml` i jest automatycznie stosowana do tego pakietu
-# przez `uv workspace`. Nie trzeba jej tutaj powtarzać.
-
+[tool.setuptools]
+packages = {find = {where = ["."]}}

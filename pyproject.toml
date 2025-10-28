@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # File: pyproject.toml (root)
 # Author: Siergej Sobolewski
-# Since: 2025-10-26
+# Since: 2025-10-27
 
 [project]
 name = "astradesk"
@@ -12,7 +12,15 @@ authors = [{ name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com" }]
 license = { text = "Apache-2.0" }
 
 # Root paczka jest meta-koordynatorem monorepo – tu zwykle nie trzymamy zależności runtime.
-dependencies = []
+dependencies = [
+    "astradesk-core",
+    "astradesk-api-gateway", 
+    "astradesk-auditor",
+    "astradesk-domain-ops",
+    "astradesk-domain-finance",
+    "astradesk-domain-supply",
+    "astradesk-domain-support",
+]
 
 [project.optional-dependencies]
 dev = [
@@ -29,6 +37,7 @@ dev = [
 #  "torch==2.9.0+cu121",
 #]
 
+
 docs = [
   "mkdocs>=1.6.0",
   "mkdocs-material>=9.5.0",
@@ -38,31 +47,56 @@ docs = [
   "mkdocstrings>=0.23.0",
 ]
 
+
+
 [tool.uv]
 # Pozwól na prerelease (np. Python 3.14.0rc1) – świadomie, bo projekt celuje w 3.14
 prerelease = "allow"
 #extra-index-url = ["https://download.pytorch.org/whl/cu121"]
 
+#------
+#[tool.uv.workspace]
+#members = [
+#  "core",
+#  "services/api-gateway",
+#  "packages/domain-support",
+#  "packages/domain-finance",
+#  "packages/domain-supply",
+#  "packages/domain-ops",
+#]
+
+# kluczowe mapowania nazw -> ścieżki, aby w subpakietach używać czystych PEP 508 nazw
+#[tool.uv.sources]
+#astradesk-core = { workspace = true }
+#astradesk-domain-ops = { workspace = true }
+#astradesk-domain-finance = { workspace = true }
+#astradesk-domain-supply = { workspace = true }
+#astradesk-domain-support  = { workspace = true }
+
+# (opcjonalnie kolejne lokalne paczki)
+# astradesk-utils = {workspace = true }
+#------
+
 [tool.uv.workspace]
 members = [
   "core",
   "services/api-gateway",
+  "services/auditor", 
   "packages/domain-support",
   "packages/domain-finance",
   "packages/domain-supply",
   "packages/domain-ops",
 ]
 
-# kluczowe mapowania nazw -> ścieżki, aby w subpakietach używać czystych PEP 508 nazw
 [tool.uv.sources]
 astradesk-core = { workspace = true }
+astradesk-api-gateway = { workspace = true }
+astradesk-auditor = { workspace = true } 
 astradesk-domain-ops = { workspace = true }
 astradesk-domain-finance = { workspace = true }
 astradesk-domain-supply = { workspace = true }
-astradesk-domain-support  = { workspace = true }
+astradesk-domain-support = { workspace = true }
 
-# (opcjonalnie kolejne lokalne paczki)
-# astradesk-utils = {workspace = true }
 
 [tool.ruff]
 line-length = 100

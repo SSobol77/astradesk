@@ -17,11 +17,11 @@ dependencies = [
   # Zależności frameworka webowego i serwera
   "fastapi>=0.115,<0.116",
   "uvicorn[standard]>=0.30,<0.31",
-  "pydantic>=2.8,<2.9",
+  "pydantic>=2.12.3",
   "python-dotenv>=1.0,<2.0",
 
   # Zależności baz danych i cache
-  "asyncpg>=0.29,<0.30",
+  "asyncpg>=0.30",
   "psycopg[binary]>=3.2,<3.3",
   "redis>=5.0,<5.1",
   "pgvector>=0.2,<0.3",

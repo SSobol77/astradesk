@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for src/runtime/auth.py (OIDC/JWT verification with JWKS cache).
+# services/api-gateway/src/tests/runtime/test_auth.py
+"""Tests for core/src/astradesk_core/utils/auth.py (OIDC/JWT verification with JWKS cache).
 
 Key points:
 - Module creates global cfg at import-time and reads ENV → tests must set ENV before import.
@@ -10,6 +11,7 @@ Key points:
 from __future__ import annotations
 
 import importlib
+import asyncio
 import types
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -28,7 +30,7 @@ def _import_auth_with_env(monkeypatch) -> types.ModuleType:
     # Leeway for clock skew:
     monkeypatch.setenv("OIDC_TIME_SKEW_LEEWAY", "60")
 
-    import src.runtime.auth as auth  # noqa: WPS433  (import inside function)
+    import core.src.astradesk_core.utils.auth as auth  # noqa: WPS433  (import inside function)
     auth = importlib.reload(auth)  # ensure fresh globals
     return auth
 
@@ -47,7 +49,7 @@ class _FakeAsyncClient:
 
                 def json(self_nonlocal):
                     return response_json
-
+            await asyncio.sleep(0) 
             return _Resp()
 
         self.get.side_effect = _get

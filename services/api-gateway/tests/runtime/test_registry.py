@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
+# services/api-gateway/src/tests/runtime/test_registry.py
 """Testy jednostkowe dla ToolRegistry.
-
-Plik: tests/test_registry.py
 
 Zakres:
 - Rejestracja i wykonywanie narzędzi (sync/async).

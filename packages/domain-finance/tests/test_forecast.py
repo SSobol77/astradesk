@@ -15,8 +15,8 @@ from respx import MockRouter
 from ..agents.forecast import forecast_financial_data
 from ..clients.grpc_client import GrpcOracleErpClient
 from ..clients.api import ProblemDetail
-from ..proto.finance_pb2 import FetchSalesResponse, SalesItem
-from ..proto.finance_pb2_grpc import FinanceServiceStub
+from proto.finance_pb2 import FetchSalesResponse, SalesItem
+from proto.finance_pb2_grpc import FinanceServiceStub
 
 @pytest.mark.asyncio
 async def test_forecast_success(respx_mock: MockRouter):

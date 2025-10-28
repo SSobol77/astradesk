@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for src/runtime/events.py (NATS publish-only wrapper).
+# services/api-gateway/src/tests/runtime/test_events.py
+"""Tests for core/src/astradesk_core/utils/events.py (NATS publish-only wrapper).
 
 Covers:
 - Successful publish: JSON bytes (ensure_ascii=False, compact), single connect.
@@ -17,11 +18,11 @@ from __future__ import annotations
 
 import json
 from unittest.mock import AsyncMock, MagicMock
-
+import asyncio
 import pytest
 
-import src.runtime.events as evmod
-from src.runtime.events import events  # global singleton
+import core.src.astradesk_core.utils.events as evmod
+from core.src.astradesk_core.utils.events import events
 
 # --- Helpers ---
 
@@ -48,6 +49,7 @@ async def test_publish_success_compact_json_and_single_connect(monkeypatch):
 
     async def fake_connect(url, connect_timeout):
         connect_calls.append((url, connect_timeout))
+        await asyncio.sleep(0) 
         return nc
 
     monkeypatch.setattr(evmod.nats, "connect", fake_connect)
@@ -125,7 +127,7 @@ async def test_publish_reconnects_after_first_failure(monkeypatch):
 
     async def fake_connect(url, connect_timeout):
         conn_calls.append((url, connect_timeout))
-        # return first client, then second client
+        await asyncio.sleep(0) 
         return first_nc if len(conn_calls) == 1 else second_nc
 
     monkeypatch.setattr(evmod.nats, "connect", fake_connect)
@@ -160,6 +162,7 @@ async def test_publish_final_failure_is_logged_not_raised(monkeypatch):
 
     async def fake_connect(url, connect_timeout):
         calls.append(1)
+        await asyncio.sleep(0) 
         return first_nc if len(calls) == 1 else second_nc
 
     monkeypatch.setattr(evmod.nats, "connect", fake_connect)
@@ -183,6 +186,7 @@ async def test_connection_is_cached_between_publishes(monkeypatch):
     nc = _make_nc_mock()
 
     async def fake_connect(url, connect_timeout):
+        await asyncio.sleep(0) 
         return nc
 
     monkeypatch.setattr(evmod.nats, "connect", fake_connect)
@@ -206,6 +210,7 @@ async def test_close_drains_then_nulls_connection(monkeypatch):
     nc = _make_nc_mock()
 
     async def fake_connect(url, connect_timeout):
+        await asyncio.sleep(0) 
         return nc
 
     monkeypatch.setattr(evmod.nats, "connect", fake_connect)
@@ -226,6 +231,7 @@ async def test_close_falls_back_to_close_when_drain_fails(monkeypatch):
     nc.drain.side_effect = RuntimeError("drain failed")
 
     async def fake_connect(url, connect_timeout):
+        await asyncio.sleep(0) 
         return nc
 
     monkeypatch.setattr(evmod.nats, "connect", fake_connect)

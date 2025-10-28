@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
+# services/api-gateway/src/tests/runtime/test_models.py
 """Tests for src/runtime/models.py (AstraDesk Pydantic v2 models).
 
 Covers:
@@ -101,7 +102,7 @@ def test_agentrequest_rejects_extra_fields() -> None:
 
 def test_agentrequest_input_required_and_bounded() -> None:
     with pytest.raises(ValidationError):
-        AgentRequest(agent=AgentName.SUPPORT, input="")  # min_length=1
+        AgentRequest(agent=AgentName.SUPPORT, input="")
 
     # build too long string (> 8192)
     too_long = "x" * 8193
