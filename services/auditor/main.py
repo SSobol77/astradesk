@@ -3,7 +3,7 @@
 Project: AstraDesk Framework — Mikroserwis Auditor.
 
 Author: Siergej Sobolewski
-Since: 2025-10-08
+Since: 2025-10-28
 
 Asynchronous, production-grade microservice responsible solely for **reliably
 persisting audit events** to Elasticsearch and AWS S3 while consuming from NATS.

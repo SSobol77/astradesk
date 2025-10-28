@@ -1,9 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
-# services/api-gateway/src/tools/metrics.py
-"""Tool for fetching performance metrics from Prometheus.
-Integrates async HTTP, OPA governance, OTel tracing, PII redaction, and RFC 7807 errors.
+"""File: services/api-gateway/src/tools/metrics.py
+
+Project: AstraDesk Framework
+Package:  AstraDesk API Gateway
+
+Description:
+    Tool for fetching performance metrics from Prometheus.
+    Integrates async HTTP, OPA governance, OTel tracing, PII redaction, and RFC 7807 errors.
+
+Env:
+    - MONITORING_API_URL
+    - ALLOWED_SERVICES
+    - WINDOW_RE
+
 Author: Siergej Sobolewski
 Since: 2025-10-25
+
 """
 
 from __future__ import annotations

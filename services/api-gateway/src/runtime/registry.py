@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
-# services/api-gateway/src/runtime/registry.py
-"""registry.py
-Project: AstraDesk Framework — API Gateway
+"""File: services/api-gateway/src/runtime/registry.py
+
+Project: AstraDesk Framework
+Package: AstraDesk API Gateway
+
 Description:
     Thread-safe runtime Tool Registry for AstraDesk agents. Provides deterministic
     registration/lookup/execution of domain tools (actions) with soft RBAC checks,
@@ -9,7 +11,7 @@ Description:
     entry points (`astradesk.pack`).
 
 Author: Siergej Sobolewski
-Since: 2025-10-17
+Since: 2025-10-28
 
 Overview
 --------
@@ -164,7 +166,7 @@ def load_domain_packs() -> list[tuple[str, Any]]:
         # Python 3.11+
         eps = eps.select(group="astradesk.pack")  # type: ignore[assignment]
     else:
-        # Python 3.10 i wcześniejsze
+        # Python =<3.10
         eps = [ep for ep in eps if getattr(ep, "group", None) == "astradesk.pack"]
 
     loaded: list[tuple[str, Any]] = []
@@ -347,14 +349,14 @@ class ToolRegistry:
                     f"Access denied: need any of roles {needed} for tool '{name}'."
                 )
 
-        #2 Delikatne czyszczenie kwargs:
+        #2 Czyszczenie kwargs:
         #    'claims' to meta - jeśli funkcja nie przyjmuje 'claims', nie przekazujemy go.
         sig = info.signature
         if sig is not None and "claims" not in sig.parameters and "claims" in kwargs:
             kwargs = dict(kwargs)  # płytka kopia
             kwargs.pop("claims", None)
 
-        #3 Uruchomienie narzędzia: obsługa sync/async
+        #3 Uruchomienie narzędzia obsługa sync/async
         if info.is_coroutine:
             try:
                 return await info.fn(**kwargs)

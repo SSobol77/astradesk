@@ -1,9 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
-# services/api-gateway/src/tools/ops_actions.py
-"""Tool for performing operational actions in Kubernetes.
-Integrates kubernetes-asyncio, OPA, OTel tracing, RBAC, whitelist, and RFC 7807 errors.
+"""File: services/api-gateway/src/tools/ops_actions.py
+
+Project: AstraDesk Framework
+Package:  AstraDesk API Gateway
+
+Description:
+    Tool for performing operational actions in Kubernetes.
+    Integrates kubernetes-asyncio, OPA, OTel tracing, RBAC, whitelist, and RFC 7807 errors.
+
+Env:
+    - KUBERNETES_NAMESPACE
+    - ALLOWED_SERVICES
+    - REQUIRED_ROLE_RESTART
+
 Author: Siergej Sobolewski
 Since: 2025-10-25
+
 """
 
 from __future__ import annotations

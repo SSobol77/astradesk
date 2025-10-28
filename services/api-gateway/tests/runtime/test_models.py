@@ -8,6 +8,10 @@ Covers:
 - AgentRequest validation: required fields, trimming, max length, meta default.
 - AgentResponse validation: required fields, nested ToolCall list, errors optional.
 - Base config behavior: extra="forbid", str_strip_whitespace, populate_by_name.
+
+Author: Siergej Sobolewski
+Since: 2025-10-28
+
 """
 
 from __future__ import annotations

@@ -1,4 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
 # tests/test_api.py
+# Author: Siergej Sobolewski
+# Since: 2025-10-07
 
 from fastapi.testclient import TestClient
 from gateway.main import app

@@ -1,9 +1,23 @@
 # SPDX-License-Identifier: Apache-2.0
-# services/api-gateway/src/tools/weather.py
-"""Tool for fetching current weather from OpenWeatherMap.
-Integrates async HTTP, in-memory cache with TTL, OPA governance, OTel tracing, and RFC 7807 errors.
+"""File: services/api-gateway/src/tools/weather.py
+
+Project: AstraDesk Framework
+Package:  AstraDesk API Gateway
+
+Description:
+    Asynchronous tool for fetching current weather from OpenWeatherMap.
+    Integrates async HTTP, in-memory cache with TTL, OPA governance, 
+    OpenTelemetry tracing, and RFC 7807 error handling.
+    Production-ready with comprehensive error handling and caching.
+
+Env:
+    - WEATHER_API_KEY
+    - OPENWEATHER_API_UR
+    - CACHE_TTL_SECONDS
+
 Author: Siergej Sobolewski
 Since: 2025-10-25
+
 """
 
 from __future__ import annotations
@@ -18,7 +32,7 @@ import httpx
 from opentelemetry import trace
 from opa_python_client import OPAClient
 
-from services.api_gateway.src.model_gateway.base import ProblemDetail
+from model_gateway.base import ProblemDetail
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)

@@ -13,6 +13,8 @@ Covers:
 Notes:
 - The module reads env into module-level vars at import; tests set `policy._POLICY_ENV`
   directly and call `policy.policy.refresh_now()` to recompile.
+Author: Siergej Sobolewski
+Since: 2025-10-07
 
 """
 

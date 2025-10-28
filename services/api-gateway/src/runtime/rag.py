@@ -1,14 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
 # services/api-gateway/src/runtime/rag.py
-"""Retrieval-Augmented Generation (RAG) system for AstraDesk.
+"""
+Retrieval-Augmented Generation (RAG) system for AstraDesk.
 
 Provides hybrid search (keyword BM25 via Redis + semantic embeddings via PGVector)
 with PyTorch 2.9 acceleration, governance via OPA, and optional self-reflection
 for snippet quality. Supports vector DB (PGVector on PostgreSQL 18+) and keyword
 index (Redis 8+).
 
-Author: Siergej Sobolewski
-Since: 2025-10-25
+Attributes:
+  Author: Siergej Sobolewski
+  Since: 2025-10-25
+
+Environment Variables:
+  pg_dsn: PG_DSN "PGVector DSN"
+  redis_url: REDIS_URL
+  redis_key: "rag_corpus"  Key for stored tokenized corpus
 """
 
 from __future__ import annotations
@@ -23,7 +30,7 @@ import redis.asyncio as redis  # Async Redis for BM25 corpus storage
 import torch  # PyTorch 2.9 for embeddings and torch.compile
 from opa_python_client import OPAClient  # OPA for governance
 from opentelemetry import trace  # AstraOps/OTel tracing
-from pydantic import BaseModel  # Pydantic v2.9+ for models
+from pydantic import BaseModel, ValidationError  # Pydantic v2.9+ for models
 from rank_bm25 import BM25Okapi  # For keyword search
 from sentence_transformers import SentenceTransformer  # Semantic embeddings
 
@@ -65,6 +72,11 @@ class RAGConfig(BaseModel):
     )  # Redis URL
     redis_key: str = "rag_corpus"  # Key for stored tokenized corpus
 
+    def model_post_init(self, __context: Any) -> None:
+        """Validate config post-init."""
+        if abs(self.semantic_weight + self.keyword_weight - 1.0) > 1e-6:
+            raise ValidationError("Semantic and keyword weights must sum to 1.0")
+
 
 class RAGSnippet(BaseModel):
     """Model for a single retrieved snippet with metadata."""
@@ -87,7 +99,8 @@ class RAG:
     - Governance: OPA policy check before retrieval (e.g., RBAC on query/agent).
     - Self-reflection: Optional LLM-based scoring for snippet relevance.
     - OTel tracing: Spans for retrieve, embed, reflect.
-    - Async-native: Suitable for FastAPI integration.
+    - Async-native: Suitable for FastAPI integration. Use `await rag.ainit()` after instantiation.
+    - Ingestion: Methods to add documents to both indexes.
     """
 
     def __init__(
@@ -95,15 +108,13 @@ class RAG:
         config: Optional[RAGConfig] = None,
         opa_client: Optional[OPAClient] = None,
         llm_planner: Optional[LLMPlannerProtocol] = None,
-        corpus: Optional[List[str]] = None,
     ) -> None:
-        """Initialize the RAG system.
+        """Initialize the RAG system (sync). Call `await self.ainit()` for async setup.
 
         Args:
             config: Optional configuration (defaults to RAGConfig()).
             opa_client: OPA client for policy enforcement.
             llm_planner: Optional LLM planner for self-reflection scoring.
-            corpus: Optional initial list of documents for BM25 index (stored in Redis).
         """
         self.config = config or RAGConfig()
         self.opa_client = opa_client
@@ -111,44 +122,119 @@ class RAG:
         self.tracer = trace.get_tracer(__name__)  # OTel tracer
 
         # PyTorch model setup
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = SentenceTransformer(self.config.model_name)
-        if self.config.use_fp16:
-            self.model.half()  # fp16 mixed precision
+        if self.config.use_fp16 and self.device.type == "cuda":
+            self.model.half()  # fp16 mixed precision on GPU
         self.model = torch.compile(
             self.model, mode="reduce-overhead", fullgraph=True
         )  # PyTorch 2.9 compile
+        self.model.to(self.device)
         self.model.eval()  # Inference mode
 
-        # Connections
+        # Connections (initialized in ainit)
         self.pg_pool: Optional[asyncpg.Pool] = None
         self.redis_client: Optional[redis.Redis] = None
         self.bm25: Optional[BM25Okapi] = None
+        self.keyword_index: List[str] = []  # Full documents in order
 
-        # BM25 corpus storage (in-memory + Redis)
-        self.keyword_index: List[str] = corpus or []  # Full documents in order
-        self._init_connections()
-        if corpus:
-            self._build_bm25_index(corpus)
+    async def ainit(self) -> None:
+        """Async initialization for connections and loading BM25 index."""
+        await self._init_connections()
+        await self._load_bm25_from_redis()
 
     # ----------------------------------------------------------------------- #
     # Connection & Index Management
     # ----------------------------------------------------------------------- #
-    def _init_connections(self) -> None:
+    async def _init_connections(self) -> None:
         """Initialize async connections to PGVector and Redis."""
-        self.pg_pool = asyncpg.create_pool(
-            self.config.pg_dsn, min_size=1, max_size=10
-        )
-        self.redis_client = redis.from_url(self.config.redis_url)
+        try:
+            self.pg_pool = await asyncpg.create_pool(
+                self.config.pg_dsn, min_size=1, max_size=10
+            )
+            self.redis_client = redis.from_url(self.config.redis_url)
+        except Exception as e:
+            logger.error(f"Connection init failed: {e}")
+            raise RuntimeError("Failed to initialize connections") from e
 
-    def _build_bm25_index(self, corpus: List[str]) -> None:
-        """Build BM25 index from corpus and store tokenized docs in Redis."""
+    async def _load_bm25_from_redis(self) -> None:
+        """Load BM25 index from Redis if available."""
+        if not self.redis_client:
+            return
+        try:
+            tokenized_corpus_json = await self.redis_client.get(self.config.redis_key)
+            if tokenized_corpus_json:
+                tokenized_corpus = json.loads(tokenized_corpus_json)
+                self.bm25 = BM25Okapi(tokenized_corpus)
+                # Note: We need full contents; assume separate key for full docs or ingest properly
+                # For now, load full docs from another key if exists
+                full_docs_json = await self.redis_client.get(self.config.redis_key + "_full")
+                if full_docs_json:
+                    self.keyword_index = json.loads(full_docs_json)
+        except Exception as e:
+            logger.warning(f"Failed to load BM25 from Redis: {e}")
+
+    async def _build_bm25_index(self, corpus: List[str]) -> None:
+        """Build BM25 index from corpus and store tokenized/full docs in Redis."""
+        if not self.redis_client:
+            raise RuntimeError("Redis client not initialized")
         tokenized_corpus = [doc.split() for doc in corpus]
         self.bm25 = BM25Okapi(tokenized_corpus)
-        self.keyword_index = corpus  # Keep full docs in memory (same order)
-        # Store tokenized corpus in Redis (JSON serialized)
-        self.redis_client.set(
+        self.keyword_index = corpus  # Keep full docs in memory
+        # Store in Redis
+        await self.redis_client.set(
             self.config.redis_key, json.dumps(tokenized_corpus)
         )
+        await self.redis_client.set(
+            self.config.redis_key + "_full", json.dumps(corpus)
+        )
+
+    # ----------------------------------------------------------------------- #
+    # Ingestion Methods
+    # ----------------------------------------------------------------------- #
+    async def ingest_documents(
+        self, documents: List[str], sources: Optional[List[str]] = None
+    ) -> None:
+        """Ingest documents into both BM25 (Redis) and PGVector.
+
+        Args:
+            documents: List of document contents.
+            sources: Optional list of sources (same length as documents).
+        """
+        if not sources:
+            sources = ["unknown"] * len(documents)
+        if len(documents) != len(sources):
+            raise ValueError("Documents and sources must have same length")
+
+        with self.tracer.start_as_current_span("rag.ingest") as span:
+            span.set_attribute("num_docs", len(documents))
+
+            # BM25: Append to existing or build new
+            await self._build_bm25_index(self.keyword_index + documents)  # Append
+
+            # PGVector: Embed and insert
+            if self.pg_pool:
+                try:
+                    with torch.no_grad():
+                        embeddings = self.model.encode(
+                            documents, convert_to_tensor=True, device=self.device
+                        ).cpu().tolist()
+                    async with self.pg_pool.acquire() as conn:
+                        async with conn.transaction():
+                            for doc, src, emb in zip(documents, sources, embeddings):
+                                await conn.execute(
+                                    """
+                                    INSERT INTO docs (content, source, embedding)
+                                    VALUES ($1, $2, $3::vector)
+                                    ON CONFLICT (content) DO NOTHING
+                                    """,
+                                    doc,
+                                    src,
+                                    emb,
+                                )
+                except Exception as e:
+                    logger.error(f"PGVector ingest failed: {e}")
+                    raise RuntimeError("Ingestion failed") from e
 
     # ----------------------------------------------------------------------- #
     # Public Retrieval API
@@ -166,7 +252,7 @@ class RAG:
         1. OPA policy check (e.g., allow query for agent).
         2. Compute query embedding with PyTorch.
         3. Hybrid search: BM25 (keyword from Redis) + cosine sim (semantic from PGVector).
-        4. Rank and select top-k.
+        4. Rank and select top-k with normalized hybrid scores.
         5. Optional: Self-reflect on each snippet via LLM.
 
         Args:
@@ -190,43 +276,45 @@ class RAG:
             span.set_attribute("k", k)
             span.set_attribute("use_reflection", use_reflection)
 
-            # Step 1: OPA governance check
-            if self.opa_client:
-                with self.tracer.start_as_current_span("opa.check"):
-                    decision = await self.opa_client.check_policy(
-                        input={"query": query, "agent": agent_name},
-                        policy_path="astradesk/rag_access",
-                    )
-                    if not decision.get("result", False):
-                        span.record_exception(
-                            PermissionError("OPA denied RAG access")
+            try:
+                # Step 1: OPA governance check
+                if self.opa_client:
+                    with self.tracer.start_as_current_span("opa.check"):
+                        decision = await self.opa_client.check_policy(
+                            input={"query": query, "agent": agent_name},
+                            policy_path="astradesk/rag_access",
                         )
-                        raise PermissionError("Access denied by policy")
+                        if not decision.get("result", False):
+                            raise PermissionError("Access denied by policy")
 
-            # Step 2: PyTorch embedding computation
-            with self.tracer.start_as_current_span("embed_query"):
-                with torch.no_grad():
-                    query_embedding = (
-                        self.model.encode(
-                            query, convert_to_tensor=True
+                # Step 2: PyTorch embedding computation
+                with self.tracer.start_as_current_span("embed_query"):
+                    with torch.no_grad():
+                        query_embedding = (
+                            self.model.encode(
+                                query, convert_to_tensor=True, device=self.device
+                            )
+                            .cpu()
+                            .tolist()
                         )
-                        .cpu()
-                        .tolist()
-                    )  # To list for DB query
 
-            # Step 3: Hybrid search
-            candidates: List[RAGSnippet] = []
-            with self.tracer.start_as_current_span("hybrid_search"):
-                # --- Keyword: BM25 from Redis ---
-                if self.redis_client and self.bm25 is not None:
-                    tokenized_corpus_json = await self.redis_client.get(
-                        self.config.redis_key
-                    )
-                    if tokenized_corpus_json:
-                        tokenized_corpus = json.loads(tokenized_corpus_json)
-                        self.bm25 = BM25Okapi(tokenized_corpus)
+                # Step 3: Hybrid search
+                bm25_candidates: List[RAGSnippet] = []
+                sem_candidates: List[RAGSnippet] = []
+                with self.tracer.start_as_current_span("hybrid_search"):
+                    # --- Keyword: BM25 ---
+                    if self.bm25 and self.keyword_index:
                         tokenized_query = query.split()
                         bm25_scores = self.bm25.get_scores(tokenized_query)
+                        # Normalize BM25 scores (min-max)
+                        if bm25_scores:
+                            min_score = min(bm25_scores)
+                            max_score = max(bm25_scores)
+                            if max_score > min_score:
+                                bm25_scores = [
+                                    (s - min_score) / (max_score - min_score)
+                                    for s in bm25_scores
+                                ]
                         top_keyword_idxs = sorted(
                             range(len(bm25_scores)),
                             key=lambda i: bm25_scores[i],
@@ -234,7 +322,7 @@ class RAG:
                         )[: k * 2]
                         for idx in top_keyword_idxs:
                             if idx < len(self.keyword_index):
-                                candidates.append(
+                                bm25_candidates.append(
                                     RAGSnippet(
                                         content=self.keyword_index[idx],
                                         score=bm25_scores[idx],
@@ -243,68 +331,79 @@ class RAG:
                                     )
                                 )
 
-                # --- Semantic: Cosine sim from PGVector ---
-                if self.pg_pool:
-                    async with self.pg_pool.acquire() as conn:
-                        db_results = await conn.fetch(
-                            """
-                            SELECT content, source, embedding <=> $1::vector AS dist
-                            FROM docs
-                            ORDER BY dist ASC
-                            LIMIT $2
-                            """,
-                            query_embedding,
-                            k * 2,
+                    # --- Semantic: Cosine sim from PGVector ---
+                    if self.pg_pool:
+                        async with self.pg_pool.acquire() as conn:
+                            db_results = await conn.fetch(
+                                """
+                                SELECT content, source, embedding <=> $1::vector AS dist
+                                FROM docs
+                                ORDER BY dist ASC
+                                LIMIT $2
+                                """,
+                                query_embedding,
+                                k * 2,
+                            )
+                        for row in db_results:
+                            sem_candidates.append(
+                                RAGSnippet(
+                                    content=row["content"],
+                                    score=1 - row["dist"],  # Already normalized [0,1]
+                                    source=row["source"],
+                                    agent_name=agent_name,
+                                )
+                            )
+
+                    # --- Hybrid rank: Merge by content, weighted sum ---
+                    from collections import defaultdict
+
+                    scores_by_content: Dict[str, Dict[str, float]] = defaultdict(dict)
+                    for cand in bm25_candidates:
+                        scores_by_content[cand.content]["bm25"] = cand.score
+                    for cand in sem_candidates:
+                        scores_by_content[cand.content]["semantic"] = cand.score
+                        scores_by_content[cand.content]["source"] = cand.source  # Keep semantic source if available
+
+                    weighted: List[RAGSnippet] = []
+                    for content, scores in scores_by_content.items():
+                        bm25_score = scores.get("bm25", 0.0)
+                        sem_score = scores.get("semantic", 0.0)
+                        hybrid_score = (
+                            bm25_score * self.config.keyword_weight
+                            + sem_score * self.config.semantic_weight
                         )
-                    for row in db_results:
-                        candidates.append(
+                        weighted.append(
                             RAGSnippet(
-                                content=row["content"],
-                                score=1 - row["dist"],  # Normalize distance to score
-                                source=row["source"],
+                                content=content,
+                                score=hybrid_score,
+                                source=scores.get("source", "hybrid"),
                                 agent_name=agent_name,
                             )
                         )
 
-                # --- Hybrid rank: Weighted sum (dedup by content) ---
-                unique_candidates: Dict[str, RAGSnippet] = {}
-                for cand in candidates:
-                    key = cand.content
-                    if key not in unique_candidates:
-                        unique_candidates[key] = cand
-                    else:
-                        # Merge scores (take max per source, then weight)
-                        existing = unique_candidates[key]
-                        existing.score = max(existing.score, cand.score)
+                    # Sort and top-k
+                    weighted.sort(key=lambda x: x.score, reverse=True)
+                    top_candidates = weighted[:k]
 
-                # Apply hybrid weights
-                weighted: List[RAGSnippet] = []
-                for cand in unique_candidates.values():
-                    bm25_score = cand.score if cand.source == "bm25" else 0.0
-                    sem_score = cand.score if cand.source != "bm25" else 0.0
-                    cand.score = (
-                        bm25_score * self.config.keyword_weight
-                        + sem_score * self.config.semantic_weight
-                    )
-                    weighted.append(cand)
+                # Step 4-5: Self-reflection if enabled
+                if use_reflection and self.llm_planner:
+                    filtered: List[RAGSnippet] = []
+                    for cand in top_candidates:
+                        with self.tracer.start_as_current_span("reflect_snippet"):
+                            score = await self._reflect_snippet(query, cand.content)
+                            if score >= self.config.reflection_threshold:
+                                cand.score = score  # Update with reflection score
+                                filtered.append(cand)
+                    top_candidates = filtered or top_candidates  # Fallback if all filtered
 
-                # Sort and top-k
-                weighted.sort(key=lambda x: x.score, reverse=True)
-                top_candidates = weighted[:k]
+                span.set_attribute("final_count", len(top_candidates))
+                return top_candidates
 
-            # Step 4-5: Self-reflection if enabled
-            if use_reflection and self.llm_planner:
-                filtered: List[RAGSnippet] = []
-                for cand in top_candidates:
-                    with self.tracer.start_as_current_span("reflect_snippet"):
-                        score = await self._reflect_snippet(query, cand.content)
-                        if score >= self.config.reflection_threshold:
-                            cand.score = score  # Update with reflection score
-                            filtered.append(cand)
-                top_candidates = filtered
-
-            span.set_attribute("final_count", len(top_candidates))
-            return top_candidates
+            except PermissionError:
+                raise
+            except Exception as e:
+                logger.error(f"Retrieval failed: {e}")
+                raise RuntimeError("Retrieval error") from e
 
     # ----------------------------------------------------------------------- #
     # Self-Reflection (LLM-based)
@@ -333,8 +432,14 @@ class RAG:
                 ],
                 params={"max_tokens": 50, "temperature": 0.0},
             )
-            data = json.loads(raw.strip())
-            return max(0.0, min(1.0, float(data.get("score", 0.5))))
+            # More robust parsing
+            raw = raw.strip()
+            if raw.startswith("{") and raw.endswith("}"):
+                data = json.loads(raw)
+                return max(0.0, min(1.0, float(data.get("score", 0.5))))
+            else:
+                raise ValueError("Invalid JSON response")
         except Exception as e:  # pragma: no cover
             logger.warning(f"Reflection failed: {e}")
             return 0.5  # Default medium confidence
+        

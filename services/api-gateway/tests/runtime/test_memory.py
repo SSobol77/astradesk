@@ -17,6 +17,9 @@ Zakres:
   - Poprawne wywołanie publikacji zdarzenia po udanym audycie.
   - Weryfikacja, że błąd NATS nie przerywa operacji.
 - Walidacja danych wejściowych dla wszystkich metod publicznych.
+Author: Siergej Sobolewski
+Since: 2025-10-28
+
 """
 
 from __future__ import annotations

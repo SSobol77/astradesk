@@ -13,6 +13,9 @@ Notes:
 - planner.py imports ToolCall from `runtime.models`, while the project usually imports from
   `src.runtime.models`. To avoid class-identity mismatch, we assert on attributes instead of isinstance().
 
+Author: Siergej Sobolewski
+Since: 2025-10-07
+
 """
 
 from __future__ import annotations

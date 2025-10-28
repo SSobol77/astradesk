@@ -1,11 +1,24 @@
 # SPDX-License-Identifier: Apache-2.0
-# services/api-gateway/src/tools/tickets_proxy.py
-"""Async proxy for ticketing system (ticket-adapter-java).
-Supports create_ticket with mTLS, retry, OPA, OTel, STUB fallback, and RFC 7807 errors.
+"""File: services/api-gateway/src/tools/tickets_proxy.py
+
+Project: AstraDesk Framework
+Package:  AstraDesk API Gateway
+
+Description:
+    Asynchronous proxy for ticketing system (ticket-adapter-java).
+    Supports create_ticket with mTLS authentication, retry mechanisms,
+    OPA governance, OpenTelemetry tracing, STUB fallback, and RFC 7807 errors.
+    Production-ready with comprehensive error handling and policy enforcement.
+
 Env:
   - TICKETS_BASE_URL (np. http://localhost:8082)
   - TICKETS_API_TOKEN (opcjonalnie)
   - TICKETS_DISABLE_STUB=1 aby wyłączyć fallback i zwracać błąd
+
+mTLS for Istio:
+  - CERT_FILE = "SERVICE_CERT"
+  - KEY_FILE = "SERVICE_KEY"
+  - CA_FILE = "ROOT_CA"
 
 Author: Siergej Sobolewski
 Since: 2025-10-25

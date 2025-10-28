@@ -7,6 +7,10 @@ Zakres:
 - Kontrola dostępu RBAC (role).
 - Obsługa metadanych (schema, allowed_roles).
 - Obsługa błędów (ToolNotFoundError, AuthorizationError).
+
+Author: Siergej Sobolewski
+Since: 2025-10-28
+
 """
 
 from __future__ import annotations

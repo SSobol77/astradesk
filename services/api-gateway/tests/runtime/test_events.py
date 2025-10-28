@@ -12,6 +12,9 @@ Covers:
 - Graceful close(): drain success, and drain failure fallback to close.
 
 All NATS interactions are fully mocked.
+Author: Siergej Sobolewski
+Since: 2025-10-28
+
 """
 
 from __future__ import annotations

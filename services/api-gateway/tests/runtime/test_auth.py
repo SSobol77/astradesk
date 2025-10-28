@@ -6,6 +6,9 @@ Key points:
 - Module creates global cfg at import-time and reads ENV → tests must set ENV before import.
 - All I/O (httpx) and crypto (jose.jwk/jwt) are mocked; no network, no real signatures.
 - We assert correct control flow, cache behavior, and parameters passed to jose.jwt.decode.
+Author: Siergej Sobolewski
+Since: 2025-10-28
+
 """
 
 from __future__ import annotations

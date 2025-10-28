@@ -8,6 +8,10 @@ Zakres:
 - Wektoryzacja tekstów (_embed).
 - Operacje CRUD: upsert, retrieve, retrieve_with_scores, retrieve_mmr, delete_source, count_documents.
 - Obsługa błędów i brzegowe przypadki (puste dane, błędy DB).
+
+Author: Siergej Sobolewski
+Since: 2025-10-28
+
 """
 
 from __future__ import annotations
