@@ -1,11 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
-# services/api-gateway/src/gateway/orchestrator.py
-"""Business logic layer for agent orchestration: agent selection, planner choice (LLM vs. keyword),
+"""File: services/api-gateway/src/gateway/orchestrator.py
+
+Project: astradesk
+Pakage: api-gateway
+
+Author: Siergej Sobolewski
+Since: 2025-10-29
+
+Business logic layer for agent orchestration: agent selection, planner choice (LLM vs. keyword),
 tool execution with governance, fallback handling, Intent Graph with self-reflection, and final response assembly.
 
 **Pure domain layer** - no FastAPI/HTTP dependencies. Fully testable, async-native, OTel-traced.
-Author: Siergej Sobolewski
-Since: 2025-10-25
+
 """
 
 from __future__ import annotations
@@ -22,16 +28,16 @@ from opa_python_client import OPAClient  # Governance
 from opentelemetry import trace  # AstraOps/OTel
 
 # Project imports
-from services.api_gateway.src.agents.base import BaseAgent
-from services.api_gateway.src.runtime.memory import Memory
-from services.api_gateway.src.runtime.models import (
+from agents.base import BaseAgent
+from runtime.memory import Memory
+from runtime.models import (
     AgentName,
     AgentRequest,
     AgentResponse,
     ToolCall,
 )
-from services.api_gateway.src.runtime.planner import KeywordPlanner
-from services.api_gateway.src.runtime.registry import ToolRegistry
+from runtime.planner import KeywordPlanner
+from runtime.registry import ToolRegistry
 
 # --- Type-only imports for LLMPlanner (avoid runtime dependency) ---
 if TYPE_CHECKING:
@@ -55,7 +61,7 @@ class AgentNotFoundError(DomainError):
         self.agent_name = agent_name
 
 
-class PolicyViolationErrorこな(DomainError):
+class PolicyViolationError(DomainError):
     """Raised when OPA denies access."""
     def __init__(self, action: str):
         super().__init__(f"Access denied by policy for action: {action}")
@@ -126,7 +132,7 @@ class AgentOrchestrator:
 
             # Fallback to keyword-based agent
             with self.tracer.start_as_current_span("orchestrator.fallback_path"):
-                return await self._run_fallback_path(req, context, memory, request_id)
+                return await self._run_fallback_path(req, context, request_id)
 
     async def _try_llm_path(
         self, req: AgentRequest, context: Dict[str, Any], memory: Memory, request_id: str
@@ -162,10 +168,9 @@ class AgentOrchestrator:
 
         results: List[str] = []
         invoked_tools: List[ToolCall] = []
-        reflection_count = 0
 
         # Execute with reflection and replan
-        for node_id in list(graph.nodes):
+        for node_id in graph.nodes:
             step = graph.nodes[node_id]["step"]
             tool_call = ToolCall(name=step.name, arguments=step.args)
 
@@ -195,7 +200,6 @@ class AgentOrchestrator:
 
             # Self-reflection
             score = await self._reflect_step(req.input, result, request_id)
-            reflection_count += 1
 
             if score < 0.7:
                 logger.info(f"[{request_id}] Low reflection score ({score:.2f}). Replanning...")
@@ -222,7 +226,7 @@ class AgentOrchestrator:
         )
 
     async def _run_fallback_path(
-        self, req: AgentRequest, context: Dict[str, Any], memory: Memory, request_id: str
+        self, req: AgentRequest, context: Dict[str, Any], request_id: str
     ) -> AgentResponse:
         """Executes fallback using keyword-based agent (SupportAgent, BillingAgent, etc.)."""
         agent = self.agents.get(req.agent.value)

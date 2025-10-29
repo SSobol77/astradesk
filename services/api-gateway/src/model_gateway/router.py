@@ -1,9 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
-# services/api-gateway/src/model_gateway/router.py
-"""Central router and lifecycle manager for LLM providers.
-Implements singleton pattern with lazy initialization, async safety, OPA governance, and OTel tracing.
+"""File: services/api-gateway/src/model_gateway/router.py
+
+Project: astradesk
+Pakage: api-gateway
+
 Author: Siergej Sobolewski
-Since: 2025-10-25
+Since: 2025-10-29
+
+Central router and lifecycle manager for LLM providers.
+Implements singleton pattern with lazy initialization, async safety, OPA governance, and OTel tracing.
+
 """
 
 from __future__ import annotations

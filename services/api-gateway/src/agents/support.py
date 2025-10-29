@@ -1,6 +1,29 @@
 # SPDX-License-Identifier: Apache-2.0
 """File: services/api-gateway/src/agents/support.py
 
+Project: astradesk
+Pakage: api-gateway
+
+Author: Siergej Sobolewski
+Since: 2025-10-29
+
+Production-grade Support Agent for AstraDesk.
+
+Handles technical support queries, ticket management, and knowledge base lookup.
+
+Attributes:
+  Features:
+    - Hybrid RAG (PostgreSQL 18+ PGVector + Redis BM25)
+    - LLM-based self-reflection on snippet relevance
+    - OPA governance (RBAC/ABAC)
+    - OTel tracing
+    - Async-native, hardened validation
+
+"""
+
+# SPDX-License-Identifier: Apache-2.0
+"""File: services/api-gateway/src/agents/support.py
+
 Production-grade Support Agent for AstraDesk.
 
 Handles technical support queries, ticket management, and knowledge base lookup.
@@ -25,15 +48,18 @@ import inspect
 import json
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
+import networkx as nx
 from opentelemetry import trace
+
 from runtime import KeywordPlanner, LLMPlanner, Memory, ToolRegistry
 from runtime.models import ToolCall
 from runtime.policy import policy as opa_policy
 from runtime.rag import RAG, RAGSnippet
 
-from .base import BaseAgent, Plan
+if TYPE_CHECKING:
+    from .base import BaseAgent, Plan, PlanStep
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +68,7 @@ REFLECTION_THRESHOLD = 0.7
 MAX_REFLECTIONS = 3
 RAG_RETRY_COUNT = 2
 TOOL_TIMEOUT_SEC = 30.0
-PLANNING_TIMEOUT_SEC = 10.0
+MAX_GRAPH_NODES = 20
 
 
 def _as_score(value: object) -> Optional[float]:
@@ -58,46 +84,28 @@ async def _maybe_await(value: Any) -> Any:
 
 
 async def _authorize(policy: Any, action: str, claims: Dict[str, Any], payload: Dict[str, Any]) -> None:
-    """Generic authorizer that supports various PolicyFacade shapes.
-
-    Tries, in order: authorize / enforce / check / evaluate / eval.
-    Accepts sync or async functions. Interprets bool or dict results.
-    Raises PermissionError on explicit deny, AttributeError if no method exists.
-    """
+    """Generic authorizer that supports various PolicyFacade shapes."""
     for name in ("authorize", "enforce", "check", "evaluate", "eval"):
         fn = getattr(policy, name, None)
         if callable(fn):
             res = await _maybe_await(fn(action, claims, payload))
-            # Interpret common patterns
             if isinstance(res, bool):
                 if res:
                     return
                 raise PermissionError(f"OPA denied: {action}")
             if isinstance(res, dict):
-                allow = res.get("allow")
-                if allow is None:
-                    allow = res.get("result")
+                allow = res.get("allow") or res.get("result")
                 if isinstance(allow, bool):
                     if allow:
                         return
                     raise PermissionError(f"OPA denied: {action}")
-                # If dict without explicit allow/result -> treat as success
                 return
-            # If method returns None or other truthy sentinel, treat as success
             return
     raise AttributeError("Policy facade exposes no authorize/enforce/check/evaluate methods")
 
 
 class SupportAgent(BaseAgent):
-    """Support Agent: processes natural language support queries.
-
-    Workflow (integrated with BaseAgent):
-    1. OPA policy check (RBAC + ABAC on user/ticket)
-    2. RAG retrieval (KB articles, docs, tickets)
-    3. LLM reflection on snippet relevance
-    4. Tool planning (create_ticket, search_kb, etc.) with Intent Graph and replanning
-    5. Execution, reflection, and final response composition
-    """
+    """Support Agent: processes natural language support queries."""
 
     def __init__(
         self,
@@ -120,49 +128,29 @@ class SupportAgent(BaseAgent):
     async def _get_contextual_info(
         self, query: str, invoked_tools: List[ToolCall]
     ) -> List[str]:
-        """Implementation of contextual strategy for support agent.
-
-        Uses RAG with reflection to fetch relevant KB snippets.
-
-        Args:
-            query: Original user query.
-            invoked_tools: List of successfully invoked tools (for potential refinement).
-
-        Returns:
-            List of context snippets from RAG or empty list.
-        """
+        """Implementation of contextual strategy for support agent."""
         snippets: List[RAGSnippet] = []
         for attempt in range(RAG_RETRY_COUNT + 1):
             try:
                 with self.tracer.start_as_current_span("rag.retrieve") as span:
                     span.set_attribute("attempt", attempt)
                     snippets = await self.rag.retrieve(
-                        query=query,
-                        agent_name=self.agent_name,
-                        k=5,
-                        use_reflection=True,
+                        query=query, agent_name=self.agent_name, k=5, use_reflection=True
                     )
                 break
             except Exception as e:
                 logger.warning(f"RAG attempt {attempt} failed: {e}")
                 if attempt == RAG_RETRY_COUNT:
                     raise
-                await asyncio.sleep(1)  # Exponential backoff could be added
+                await asyncio.sleep(1)
 
-        # Reflection on relevance
         relevant_snippets = await self._reflect_support_context(query, snippets)
         return [s.content for s in relevant_snippets]
 
-    # ----------------------------------------------------------------------- #
-    # Support Relevance Reflection
-    # ----------------------------------------------------------------------- #
     async def _reflect_support_context(
         self, query: str, snippets: List[RAGSnippet]
     ) -> List[RAGSnippet]:
-        """Use LLM to score support relevance of each snippet.
-
-        Returns filtered + re-ranked list.
-        """
+        """Use LLM to score support relevance of each snippet."""
         if not self.llm_planner or not snippets:
             return snippets
 
@@ -173,10 +161,9 @@ class SupportAgent(BaseAgent):
         for snippet, raw_score in zip(snippets, scores):
             score_val = _as_score(raw_score)
             if score_val is not None and score_val >= REFLECTION_THRESHOLD:
-                snippet.score = score_val  # type: ignore[attr-defined]
+                snippet.score = score_val
                 enriched.append((snippet, score_val))
 
-        # Re-rank by reflection score
         enriched.sort(key=lambda x: x[1], reverse=True)
         return [s[0] for s in enriched[:3]]
 
@@ -197,33 +184,27 @@ class SupportAgent(BaseAgent):
                 ],
                 params={"max_tokens": 50, "temperature": 0.0},
             )
-            # More robust JSON parsing
             raw = raw.strip()
             if raw.startswith("{") and raw.endswith("}"):
                 data = json.loads(raw)
                 return max(0.0, min(1.0, float(data.get("score", 0.5))))
-            else:
-                raise ValueError("Invalid JSON response")
+            raise ValueError("Invalid JSON response")
         except Exception as e:
             logger.warning(f"Support reflection failed: {e}")
             return 0.5
 
-    # ----------------------------------------------------------------------- #
-    # Custom Planning (Heuristic to Generate Initial Plan)
-    # ----------------------------------------------------------------------- #
-    async def _heuristic_plan(
-        self, query: str, claims: Dict[str, Any]
-    ) -> Plan:
+    async def _heuristic_plan(self, query: str, claims: Dict[str, Any]) -> Plan:
         """Generate initial plan based on heuristics for support queries."""
+        from .base import Plan, PlanStep
         low = query.lower()
         user_id = claims.get("user_id", "unknown")
 
-        steps: List[PlanStep] = []  # type: ignore[name-defined]
+        steps: List[PlanStep] = []
         if any(k in low for k in ("ticket", "zgłoszenie", "incydent", "create ticket")):
             title = self._extract_ticket_title(query)
             body = self._extract_ticket_body(query)
             steps.append(
-                PlanStep(  # type: ignore[name-defined]
+                PlanStep(
                     name="create_ticket",
                     arguments={
                         "title": title or query[:80],
@@ -237,22 +218,21 @@ class SupportAgent(BaseAgent):
             ticket_id = self._extract_ticket_id(query)
             if ticket_id:
                 steps.append(
-                    PlanStep(  # type: ignore[name-defined]
+                    PlanStep(
                         name="get_ticket_status",
                         arguments={"ticket_id": ticket_id, "user_id": user_id},
                     )
                 )
 
-        # Fallback: search knowledge base
         if not steps:
             steps.append(
-                PlanStep(  # type: ignore[name-defined]
+                PlanStep(
                     name="search_support_kb",
                     arguments={"query": query, "user_id": user_id},
                 )
             )
 
-        return Plan(steps=steps)  # type: ignore[name-defined]
+        return Plan(steps=steps)
 
     @staticmethod
     def _extract_ticket_title(query: str) -> Optional[str]:
@@ -269,65 +249,10 @@ class SupportAgent(BaseAgent):
         m = re.search(r"(?:ticket|zgłoszenie)[\s#:]*([A-Z0-9]{4,20})", query, re.I)
         return m.group(1) if m else None
 
-    # ----------------------------------------------------------------------- #
-    # Overridden Run (Integrate Heuristics with BaseAgent Loop)
-    # ----------------------------------------------------------------------- #
-    async def run(
-        self, query: str, context: Optional[Dict[str, Any]] = None
-    ) -> Tuple[str, List[ToolCall]]:
-        """Execute support query using BaseAgent's loop with heuristic initial plan.
-
-        Args:
-            query: User input (e.g., "Problem z VPN").
-            context: JWT claims + metadata.
-
-        Returns:
-            (response, tool_calls)
-        """
-        claims = context.get("claims", {}) if context else {}
-        user_id = claims.get("user_id", "unknown")
-
-        with self.tracer.start_as_current_span("support.run") as span:
-            span.set_attribute("query", query[:100])
-            span.set_attribute("user_id", user_id)
-
-            # 1. OPA Governance for overall query
-            try:
-                await _authorize(
-                    opa_policy,
-                    "support.query",
-                    claims,
-                    {"query": query, "user_id": user_id},
-                )
-            except Exception as e:
-                span.record_exception(e)
-                return f"Access denied: {str(e)}", []
-
-            # Generate initial heuristic plan and pass to base run
-            try:
-                initial_plan = await self._heuristic_plan(query, claims)
-            except Exception as e:
-                logger.error(f"Initial planning failed: {e}")
-                span.record_exception(e)
-                return "Planning error occurred.", []
-
-            # Temporarily set planner's initial plan (assuming planner has a way; else override)
-            # For production, assume base.run uses self.planner.make_plan; here we mock it with heuristic
-            # To integrate: Override make_plan in planner or pass initial_plan
-            # For simplicity, call super.run but with pre-generated plan (base.run generates it; so modify base or here)
-            # Solution: Call base.run, but since base uses self.planner.make_plan, ensure planner uses heuristics for support
-            # Assuming KeywordPlanner can be configured per agent; else, proceed with base.run as-is for advanced, or custom loop
-
-            # Use base.run for full loop
-            return await super().run(query, context or {})
-
-    # ----------------------------------------------------------------------- #
-    # Response Composition (Called in Finalize if Needed)
-    # ----------------------------------------------------------------------- #
     def _compose_response(
         self, query: str, invoked_tools: List[ToolCall], tool_results: List[str], contextual_info: List[str]
     ) -> str:
-        """Build user-facing response from execution results (can be called in planner.finalize)."""
+        """Build user-facing response from execution results."""
         if not invoked_tools:
             return (
                 "Nie znalazłem dokładnej akcji dla Twojego zapytania supportowego. "
@@ -352,3 +277,98 @@ class SupportAgent(BaseAgent):
                 lines.append(f"  - {preview}...")
 
         return "\n".join(lines)
+
+    async def run(
+        self, query: str, context: Optional[Dict[str, Any]] = None
+    ) -> Tuple[str, List[ToolCall]]:
+        """Executes the support agent workflow with specialized planning and finalization."""
+        context = context or {}
+        claims = context.get("claims", {})
+        user_id = claims.get("user_id", "unknown")
+
+        with self.tracer.start_as_current_span("support.run") as span:
+            span.set_attribute("query", query[:100])
+            span.set_attribute("user_id", user_id)
+
+            try:
+                await _authorize(
+                    opa_policy, "support.query", claims, {"query": query, "user_id": user_id}
+                )
+            except Exception as e:
+                span.record_exception(e)
+                return f"Access denied: {str(e)}", []
+
+            try:
+                initial_plan = await self._heuristic_plan(query, claims)
+            except Exception as e:
+                logger.error(f"Heuristic planning failed: {e}")
+                span.record_exception(e)
+                return "An error occurred during planning.", []
+
+            intent_graph = nx.DiGraph()
+            for i, step in enumerate(initial_plan.steps):
+                intent_graph.add_node(i, step=step)
+                if i > 0:
+                    intent_graph.add_edge(i - 1, i)
+
+            tool_results: List[str] = []
+            invoked_tools: List[ToolCall] = []
+            reflection_count = 0
+
+            queue = list(intent_graph.nodes)
+            idx = 0
+            while idx < len(queue):
+                node = queue[idx]
+
+                if len(intent_graph.nodes) > MAX_GRAPH_NODES:
+                    raise RuntimeError("Graph size exceeded max nodes")
+                if nx.has_cycles(intent_graph):
+                    raise RuntimeError("Cycle detected in Intent Graph")
+
+                step = intent_graph.nodes[node]["step"]
+                tool_call = ToolCall(name=step.name, arguments=step.arguments)
+
+                try:
+                    await _authorize(self.opa_policy, "tools.invoke", claims, {"action": step.name})
+                except Exception as e:
+                    span.record_exception(e)
+                    tool_results.append(f"Authorization error: {str(e)}")
+                    invoked_tools.append(tool_call)
+                    idx += 1
+                    continue
+
+                try:
+                    result = await asyncio.wait_for(
+                        self.tools.execute(step.name, claims=claims, **step.arguments),
+                        timeout=TOOL_TIMEOUT_SEC,
+                    )
+                except asyncio.TimeoutError:
+                    result = "Timeout during execution"
+                except Exception as e:
+                    result = f"Error: {str(e)}"
+
+                tool_results.append(str(result))
+                invoked_tools.append(tool_call)
+
+                score = await self._reflect(result, query)
+                reflection_count += 1
+                span.set_attribute(f"step_{node}_score", score)
+
+                if score < REFLECTION_THRESHOLD and reflection_count < MAX_REFLECTIONS:
+                    span.add_event("Replanning due to low score")
+                    new_plan = await self.planner.replan(query, tool_results)
+                    if new_plan and new_plan.steps:
+                        new_start = len(intent_graph.nodes)
+                        for j, new_step in enumerate(new_plan.steps):
+                            new_node = new_start + j
+                            intent_graph.add_node(new_node, step=new_step)
+                            intent_graph.add_edge(node, new_node)
+                            queue.append(new_node)
+                idx += 1
+
+            contextual_info = await self._get_contextual_info(query, invoked_tools)
+            final_response = self._compose_response(
+                query, invoked_tools, tool_results, contextual_info
+            )
+            await self.memory.store_dialogue(self.agent_name, query, final_response, context)
+            return final_response, invoked_tools

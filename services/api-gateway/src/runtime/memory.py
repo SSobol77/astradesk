@@ -1,6 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
-# services/api-gateway/src/runtime/memory.py
-"""Memory & audit layer for AstraDesk agents.
+"""File: services/api-gateway/src/runtime/memory.py
+
+Project: astradesk
+Pakage: api-gateway
+
+Author: Siergej Sobolewski
+Since: 2025-10-29
+
+Memory & audit layer for AstraDesk agents.
 
 Provides async abstraction over:
   - PostgreSQL 18+ (durable dialogue/audit logs)
@@ -10,8 +17,6 @@ Provides async abstraction over:
 Separates critical persistence (Postgres) from non-blocking telemetry (Redis/NATS)
 to protect request latency.
 
-Author: Siergej Sobolewski
-Since: 2025-10-07
 """
 
 from __future__ import annotations
@@ -23,7 +28,7 @@ from typing import Any, Dict, List, Optional
 import asyncpg
 import redis.asyncio as redis
 
-from runtime.events import events
+from core.src.astradesk_core.utils.events import events
 
 logger = logging.getLogger(__name__)
 

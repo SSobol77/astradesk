@@ -1,14 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 """File: services/api-gateway/src/model_gateway/providers/openai_provider.py
 
+Project: astradesk
+Pakage: api-gateway
+
+Author: Siergej Sobolewski
+Since: 2025-10-29
+
 OpenAI Chat Completions LLM provider (async) implementing the `LLMProvider` interface.
 
 Uses `httpx` for non-blocking calls, supports configurable base URL (OpenAI or Azure-compatible proxy),
 and returns normalized chat outputs based on `LLMMessage` + `ChatParams`.
-
-Attributes:
-  Author: Siergej Sobolewski
-  Since: 2025-10-07
 
 Environment Variables:
   OPENAI_API_KEY: required API key.
@@ -27,6 +29,7 @@ Notes (PL):
   - Zaawansowane mapowanie błędów HTTP na wyjątki domenowe
     (np. 429 -> ProviderOverloaded, 5xx -> ProviderServerError).
   - Bezpieczna i wydajna obsługa połączeń i konfiguracji.
+
 """
 
 from __future__ import annotations

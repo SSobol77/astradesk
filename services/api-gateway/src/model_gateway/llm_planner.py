@@ -1,9 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
-# services/api-gateway/src/model_gateway/llm_planner.py
-"""LLM-driven planner that generates structured execution plans and user summaries.
-Integrates guardrails, OPA, OTel tracing, PII redaction, and self-reflection. Async-native.
+"""File: services/api-gateway/src/model_gateway/llm_planner.py
+
+Project: astradesk
+Pakage: api-gateway
+
 Author: Siergej Sobolewski
-Since: 2025-10-25
+Since: 2025-10-29
+
+LLM-driven planner that generates structured execution plans and user summaries.
+Integrates guardrails, OPA, OTel tracing, PII redaction, and self-reflection. Async-native.
+
 """
 
 from __future__ import annotations

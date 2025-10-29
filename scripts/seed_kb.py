@@ -51,7 +51,7 @@ PAYLOAD = [
 CREATE_SQL = """
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS vector;
-CREATE TABLE IF NOT EXISTS kb_docs (
+CREATE TABLE IF NOT EXISTS docs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   source TEXT NOT NULL,
   chunk TEXT NOT NULL,
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS kb_docs (
 """
 
 INSERT_SQL = """
-INSERT INTO kb_docs(source, chunk, embedding)
+INSERT INTO docs(source, chunk, embedding)
 VALUES ($1, $2, $3::vector)
 """
 
@@ -78,7 +78,7 @@ async def main():
         for (source, chunk), row in zip(PAYLOAD, emb):
             vec_lit = to_vec_literal(row)
             await con.execute(INSERT_SQL, source, chunk, vec_lit)
-        print(f"Inserted {len(PAYLOAD)} rows into kb_docs.")
+        print(f"Inserted {len(PAYLOAD)} rows into docs.")
     finally:
         await con.close()
 

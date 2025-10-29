@@ -1,18 +1,24 @@
 # SPDX-License-Identifier: Apache-2.0
-# services/api-gateway/src/model_gateway/base.py
-"""Core contracts, types, and helpers for the Model Gateway layer.
+"""File: services/api-gateway/src/model_gateway/base.py
+
+Project: astradesk
+Pakage: api-gateway
+
+Author: Siergej Sobolewski
+Since: 2025-10-29
+
+Core contracts, types, and helpers for the Model Gateway layer.
 Provides a stable, provider-agnostic interface for chat models (LLMs), a shared error taxonomy,
 message/parameter schemas, streaming primitives, and adapters for common wire formats (e.g., OpenAI-/Anthropic-style messages).
 Integrates self-reflection hook, PyTorch for token estimation, OPA optional governance, and OTel tracing.
-Author: Siergej Sobolewski
-Since: 2025-10-25.
+
 """  # noqa: D205
 
 from __future__ import annotations
 
 import logging
 from typing import Any, Dict, List, Optional, Protocol, Sequence, Tuple, AsyncIterator
-from abc import ABC
+from abc import ABC, abstractmethod
 
 import torch  # PyTorch 2.9 for custom tokenizers/estimations
 from opentelemetry import trace  # AstraOps/OTel

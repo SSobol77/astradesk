@@ -1,6 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """File: services/api-gateway/src/agents/base.py
 
+Project: astradesk
+Pakage: api-gateway
+
+Author: Siergej Sobolewski
+Since: 2025-10-29
+
 Abstract base class (ABC) and lifecycle contract for all agents.
 
 Encapsulates the end-to-end execution loop (plan → act → reflect → replan) while
@@ -15,8 +21,6 @@ Features for Production:
 - Error retries in planning and execution
 - OTel spans with detailed attributes and events
 
-Author: Siergej Sobolewski
-Since: 2025-10-25
 """  # noqa: D205
 
 from __future__ import annotations

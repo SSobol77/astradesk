@@ -1,15 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 """File: services/api-gateway/src/model_gateway/providers/vllm_provider.py
 
+Project: astradesk
+Pakage: api-gateway
+
+Author: Siergej Sobolewski
+Since: 2025-10-29
+
 vLLM server LLM provider (async) implementing the `LLMProvider` interface.
 
 Talks to an OpenAI-compatible endpoint exposed by vLLM and returns normalized
 chat outputs based on `LLMMessage` + `ChatParams`. Uses a shared `httpx`
 AsyncClient for non-blocking I/O.
-
-Attributes:
-  Author: Siergej Sobolewski
-  Since: 2025-10-07
 
 Environment Variables:
   VLLM_BASE_URL: base URL of the vLLM server (e.g., "http://vllm:8000/v1").

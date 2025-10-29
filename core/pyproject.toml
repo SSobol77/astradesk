@@ -6,7 +6,7 @@ name = "astradesk-core"
 version = "0.3.0"
 description = "Core shared utilities, exceptions, and base models for the AstraDesk Framework."
 authors = [{ name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com" }]
-license = "Apache-2.0"  # Исправлено: строка вместо таблицы
+license = "Apache-2.0"
 requires-python = ">=3.14"
 
 dependencies = [
@@ -20,11 +20,9 @@ dev = [
     "pytest-asyncio>=0.23",
 ]
 
-# Если в core есть несколько пакетов в корне (flat-layout), то добавьте:
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["*"]  # или конкретные имена пакетов, если нужно
-
-# Если используется src-layout, то лучше указать:
 # [tool.setuptools.packages.find]
-# where = ["src"]
+# where = ["."]
+# include = ["*"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

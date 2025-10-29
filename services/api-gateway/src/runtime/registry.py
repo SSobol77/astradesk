@@ -151,12 +151,15 @@ def _normalize_roles(value: Any) -> list[str]:
     return []
 
 
-def load_domain_packs() -> list[tuple[str, Any]]:
+def load_domain_packs(registry: "ToolRegistry") -> list[tuple[str, Any]]:
     """Ładuje i rejestruje Domain Packs poprzez entry points (group='astradesk.pack').
 
     Zabezpieczenia:
     - Zgodność z różnymi wersjami API importlib.metadata.entry_points.
     - Błąd pojedynczego packa nie wstrzymuje startu systemu (logujemy i lecimy dalej).
+
+    Args:
+        registry: The ToolRegistry instance to register tools with.
 
     Returns:
         list[tuple[str, Any]]: lista (nazwa_entry_pointu, obiekt_packa)
@@ -172,10 +175,10 @@ def load_domain_packs() -> list[tuple[str, Any]]:
     loaded: list[tuple[str, Any]] = []
     for ep in eps:
         try:
-            factory = ep.load() # type: ignore
+            factory = ep.load()  # type: ignore
             pack = factory()  # preferowana fabryka: klasa/closure zwracająca obiekt packa
             # Konwencja: pack.register() rejestruje agentów/tools/flows w Intent Graph/registry
-            pack.register()
+            pack.register(registry)
             loaded.append((getattr(ep, "name", "<unknown>"), pack))
             _logger.info("Loaded domain pack '%s'", getattr(ep, "name", "<unknown>"))
         except Exception as exc:  # nie blokuj całego systemu przez pojedynczy pack

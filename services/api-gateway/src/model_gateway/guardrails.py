@@ -1,9 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
-# services/api-gateway/src/model_gateway/guardrails.py
-"""Core guardrails for input validation, plan schema enforcement, and output sanitization.
-Integrates OPA governance, OTel tracing, self-reflection, and PII redaction. Async-native.
+"""File: services/api-gateway/src/model_gateway/guardrails.py
+
+Project: astradesk
+Pakage: api-gateway
+
 Author: Siergej Sobolewski
-Since: 2025-10-25
+Since: 2025-10-29
+
+Core guardrails for input validation, plan schema enforcement, and output sanitization.
+Integrates OPA governance, OTel tracing, self-reflection, and PII redaction. Async-native.
+
 """
 
 from __future__ import annotations

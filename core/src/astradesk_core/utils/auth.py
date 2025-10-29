@@ -1,14 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 """File: core/src/astradesk_core/utils/auth.py
-Project: AstraDesk Framework — API Gateway
+
+Project: astradesk
+Package: astradesk_core
+
+Author: Siergej Sobolewski
+Since: 2025-10-29
+
 Description:
     OIDC/JWT verification utilities for the API layer. Fetches and short-term
     caches JWKS from the configured Identity Provider (IdP) and validates token
     signature and standard claims (issuer, audience, exp/nbf/iat) with clock
     skew tolerance. Exposes a single, reusable configuration object.
-
-Author: Siergej Sobolewski
-Since: 2025-10-07
 
 Overview
 --------

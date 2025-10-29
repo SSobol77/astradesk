@@ -1,14 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 """File: services/api-gateway/src/model_gateway/providers/bedrock_provider.py
 
+Project: astradesk
+Pakage: api-gateway
+
+Author: Siergej Sobolewski
+Since: 2025-10-29
+
 AWS Bedrock Runtime LLM provider (async) implementing the `LLMProvider` interface.
 
 Integrates Bedrock-hosted models (e.g., Anthropic Claude, Meta Llama) with non-blocking I/O via `aioboto3`,
 providing consistent chat semantics, robust error mapping, and configurable timeouts/regions.
-
-Attributes:
-  Author: Siergej Sobolewski
-  Since: 2025-10-07
 
 Environment Variables:
   BEDROCK_MODEL_ID: e.g. "anthropic.claude-3-5-sonnet-20240620-v1:0"
@@ -37,6 +39,7 @@ Notes (PL):
     co umożliwia inteligentne zarządzanie błędami i strategiami retry.
   - Bezpieczeństwo i wydajność: Dba o prawidłowe zarządzanie zasobami
     (klient AWS) i konfigurację (timeouty, region).
+
 """
 
 from __future__ import annotations

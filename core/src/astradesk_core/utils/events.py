@@ -1,5 +1,14 @@
-"""
+# SPDX-License-Identifier: Apache-2.0
+"""File: core/src/astradesk_core/utils/events.py
+
+Project: astradesk
+Package: astradesk_core
+
+Author: Siergej Sobolewski
+Since: 2025-10-29
+
 Asynchronous NATS publisher stub tailored for unit testing.
+
 """
 
 from __future__ import annotations
