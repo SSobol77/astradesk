@@ -20,7 +20,7 @@ import re
 from typing import Any, Dict, List, Optional
 
 from opentelemetry import trace
-from opa_python_client import OPAClient
+from opa_client.opa import OpaClient
 from pydantic import BaseModel, ValidationError, Field
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ def redact_sensitive(text: str) -> str:
 
 async def is_safe_input(
     text: str,
-    opa_client: Optional[OPAClient] = None,
+    opa_client: Optional[OpaClient] = None,
 ) -> bool:
     """Checks if input is safe. Async for policy checks."""
     with tracer.start_as_current_span("guardrails.is_safe_input") as span:
@@ -89,7 +89,7 @@ async def is_safe_input(
 
 async def validate_plan_json(
     json_string: str,
-    opa_client: Optional[OPAClient] = None,
+    opa_client: Optional[OpaClient] = None,
 ) -> PlanModel:
     """Validates and parses LLM plan JSON."""
     with tracer.start_as_current_span("guardrails.validate_plan_json"):

@@ -102,8 +102,13 @@ export default function AgentsClient({ agents }: { agents: Agent[] }) {
           <FormField label="Status">
             <Input defaultValue={selectedAgent?.status} />
           </FormField>
-          <FormField label="Description">
-            <Textarea defaultValue={selectedAgent?.description} rows={3} />
+
+        </Form>
+      </Modal>
+    </div>
+  );
+}
+tarea defaultValue={selectedAgent?.description} rows={3} />
           </FormField>
         </Form>
       </Modal>

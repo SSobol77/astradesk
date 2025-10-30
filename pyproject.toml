@@ -14,12 +14,16 @@ license = { text = "Apache-2.0" }
 # Root paczka jest meta-koordynatorem monorepo – tu zwykle nie trzymamy zależności runtime.
 dependencies = [
     "astradesk-core",
-    "astradesk-api-gateway", 
+    "astradesk-api-gateway",
     "astradesk-auditor",
     "astradesk-domain-ops",
     "astradesk-domain-finance",
     "astradesk-domain-supply",
     "astradesk-domain-support",
+    "datamodel-code-generator>=0.35.0",
+    "rank-bm25>=0.2.2",
+    "regex>=2025.10.23",
+    "python-dotenv>=1.2.1",
 ]
 
 [project.optional-dependencies]
@@ -60,34 +64,13 @@ ingestion = [
 prerelease = "allow"
 #extra-index-url = ["https://download.pytorch.org/whl/cu121"]
 
-#------
-#[tool.uv.workspace]
-#members = [
-#  "core",
-#  "services/api-gateway",
-#  "packages/domain-support",
-#  "packages/domain-finance",
-#  "packages/domain-supply",
-#  "packages/domain-ops",
-#]
-
-# kluczowe mapowania nazw -> ścieżki, aby w subpakietach używać czystych PEP 508 nazw
-#[tool.uv.sources]
-#astradesk-core = { workspace = true }
-#astradesk-domain-ops = { workspace = true }
-#astradesk-domain-finance = { workspace = true }
-#astradesk-domain-supply = { workspace = true }
-#astradesk-domain-support  = { workspace = true }
-
-# (opcjonalnie kolejne lokalne paczki)
-# astradesk-utils = {workspace = true }
-#------
 
 [tool.uv.workspace]
 members = [
   "core",
   "services/api-gateway",
   "services/auditor", 
+  "services/admin_api",
   "packages/domain-support",
   "packages/domain-finance",
   "packages/domain-supply",
@@ -102,7 +85,7 @@ astradesk-domain-ops = { workspace = true }
 astradesk-domain-finance = { workspace = true }
 astradesk-domain-supply = { workspace = true }
 astradesk-domain-support = { workspace = true }
-
+astradesk-admin-api = { workspace = true }
 
 [tool.ruff]
 line-length = 100

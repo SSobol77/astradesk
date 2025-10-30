@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Optional
 import asyncpg
 import redis.asyncio as redis
 
-from core.src.astradesk_core.utils.events import events
+from astradesk_core.utils.events import events
 
 logger = logging.getLogger(__name__)
 

@@ -21,7 +21,7 @@ mTLS for Istio:
   - CA_FILE = "ROOT_CA"
 
 Author: Siergej Sobolewski
-Since: 2025-10-25
+Since: 2025-10-30
 """
 
 from __future__ import annotations
@@ -36,9 +36,9 @@ from httpx import ConnectError, ConnectTimeout, ReadTimeout, PoolTimeout, HTTPSt
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential, before_sleep_log
 
 from opentelemetry import trace
-from opa_python_client import OPAClient
+from opa_client.opa import OpaClient
 
-from services.api_gateway.src.model_gateway.base import ProblemDetail
+from model_gateway.guardrails import ProblemDetail
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -143,7 +143,7 @@ async def create_ticket(
     description: str,
     priority: str = "medium",
     claims: Optional[Dict[str, Any]] = None,
-    opa_client: Optional[OPAClient] = None,
+    opa_client: Optional[OpaClient] = None,
     request_id: Optional[str] = None,
 ) -> str:
     """Creates a ticket via ticket-adapter with full governance and fallback."""

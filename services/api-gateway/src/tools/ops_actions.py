@@ -14,26 +14,26 @@ Env:
     - REQUIRED_ROLE_RESTART
 
 Author: Siergej Sobolewski
-Since: 2025-10-25
+Since: 2025-10-30
 
 """
 
 from __future__ import annotations
 
 import asyncio
-import datetime
 import logging
 import os
+from datetime import datetime, timezone
 from typing import Final, Optional
 
 from kubernetes_asyncio import client, config
 from kubernetes_asyncio.client.exceptions import ApiException
 
 from opentelemetry import trace
-from opa_python_client import OPAClient
+from opa_client.opa import OpaClient
 
 from runtime.policy import AuthorizationError, require_role
-from services.api_gateway.src.model_gateway.base import ProblemDetail
+from model_gateway.guardrails import ProblemDetail
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -75,7 +75,7 @@ async def restart_service(
     service: str,
     *,
     claims: Optional[dict] = None,
-    opa_client: Optional[OPAClient] = None,
+    opa_client: Optional[OpaClient] = None,
 ) -> str:
     """Restarts a Kubernetes Deployment using rollout restart with full governance."""
     with tracer.start_as_current_span("tool.ops.restart_service") as span:
@@ -115,7 +115,7 @@ async def restart_service(
                 "template": {
                     "metadata": {
                         "annotations": {
-                            "kubectl.kubernetes.io/restartedAt": datetime.datetime.utcnow().isoformat() + "Z"
+                            "kubectl.kubernetes.io/restartedAt": datetime.now(timezone.utc).isoformat(timespec='seconds') + "Z"
                         }
                     }
                 }

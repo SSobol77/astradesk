@@ -1,29 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """File: services/api-gateway/src/agents/support.py
 
-Project: astradesk
-Pakage: api-gateway
-
-Author: Siergej Sobolewski
-Since: 2025-10-29
-
-Production-grade Support Agent for AstraDesk.
-
-Handles technical support queries, ticket management, and knowledge base lookup.
-
-Attributes:
-  Features:
-    - Hybrid RAG (PostgreSQL 18+ PGVector + Redis BM25)
-    - LLM-based self-reflection on snippet relevance
-    - OPA governance (RBAC/ABAC)
-    - OTel tracing
-    - Async-native, hardened validation
-
-"""
-
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/api-gateway/src/agents/support.py
-
 Production-grade Support Agent for AstraDesk.
 
 Handles technical support queries, ticket management, and knowledge base lookup.
@@ -37,7 +14,7 @@ Attributes:
     - Async-native, hardened validation
 
 Author: Siergej Sobolewski
-Since: 2025-10-25
+Since: 2025-10-30
 
 """
 
@@ -48,18 +25,17 @@ import inspect
 import json
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Tuple
 
 import networkx as nx
 from opentelemetry import trace
 
-from runtime import KeywordPlanner, LLMPlanner, Memory, ToolRegistry
+from runtime import RAG, KeywordPlanner, Memory, ToolRegistry
+from model_gateway.llm_planner import LLMPlanner
 from runtime.models import ToolCall
 from runtime.policy import policy as opa_policy
 from runtime.rag import RAG, RAGSnippet
-
-if TYPE_CHECKING:
-    from .base import BaseAgent, Plan, PlanStep
+from .base import BaseAgent, Plan, PlanStep 
 
 logger = logging.getLogger(__name__)
 
@@ -195,7 +171,6 @@ class SupportAgent(BaseAgent):
 
     async def _heuristic_plan(self, query: str, claims: Dict[str, Any]) -> Plan:
         """Generate initial plan based on heuristics for support queries."""
-        from .base import Plan, PlanStep
         low = query.lower()
         user_id = claims.get("user_id", "unknown")
 
@@ -251,7 +226,7 @@ class SupportAgent(BaseAgent):
 
     def _compose_response(
         self, query: str, invoked_tools: List[ToolCall], tool_results: List[str], contextual_info: List[str]
-    ) -> str:
+    ) -> str:  # DODANO: query jako pierwszy argument
         """Build user-facing response from execution results."""
         if not invoked_tools:
             return (
@@ -291,11 +266,12 @@ class SupportAgent(BaseAgent):
             span.set_attribute("user_id", user_id)
 
             try:
-                await _authorize(
-                    opa_policy, "support.query", claims, {"query": query, "user_id": user_id}
-                )
+                await _authorize(opa_policy, "tools.invoke", claims, {"action": step.name})  # POPRAWIONE: self.opa_policy -> opa_policy
             except Exception as e:
                 span.record_exception(e)
+                tool_results.append(f"Authorization error: {str(e)}")
+                invoked_tools.append(tool_call)
+                idx += 1
                 return f"Access denied: {str(e)}", []
 
             try:
@@ -329,7 +305,7 @@ class SupportAgent(BaseAgent):
                 tool_call = ToolCall(name=step.name, arguments=step.arguments)
 
                 try:
-                    await _authorize(self.opa_policy, "tools.invoke", claims, {"action": step.name})
+                    await _authorize(opa_policy, "tools.invoke", claims, {"action": step.name})
                 except Exception as e:
                     span.record_exception(e)
                     tool_results.append(f"Authorization error: {str(e)}")
@@ -368,7 +344,7 @@ class SupportAgent(BaseAgent):
 
             contextual_info = await self._get_contextual_info(query, invoked_tools)
             final_response = self._compose_response(
-                query, invoked_tools, tool_results, contextual_info
-            )
+                            query, invoked_tools, tool_results, contextual_info
+                        )
             await self.memory.store_dialogue(self.agent_name, query, final_response, context)
             return final_response, invoked_tools

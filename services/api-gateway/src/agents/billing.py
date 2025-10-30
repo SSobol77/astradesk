@@ -5,7 +5,7 @@ Project: astradesk
 Pakage: api-gateway
 
 Author: Siergej Sobolewski
-Since: 2025-10-29
+Since: 2025-10-30
 
 Production-grade Billing Agent for AstraDesk.
 
@@ -33,13 +33,12 @@ from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 import networkx as nx
 from opentelemetry import trace
 
-from runtime import KeywordPlanner, LLMPlanner, Memory, ToolRegistry
+from runtime import RAG, KeywordPlanner, Memory, ToolRegistry
+from model_gateway.llm_planner import LLMPlanner
 from runtime.models import ToolCall
 from runtime.policy import policy as opa_policy
 from runtime.rag import RAG, RAGSnippet
-
-if TYPE_CHECKING:
-    from .base import BaseAgent, Plan, PlanStep
+from .base import BaseAgent, Plan, PlanStep
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +103,7 @@ class BillingAgent(BaseAgent):
             agent_name="billing",
         )
         self.tracer = trace.get_tracer(__name__)
+        self.opa_policy = opa_policy 
 
     async def _get_contextual_info(
         self, query: str, invoked_tools: List[ToolCall]
@@ -211,8 +211,16 @@ class BillingAgent(BaseAgent):
 
     @staticmethod
     def _extract_invoice_id(query: str) -> Optional[str]:
-        m = re.search(r"(?:faktur[ęa]|invoice)[\s#:]*([A-Z0-9]{4,20})", query, re.I)
-        return m.group(1) if m else None
+        patterns = [
+            r"(?:faktur[ęa]|invoice)[\s#:]*([A-Z0-9-]{4,20})",
+            r"INV[-_]?\d{4,}",
+            r"FV[/\s]*(\d{4,})",
+        ]
+        for pattern in patterns:
+            m = re.search(pattern, query, re.I)
+            if m:
+                return m.group(1)
+        return None
 
     @staticmethod
     def _extract_period(query: str) -> Optional[str]:
@@ -228,7 +236,7 @@ class BillingAgent(BaseAgent):
         return None
 
     def _compose_response(
-        self, query: str, invoked_tools: List[ToolCall], tool_results: List[str], contextual_info: List[str]
+        self, invoked_tools: List[ToolCall], tool_results: List[str], contextual_info: List[str]
     ) -> str:
         """Build user-facing response from execution results."""
         if not invoked_tools:
@@ -265,8 +273,9 @@ class BillingAgent(BaseAgent):
         tenant = claims.get("tenant", "unknown")
 
         with self.tracer.start_as_current_span("billing.run") as span:
-            span.set_attribute("query", query[:100])
+            span.set_attribute("query_length", len(query))
             span.set_attribute("tenant", tenant)
+            span.set_attribute("reflection_count", reflection_count)
 
             try:
                 await _authorize(
@@ -346,7 +355,7 @@ class BillingAgent(BaseAgent):
 
             contextual_info = await self._get_contextual_info(query, invoked_tools)
             final_response = self._compose_response(
-                query, invoked_tools, tool_results, contextual_info
+                invoked_tools, tool_results, contextual_info
             )
             await self.memory.store_dialogue(self.agent_name, query, final_response, context)
             return final_response, invoked_tools

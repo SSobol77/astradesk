@@ -18,9 +18,9 @@ import logging
 from typing import List, Optional
 
 from opentelemetry import trace
-from opa_python_client import OPAClient
+from opa_client.opa import OpaClient
 
-from .router import provider_router
+from model_gateway.router import provider_router
 from .base import ChatParams, LLMMessage
 from .guardrails import (
     PlanModel,
@@ -49,7 +49,7 @@ SYSTEM_PROMPT_SUMMARIZE = (
 class LLMPlanner:
     """LLM planner with guardrails, governance, and observability."""
 
-    def __init__(self, opa_client: Optional[OPAClient] = None) -> None:
+    def __init__(self, opa_client: Optional[OpaClient] = None) -> None:
         """Initializes with optional OPA client."""
         self.opa_client = opa_client
         self.tracer = trace.get_tracer(__name__)

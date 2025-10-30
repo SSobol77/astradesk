@@ -14,7 +14,7 @@ Env:
     - WINDOW_RE
 
 Author: Siergej Sobolewski
-Since: 2025-10-25
+Since: 2025-10-30
 
 """
 
@@ -28,9 +28,9 @@ from typing import Final, Optional
 
 import httpx
 from opentelemetry import trace
-from opa_python_client import OPAClient
+from opa_client.opa import OpaClient
 
-from services.api_gateway.src.model_gateway.base import ProblemDetail
+from model_gateway.guardrails import ProblemDetail
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -91,7 +91,7 @@ async def _prom_query(
 async def metrics(
     service: str,
     window: str = "15m",
-    opa_client: Optional[OPAClient] = None,
+    opa_client: Optional[OpaClient] = None,
 ) -> str:
     """Fetches service metrics from Prometheus with full governance and observability."""
     with tracer.start_as_current_span("tool.metrics") as span:
@@ -147,7 +147,7 @@ async def metrics(
         except httpx.TimeoutException:
             raise MetricsError("Timeout connecting to Prometheus")
         except Exception as e:
-            logger.exception("Critical metrics error")
+            logger.exception(f"Critical metrics error :{e}")
             raise MetricsError("Unexpected error fetching metrics")
 
 

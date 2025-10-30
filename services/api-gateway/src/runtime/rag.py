@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-# services/api-gateway/src/runtime/rag.py
-"""
+"""File: services/api-gateway/src/runtime/rag.py
+
 Retrieval-Augmented Generation (RAG) system for AstraDesk.
 
 Provides hybrid search (keyword BM25 via Redis + semantic embeddings via PGVector)
@@ -28,11 +28,12 @@ from typing import Any, Dict, List, Optional, Protocol
 import asyncpg  # Async PostgreSQL client for PGVector
 import redis.asyncio as redis  # Async Redis for BM25 corpus storage
 import torch  # PyTorch 2.9 for embeddings and torch.compile
-from opa_python_client import OPAClient  # OPA for governance
+from opa_client.opa import OpaClient  # OPA for governance
 from opentelemetry import trace  # AstraOps/OTel tracing
 from pydantic import BaseModel, ValidationError  # Pydantic v2.9+ for models
 from rank_bm25 import BM25Okapi  # For keyword search
 from sentence_transformers import SentenceTransformer  # Semantic embeddings
+
 
 logger = logging.getLogger(__name__)
 
@@ -58,19 +59,15 @@ class LLMPlannerProtocol(Protocol):
 class RAGConfig(BaseModel):
     """Configuration model for the RAG system."""
 
-    model_name: str = "all-MiniLM-L6-v2"  # Default embedding model
-    k: int = 5  # Top-k results
-    semantic_weight: float = 0.7  # Weight for semantic score in hybrid
-    keyword_weight: float = 0.3  # Weight for keyword score
-    reflection_threshold: float = 0.7  # Min score for snippet acceptance
-    use_fp16: bool = True  # Mixed precision for PyTorch perf
-    pg_dsn: str = os.getenv(
-        "PG_DSN", "postgresql://user:pass@localhost:5432/db"
-    )  # PGVector DSN
-    redis_url: str = os.getenv(
-        "REDIS_URL", "redis://localhost:6379/0"
-    )  # Redis URL
-    redis_key: str = "rag_corpus"  # Key for stored tokenized corpus
+    model_name: str = "all-MiniLM-L6-v2"
+    k: int = 5
+    semantic_weight: float = 0.7
+    keyword_weight: float = 0.3
+    reflection_threshold: float = 0.7
+    use_fp16: bool = True
+    pg_dsn: str = os.getenv("DATABASE_URL", "postgresql://user:pass@localhost:5432/db")
+    redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    redis_key: str = "rag_corpus"
 
     def model_post_init(self, __context: Any) -> None:
         """Validate config post-init."""
@@ -106,7 +103,7 @@ class RAG:
     def __init__(
         self,
         config: Optional[RAGConfig] = None,
-        opa_client: Optional[OPAClient] = None,
+        opa_client: Optional[OpaClient] = None,
         llm_planner: Optional[LLMPlannerProtocol] = None,
     ) -> None:
         """Initialize the RAG system (sync). Call `await self.ainit()` for async setup.
@@ -120,15 +117,20 @@ class RAG:
         self.opa_client = opa_client
         self.llm_planner = llm_planner
         self.tracer = trace.get_tracer(__name__)  # OTel tracer
+        self.embedding_cache = {}
 
         # PyTorch model setup
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = SentenceTransformer(self.config.model_name)
         if self.config.use_fp16 and self.device.type == "cuda":
             self.model.half()  # fp16 mixed precision on GPU
-        self.model = torch.compile(
-            self.model, mode="reduce-overhead", fullgraph=True
-        )  # PyTorch 2.9 compile
+
+        # This is Compiling PyTorch 2.9 - DISABLED for Python 3.14+ compatibility, 
+        # uncomment `https://github.com/pytorch/pytorch/issues/1568566` will be closed:
+        # self.model = torch.compile(
+        #     self.model, mode="reduce-overhead", fullgraph=True
+        # )  
+
         self.model.to(self.device)
         self.model.eval()  # Inference mode
 
@@ -147,15 +149,35 @@ class RAG:
     # Connection & Index Management
     # ----------------------------------------------------------------------- #
     async def _init_connections(self) -> None:
-        """Initialize async connections to PGVector and Redis."""
+        """Initialize async connections to PGVector and Redis Cloud."""
         try:
-            self.pg_pool = await asyncpg.create_pool(
-                self.config.pg_dsn, min_size=1, max_size=10
+            logger.info("🔄 Initializing database connections...")
+            
+            # ✅ Uproszczona konfiguracja - tak jak w teście
+            self.pg_pool = await asyncpg.create_pool(self.config.pg_dsn)
+            logger.info("✅ PostgreSQL pool created")
+            
+            # Test connection
+            async with self.pg_pool.acquire() as conn:
+                result = await conn.fetchval("SELECT 1")
+                logger.info(f"✅ PostgreSQL test query: {result}")
+            
+            # Redis
+            self.redis_client = redis.from_url(
+                self.config.redis_url,
+                decode_responses=True,
+                socket_connect_timeout=5
             )
-            self.redis_client = redis.from_url(self.config.redis_url)
+            await self.redis_client.ping()
+            logger.info("✅ Redis connection successful")
+            
         except Exception as e:
-            logger.error(f"Connection init failed: {e}")
-            raise RuntimeError("Failed to initialize connections") from e
+            logger.error(f"❌ Connection initialization failed: {e}")
+            # ✅ Dodaj więcej informacji diagnostycznych
+            logger.error(f"PostgreSQL DSN: {self.config.pg_dsn[:50]}...")
+            logger.error(f"Redis URL: {self.config.redis_url[:50]}...")
+            raise RuntimeError(f"Failed to initialize connections: {e}") from e
+
 
     async def _load_bm25_from_redis(self) -> None:
         """Load BM25 index from Redis if available."""
@@ -200,7 +222,9 @@ class RAG:
         Args:
             documents: List of document contents.
             sources: Optional list of sources (same length as documents).
+        
         """
+        
         if not sources:
             sources = ["unknown"] * len(documents)
         if len(documents) != len(sources):
@@ -210,15 +234,21 @@ class RAG:
             span.set_attribute("num_docs", len(documents))
 
             # BM25: Append to existing or build new
-            await self._build_bm25_index(self.keyword_index + documents)  # Append
+            await self._build_bm25_index(self.keyword_index + documents)
 
-            # PGVector: Embed and insert
+            # PGVector: Embed and insert with batch optimization
             if self.pg_pool:
                 try:
                     with torch.no_grad():
+                        # Batch processing dla lepszej wydajności
                         embeddings = self.model.encode(
-                            documents, convert_to_tensor=True, device=self.device
+                            documents, 
+                            convert_to_tensor=True, 
+                            device=self.device,
+                            batch_size=32,  # Optymalny batch size
+                            show_progress_bar=False
                         ).cpu().tolist()
+                        
                     async with self.pg_pool.acquire() as conn:
                         async with conn.transaction():
                             for doc, src, emb in zip(documents, sources, embeddings):
@@ -232,6 +262,8 @@ class RAG:
                                     src,
                                     emb,
                                 )
+                    logger.info(f"Ingested {len(documents)} documents to PGVector")
+                    
                 except Exception as e:
                     logger.error(f"PGVector ingest failed: {e}")
                     raise RuntimeError("Ingestion failed") from e
@@ -268,6 +300,21 @@ class RAG:
             PermissionError: If OPA denies the query.
             RuntimeError: On embedding or DB/Redis errors.
         """
+
+        # Cache dla embeddingów zapytania
+        cache_key = f"embedding:{hash(query)}"
+        if cache_key in self.embedding_cache:
+            query_embedding = self.embedding_cache[cache_key]
+        else:
+            with torch.no_grad():
+                query_embedding = self.model.encode(
+                    query, convert_to_tensor=True, device=self.device
+                ).cpu().tolist()
+            self.embedding_cache[cache_key] = query_embedding
+            # Limit cache size
+            if len(self.embedding_cache) > 1000:
+                self.embedding_cache.pop(next(iter(self.embedding_cache)))
+
         k = k or self.config.k
 
         with self.tracer.start_as_current_span("rag.retrieve") as span:

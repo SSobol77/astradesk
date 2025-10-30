@@ -63,7 +63,6 @@ from ..base import (
     ProviderServerError,
     ProviderTimeoutError,
     TokenLimitExceededError,
-    Usage,
 )
 
 logger = logging.getLogger(__name__)

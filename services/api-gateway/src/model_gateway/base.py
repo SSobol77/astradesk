@@ -22,7 +22,7 @@ from abc import ABC, abstractmethod
 
 import torch  # PyTorch 2.9 for custom tokenizers/estimations
 from opentelemetry import trace  # AstraOps/OTel
-from opa_python_client import OPAClient  # Optional governance
+from opa_client.opa import OpaClient 
 from pydantic import BaseModel  # Pydantic v2.9+ for schemas (OpenAPI v1.2.0 compliant)
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ class ModelGatewayError(Exception):
         provider: str,
         status_code: Optional[int] = None,
         details: Optional[Dict[str, Any]] = None,
-        opa_client: Optional[OPAClient] = None,
+        opa_client: Optional[OpaClient] = None,
     ) -> None:
         super().__init__(message)
         self.provider = provider
@@ -82,15 +82,40 @@ class ModelGatewayError(Exception):
             if not decision["result"]:
                 logger.warning(f"OPA flagged error: {message}")
 
-# Subclasses (examples)
+#------
+# W pliku services/api-gateway/src/model_gateway/base.py
+# Dodaj po istniejących klasach błędów:
+
+class ProviderOverloadedError(ModelGatewayError):
+    """Raised when provider is overloaded (rate limits, capacity)."""
+    
+    @classmethod
+    def from_rate_limit(cls, provider: str, retry_after: int = None) -> "ProviderOverloadedError":
+        detail = f"Provider {provider} is overloaded"
+        if retry_after:
+            detail += f", retry after {retry_after}s"
+        return cls(detail, provider=provider)
+
+class ProviderServerError(ModelGatewayError):
+    """Raised when provider returns server error (5xx)."""
+    
+    @classmethod
+    def from_status_code(cls, provider: str, status_code: int, response: str = "") -> "ProviderServerError":
+        return cls(
+            f"Provider {provider} returned server error {status_code}: {response}",
+            provider=provider,
+            status_code=status_code
+        )
+
+
 class ProviderTimeoutError(ModelGatewayError):
     @classmethod
     def from_httpx_timeout(cls, provider: str, timeout: float, endpoint: str, raw: Exception) -> "ProviderTimeoutError":
         return cls(f"Timeout after {timeout}s at {endpoint}", provider=provider)
 
-class TokenLimitExceeded(ModelGatewayError):
+class TokenLimitExceededError(ModelGatewayError):
     @classmethod
-    def from_token_count(cls, actual: int, max_allowed: int, provider: str) -> "TokenLimitExceeded":
+    def from_token_count(cls, actual: int, max_allowed: int, provider: str) -> "TokenLimitExceededError":
         return cls(f"Token limit exceeded: {actual} > {max_allowed}", provider=provider)
 
 class LLMProvider(Protocol):

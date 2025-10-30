@@ -21,9 +21,10 @@ import inspect
 from typing import Dict, Type, Optional
 
 from opentelemetry import trace
-from opa_python_client import OPAClient
+from opa_client.opa import OpaClient
 
-from .base import LLMProvider, ProblemDetail
+from model_gateway.base import LLMProvider
+from model_gateway.guardrails import ProblemDetail
 from .providers.bedrock_provider import BedrockProvider
 from .providers.openai_provider import OpenAIProvider
 from .providers.vllm_provider import VLLMProvider
@@ -50,7 +51,7 @@ class ProviderNotFoundError(Exception):
 class ProviderRouter:
     """Manages lifecycle of a single, shared LLM provider instance."""
 
-    def __init__(self, opa_client: Optional[OPAClient] = None) -> None:
+    def __init__(self, opa_client: Optional[OpaClient] = None) -> None:
         """Initializes router with optional OPA client."""
         self._providers: Dict[str, Type[LLMProvider]] = {}
         self._instance: Optional[LLMProvider] = None

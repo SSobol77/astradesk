@@ -16,7 +16,7 @@ Env:
     - CACHE_TTL_SECONDS
 
 Author: Siergej Sobolewski
-Since: 2025-10-25
+Since: 2025-10-30
 
 """
 
@@ -30,9 +30,9 @@ from typing import Any, Dict, Final, Literal, Tuple, Optional
 
 import httpx
 from opentelemetry import trace
-from opa_python_client import OPAClient
+from opa_client.opa import OpaClient
 
-from model_gateway.base import ProblemDetail
+from model_gateway.guardrails import ProblemDetail
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -71,7 +71,7 @@ class WeatherError(Exception):
 async def get_weather(
     city: str,
     unit: str = "metric",
-    opa_client: Optional[OPAClient] = None,
+    opa_client: Optional[OpaClient] = None,
 ) -> str:
     """Fetches current weather for a city with cache, governance, and observability."""
     with tracer.start_as_current_span("tool.weather.get_weather") as span:

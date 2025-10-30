@@ -1,6 +1,7 @@
 import { apiFetch } from '@/lib/api';
 import type {
   Agent,
+  AgentConfigRequest,
   AgentIoMessage,
   AgentMetrics,
   AuditEntry,
@@ -34,17 +35,18 @@ export const openApiClient = {
       }),
   },
   agents: {
-    list: () => apiFetch<Agent[]>({ path: '/agents', method: 'GET' }),
-    get: (id: string) => apiFetch<Agent>({ path: `/agents/${id}`, method: 'GET' }),
-    create: (payload: Agent) => apiFetch<Agent, Agent>({ path: '/agents', method: 'POST', body: payload }),
-    update: (id: string, payload: Agent) =>
-      apiFetch<Agent, Agent>({ path: `/agents/${id}`, method: 'PUT', body: payload }),
-    test: (id: string) => apiFetch<{ status: string }>({ path: `/agents/${id}:test`, method: 'POST' }),
-    clone: (id: string) => apiFetch<Agent>({ path: `/agents/${id}:clone`, method: 'POST' }),
-    promote: (id: string) => apiFetch<Agent>({ path: `/agents/${id}:promote`, method: 'POST' }),
+    list: () => apiFetch<Agent[]>({ path: '/api/admin/v1/agents', method: 'GET' }),
+    get: (id: string) => apiFetch<Agent>({ path: `/api/admin/v1/agents/${id}`, method: 'GET' }),
+    create: (payload: AgentConfigRequest) => apiFetch<Agent, AgentConfigRequest>({ path: '/api/admin/v1/agents', method: 'POST', body: payload }),
+    update: (id: string, payload: AgentConfigRequest) =>
+      apiFetch<Agent, AgentConfigRequest>({ path: `/api/admin/v1/agents/${id}`, method: 'PUT', body: payload }),
+    delete: (id: string) => apiFetch<void>({ path: `/api/admin/v1/agents/${id}`, method: 'DELETE' }),
+    test: (id: string) => apiFetch<{ status: string }>({ path: `/api/admin/v1/agents/${id}:test`, method: 'POST' }),
+    clone: (id: string) => apiFetch<Agent>({ path: `/api/admin/v1/agents/${id}:clone`, method: 'POST' }),
+    promote: (id: string) => apiFetch<Agent>({ path: `/api/admin/v1/agents/${id}:promote`, method: 'POST' }),
     metrics: (id: string, query?: { p95?: boolean; p99?: boolean }) =>
       apiFetch<AgentMetrics>({
-        path: `/agents/${id}/metrics`,
+        path: `/api/admin/v1/agents/${id}/metrics`,
         method: 'GET',
         searchParams: {
           p95: query?.p95,
@@ -53,7 +55,7 @@ export const openApiClient = {
       }),
     io: (id: string, tail = 10) =>
       apiFetch<AgentIoMessage[]>({
-        path: `/agents/${id}/io`,
+        path: `/api/admin/v1/agents/${id}/io`,
         method: 'GET',
         searchParams: { tail },
       }),
