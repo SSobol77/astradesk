@@ -1,0 +1,68 @@
+# services/admin_api/pyproject.toml
+[build-system]
+# Hatchling is the build backend
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "astradesk-admin-api"            # Project/distribution name (can have hyphens)
+version = "0.1.0"
+description = "AstraDesk Admin API (FastAPI) — Admin UI v1.0 backend aligned with Admin API v1.2.0."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "AstraDesk Team" }]
+
+# Runtime deps (trim/extend as needed)
+dependencies = [
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.30.0",
+  "pydantic[email]>=2.6.0",
+  "python-dotenv>=1.0.1",
+  # add DB / observability, etc. when needed:
+  # "asyncpg>=0.29.0",
+  # "opentelemetry-sdk>=1.27.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0",
+  "httpx>=0.27.0",
+  "ruff>=0.5.7",
+  "mypy>=1.11.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/SSobol77/astradesk"
+
+[project.scripts]
+# CLI entry; lets you run: uv run astradesk-admin serve
+astradesk-admin = "astradesk_admin.__main__:main"
+
+# ---------- Hatch build configuration ----------
+[tool.hatch.build.targets.wheel]
+# CRITICAL: explicitly include the package directory since project name != package import name
+packages = ["src/astradesk_admin"]
+
+[tool.hatch.build.targets.sdist]
+# Include sources and metadata in source dist
+include = [
+  "src/astradesk_admin",
+  "pyproject.toml",
+  "README.md",
+]
+
+[tool.hatch.metadata]
+# Allow PEP 440 direct refs if you ever point to local paths/VCS in deps
+allow-direct-references = true
+
+# ---------- Tooling (optional but recommended) ----------
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_ignores = true
+warn_redundant_casts = true

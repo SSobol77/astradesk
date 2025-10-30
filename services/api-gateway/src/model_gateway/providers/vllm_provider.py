@@ -40,7 +40,7 @@ import json
 import logging
 import os
 from collections.abc import AsyncIterator, Sequence
-from typing import Any, Dict, Optional
+from typing import Optional
 
 import httpx
 
@@ -54,7 +54,6 @@ from ..base import (
     ProviderServerError,
     ProviderTimeoutError,
     TokenLimitExceededError,
-    Usage,
     to_openai_messages,
 )
 
@@ -66,9 +65,6 @@ VLLM_MODEL = os.getenv("VLLM_MODEL")
 VLLM_API_KEY = os.getenv("VLLM_API_KEY")  # Optional for authenticated endpoints
 VLLM_TIMEOUT_SEC = float(os.getenv("VLLM_TIMEOUT_SEC", "60.0"))
 
-if not VLLM_MODEL:
-    raise ModelGatewayError("VLLM_MODEL environment variable is required", provider="vllm")
-
 
 class VLLMProvider(LLMProvider):
     """Async LLM provider for vLLM server with OpenAI-compatible API."""
@@ -76,6 +72,10 @@ class VLLMProvider(LLMProvider):
     __slots__ = ("_client", "_model")
 
     def __init__(self) -> None:
+        # Sprawdź, czy VLLM_MODEL jest ustawione
+        if not VLLM_MODEL:
+            raise ModelGatewayError("VLLM_MODEL environment variable is required", provider="vllm")
+
         headers = {}
         if VLLM_API_KEY:
             headers["Authorization"] = f"Bearer {VLLM_API_KEY}"

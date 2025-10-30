@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
-# services/api-gateway/src/runtime/models.py
-"""Centralized Pydantic v2 data models for AstraDesk API contracts and internal flows.
+"""File: services/api-gateway/src/runtime/models.py
+
+Centralized Pydantic v2 data models for AstraDesk API contracts and internal flows.
 
 Provides **hardened**, production-grade validation with:
 - Size limits (DoS protection)
@@ -14,7 +15,7 @@ Since: 2025-10-07
 
 from __future__ import annotations
 
-import re
+import regex as re
 from enum import Enum
 from typing import Any, Dict, List, Optional
 

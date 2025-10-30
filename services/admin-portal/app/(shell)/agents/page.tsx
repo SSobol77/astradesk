@@ -1,6 +1,6 @@
 import AgentsClient from './AgentsClient';
 import { openApiClient } from '@/openapi/openapi-client';
-import type { Agent } from '@/openapi/openapi-types';
+import type { Agent } from '@/api/types.gen';
 
 async function getAgents(): Promise<Agent[]> {
   try {

@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
-# services/api-gateway/src/runtime/planner.py
-"""Configurable, deterministic keyword-based planner for AstraDesk.
+"""File: services/api-gateway/src/runtime/planner.py
+
+
+Configurable, deterministic keyword-based planner for AstraDesk.
 
 Serves as a lightweight fallback (or primary) when LLM planner is unavailable or
 unnecessary. Maps user queries to structured tool invocations using auditable
@@ -171,8 +173,7 @@ class KeywordPlanner:
 
         # 3. Dict {tool_name: output}
         if isinstance(tool_results, dict) and all(
-            isinstance(k, str) for k in tool_results.keys()
-        ):
+            isinstance(k, str) for k in tool_results.keys()):
             if all(isinstance(v, str) for v in tool_results.values()):
                 lines = ["Podsumowanie wykonanych kroków:", ""]
                 for name, out in tool_results.items():

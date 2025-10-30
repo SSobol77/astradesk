@@ -27,18 +27,24 @@ import asyncio
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Dict, Optional
 
+from dotenv import load_dotenv
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
+load_dotenv(os.path.join(project_root, '.env'))
+
 import asyncpg
+import httpx
 import redis.asyncio as redis
-from fastapi import FastAPI, Depends, HTTPException, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
-from opa_python_client import OPAClient
+from opa_client.opa import OpaClient
+from opentelemetry import trace
 
 # AstraDesk imports
 from gateway.orchestrator import (
     AgentOrchestrator,
     AgentNotFoundError,
-    PolicyViolationError,
+    PolicyViolationError
 )
 from model_gateway.llm_planner import LLMPlanner
 from model_gateway.router import provider_router
@@ -56,6 +62,7 @@ from tools import metrics, ops_actions, tickets_proxy
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
 
+ADMIN_API_URL = os.getenv("ADMIN_API_URL", "http://localhost:8001")
 DATABASE_URL = os.getenv("DATABASE_URL")
 REDIS_URL = os.getenv("REDIS_URL")
 OPA_URL = os.getenv("OPA_URL", "http://localhost:8181")
@@ -116,7 +123,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if not pg_pool:
         raise RuntimeError("Failed to create PostgreSQL connection pool.")
     redis_client = redis.from_url(REDIS_URL, decode_responses=True)
-    opa_client = OPAClient(url=OPA_URL)
+    opa_client = OpaClient(url=OPA_URL)
 
     # --- Initialize core components ---
     tool_registry = ToolRegistry()
@@ -127,8 +134,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Discover and load tools from external domain packs
     load_domain_packs(tool_registry)
 
+    # llm_planner = LLMPlanner(opa_client=opa_client)
+    # rag = RAG(pg_pool=pg_pool, llm_planner=llm_planner)
+
     llm_planner = LLMPlanner(opa_client=opa_client)
-    rag = RAG(pg_pool=pg_pool, llm_planner=llm_planner)
+    rag = RAG(llm_planner=llm_planner)
+    await rag.ainit() 
+
     memory = Memory(pg_pool=pg_pool, redis_cli=redis_client)
     keyword_planner = KeywordPlanner()
 
@@ -149,6 +161,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     logger.info("Agent Orchestrator initialized successfully.")
 
+    # --- Initialize client for Admin API proxy ---
+    app_state["admin_api_client"] = httpx.AsyncClient(base_url=ADMIN_API_URL)
+    logger.info(f"Admin API client initialized for {ADMIN_API_URL}")
+
     yield  # Application is now running
 
     # --- Shutdown logic ---
@@ -158,6 +174,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await orchestrator.pg_pool.close()
         await orchestrator.redis.close()
         await provider_router.shutdown()
+
+    if "admin_api_client" in app_state:
+        await app_state["admin_api_client"].aclose()
+        logger.info("Admin API client shut down.")
+
     logger.info("Resources cleaned up.")
 
 
@@ -171,10 +192,61 @@ app = FastAPI(
 
 
 # --- API Endpoints ---
+
 @app.get("/healthz", tags=["Health"])
 def healthz() -> Dict[str, str]:
     """Provides a simple health check endpoint."""
     return {"status": "ok"}
+
+
+@app.api_route(
+    "/api/admin/v1/{path:path}",
+    methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    tags=["Admin Proxy"],
+    summary="Proxy for the Admin API service",
+    description="This endpoint acts as a reverse proxy, forwarding all requests to the separate Admin API microservice.",
+)
+async def proxy_to_admin_service(request: Request) -> Response:
+    """
+    Reverse proxies all requests for /api/admin/v1 to the Admin API service.
+    It streams the request and response for efficiency.
+    """
+    client: Optional[httpx.AsyncClient] = app_state.get("admin_api_client")
+    if not client:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Admin API client is not initialized.",
+        )
+
+    # Construct the URL for the downstream service
+    url = httpx.URL(
+        path=f"/{request.path_params['path']}",
+        query=request.url.query.encode("utf-8"),
+    )
+
+    # Build the downstream request
+    proxied_req = client.build_request(
+        method=request.method,
+        url=url,
+        headers=request.headers.raw,
+        content=request.stream(),
+    )
+
+    # Send the request and get the response
+    try:
+        proxied_resp = await client.send(proxied_req, stream=True)
+    except httpx.ConnectError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to connect to the Admin API service.",
+        )
+
+    # Stream the response back to the client
+    return Response(
+        content=proxied_resp.aiter_bytes(),
+        status_code=proxied_resp.status_code,
+        headers=proxied_resp.headers,
+    )
 
 
 @app.post(

@@ -24,19 +24,12 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 import asyncpg
 import networkx as nx  # Intent Graph
 import redis.asyncio as redis
-from opa_python_client import OPAClient  # Governance
+from opa_client.opa import OpaClient  # Governance
 from opentelemetry import trace  # AstraOps/OTel
 
-# Project imports
 from agents.base import BaseAgent
 from runtime.memory import Memory
-from runtime.models import (
-    AgentName,
-    AgentRequest,
-    AgentResponse,
-    ToolCall,
-)
-from runtime.planner import KeywordPlanner
+from runtime.models import AgentRequest, AgentResponse, ToolCall
 from runtime.registry import ToolRegistry
 
 # --- Type-only imports for LLMPlanner (avoid runtime dependency) ---
@@ -78,7 +71,7 @@ class AgentOrchestrator:
         tools: ToolRegistry,
         pg_pool: asyncpg.Pool,
         redis: redis.Redis,
-        opa_client: OPAClient,
+        opa_client: OpaClient,
     ) -> None:
         """Initializes the orchestrator with all dependencies.
 
