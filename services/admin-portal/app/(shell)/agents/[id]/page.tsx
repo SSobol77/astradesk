@@ -65,8 +65,8 @@ export default async function AgentDetailPage({ params }: AgentDetailPageProps) 
   }
 
   const overviewEntries: Array<{ label: string; value: string }> = [
-    { label: 'ID', value: agent.id },
-    { label: 'Name', value: agent.name },
+    { label: 'ID', value: agent.id ?? '—' },
+    { label: 'Name', value: agent.name ?? '—' },
     { label: 'Version', value: agent.version ?? '—' },
     { label: 'Environment', value: agent.env ?? '—' },
     { label: 'Status', value: agent.status ?? '—' },

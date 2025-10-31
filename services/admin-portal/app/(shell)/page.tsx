@@ -61,7 +61,7 @@ export default async function DashboardPage() {
                 {healthEntries.map(([componentName, componentStatus]) => (
                   <li key={componentName} className="flex items-center justify-between py-2">
                     <span>{componentName}</span>
-                    <span className="capitalize text-slate-500">{componentStatus}</span>
+                    <span className="capitalize text-slate-500">{String(componentStatus ?? 'unknown')}</span>
                   </li>
                 ))}
               </ul>
@@ -86,12 +86,15 @@ export default async function DashboardPage() {
           <div className="mt-4 space-y-2">
             {errors.length ? (
               <ul className="space-y-2 text-sm text-rose-600">
-                {errors.map((errorItem) => (
-                  <li key={`${errorItem.trace_id}-${errorItem.timestamp}`} className="rounded-lg border border-rose-100 bg-rose-50 px-3 py-2">
-                    <span className="block text-xs text-rose-400">{new Date(errorItem.timestamp).toLocaleString()}</span>
-                    <span>{errorItem.message}</span>
-                  </li>
-                ))}
+                {errors.map((errorItem, index) => {
+                  const timestamp = errorItem.timestamp ? new Date(errorItem.timestamp).toLocaleString() : '—';
+                  return (
+                    <li key={`${errorItem.trace_id ?? index}-${timestamp}`} className="rounded-lg border border-rose-100 bg-rose-50 px-3 py-2">
+                      <span className="block text-xs text-rose-400">{timestamp}</span>
+                      <span>{errorItem.message ?? 'Error reported'}</span>
+                    </li>
+                  );
+                })}
               </ul>
             ) : (
               <p className="text-sm text-slate-500">No errors reported.</p>

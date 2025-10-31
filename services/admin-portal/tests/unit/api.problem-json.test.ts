@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import type { ApiError } from '@/lib/api';
 
 const mockFetch = vi.fn();
 
@@ -23,7 +24,7 @@ describe('apiFetch problem+json handling', () => {
       text: async () => '',
     });
 
-    const { apiFetch, ApiError } = await import('@/lib/api');
+    const { apiFetch } = await import('@/lib/api');
 
     await expect(
       apiFetch({

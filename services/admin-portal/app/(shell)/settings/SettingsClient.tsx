@@ -48,7 +48,8 @@ export default function SettingsClient({
     try {
       setIsSaving(true);
       const payload = JSON.parse(jsonValue) as Record<string, unknown>;
-      const result = await openApiClient.settings.update(group, { key: current.key, value: payload });
+      const key = current.key ?? 'value';
+      const result = await openApiClient.settings.update(group, { key, value: payload });
       onSettingChange(result);
       onJsonChange(asPretty(result.value ?? {}));
       push({ title: 'Settings updated', variant: 'success' });
@@ -67,7 +68,7 @@ export default function SettingsClient({
           label: 'Integrations',
           content: (
             <Form onSubmit={(event) => event.preventDefault()}>
-              <FormField label={`Integration: ${integrationSetting.key}`} description="GET/PUT /settings/integrations">
+              <FormField label={`Integration: ${integrationSetting.key ?? 'config'}`} description="GET/PUT /settings/integrations">
                 <Textarea
                   rows={12}
                   value={integrationJson}
@@ -89,7 +90,7 @@ export default function SettingsClient({
           label: 'Localization',
           content: (
             <Form onSubmit={(event) => event.preventDefault()}>
-              <FormField label={`Localization: ${localizationSetting.key}`} description="GET/PUT /settings/localization">
+              <FormField label={`Localization: ${localizationSetting.key ?? 'defaults'}`} description="GET/PUT /settings/localization">
                 <Textarea
                   rows={12}
                   value={localizationJson}
@@ -113,7 +114,7 @@ export default function SettingsClient({
           label: 'Platform',
           content: (
             <Form onSubmit={(event) => event.preventDefault()}>
-              <FormField label={`Platform: ${platformSetting.key}`} description="GET/PUT /settings/platform">
+              <FormField label={`Platform: ${platformSetting.key ?? 'platform'}`} description="GET/PUT /settings/platform">
                 <Textarea
                   rows={12}
                   value={platformJson}

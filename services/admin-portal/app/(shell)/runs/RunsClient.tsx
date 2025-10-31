@@ -50,8 +50,6 @@ export default function RunsClient({
     setFilters(values);
     try {
       const nextRuns = await openApiClient.runs.list({
-        limit: values.limit ? Number(values.limit) : undefined,
-        offset: values.offset ? Number(values.offset) : undefined,
         agentId: values.agentId,
         status: values.status as Run['status'] | undefined,
         from: values.from,
@@ -65,7 +63,12 @@ export default function RunsClient({
 
   const exportLogs = async (format: 'json' | 'ndjson' | 'csv') => {
     try {
-      await openApiClient.runs.exportLogs(format);
+      await openApiClient.runs.exportLogs(format, {
+        agentId: filters.agentId,
+        status: filters.status as Run['status'] | undefined,
+        from: filters.from,
+        to: filters.to,
+      });
       push({ title: `Export started (${format.toUpperCase()})`, variant: 'info' });
     } catch (error) {
       push({ title: 'Export failed', variant: 'error' });

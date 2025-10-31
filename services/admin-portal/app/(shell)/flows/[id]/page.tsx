@@ -103,19 +103,25 @@ export default async function FlowDetailPage({ params }: FlowDetailPageProps) {
             <Card>
               <h3 className="text-base font-semibold text-slate-900">POST /flows/{id}:dryrun</h3>
               {dryRun ? (
-                <ul className="mt-4 space-y-3 text-sm text-slate-700">
-                  {dryRun.steps.map((step, index) => (
-                    <li key={index} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                      <div className="flex items-center justify-between text-xs text-slate-500">
-                        <span>{step.name}</span>
-                        <span className="uppercase">{step.status}</span>
-                      </div>
-                      {step.output ? (
-                        <JsonViewer value={step.output} />
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
+                (() => {
+                  const steps = Array.isArray(dryRun.steps) ? dryRun.steps : [];
+                  if (!steps.length) {
+                    return <p className="mt-4 text-sm text-slate-500">No dry run output available.</p>;
+                  }
+                  return (
+                    <ul className="mt-4 space-y-3 text-sm text-slate-700">
+                      {steps.map((step, index) => (
+                        <li key={index} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                          <div className="flex items-center justify-between text-xs text-slate-500">
+                            <span>{typeof step.name === 'string' ? step.name : `Step ${index + 1}`}</span>
+                            <span className="uppercase">{typeof step.status === 'string' ? step.status : '—'}</span>
+                          </div>
+                          {step.output ? <JsonViewer value={step.output} /> : null}
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                })()
               ) : (
                 <p className="mt-4 text-sm text-slate-500">Execute a dry run to view step outputs.</p>
               )}
@@ -130,15 +136,20 @@ export default async function FlowDetailPage({ params }: FlowDetailPageProps) {
               <h3 className="text-base font-semibold text-slate-900">GET /flows/{id}/log</h3>
               {log.length ? (
                 <ul className="mt-4 space-y-2 text-sm text-slate-700">
-                  {log.map((entry) => (
-                    <li key={`${entry.timestamp}-${entry.message}`} className="rounded border border-slate-200 bg-white p-3">
-                      <div className="flex items-center justify-between text-xs text-slate-500">
-                        <span>{new Date(entry.timestamp).toLocaleString()}</span>
-                        <span className="font-semibold">{entry.level}</span>
-                      </div>
-                      <div className="mt-2 font-mono text-xs text-slate-600">{entry.message}</div>
-                    </li>
-                  ))}
+                  {log.map((entry, index) => {
+                    const timestamp = entry.timestamp ? new Date(entry.timestamp).toLocaleString() : '—';
+                    const level = entry.level ?? 'INFO';
+                    const message = entry.message ?? '';
+                    return (
+                      <li key={`${timestamp}-${level}-${index}`} className="rounded border border-slate-200 bg-white p-3">
+                        <div className="flex items-center justify-between text-xs text-slate-500">
+                          <span>{timestamp}</span>
+                          <span className="font-semibold">{level}</span>
+                        </div>
+                        <div className="mt-2 font-mono text-xs text-slate-600">{message || '—'}</div>
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : (
                 <p className="mt-4 text-sm text-slate-500">No log entries yet.</p>

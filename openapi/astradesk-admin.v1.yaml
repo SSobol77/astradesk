@@ -77,6 +77,11 @@ components:
       properties:
         type:
           type: string
+        status:
+          type: string
+        task_definition:
+          type: object
+          additionalProperties: true
           format: uri
           description: A URI identifier for the problem type.
           example: "https://astradesk.com/errors/authentication-failed"
@@ -132,6 +137,7 @@ components:
           type: string
         config:
           type: object
+          additionalProperties: true
     AgentConfigRequest:
       type: object
       description: Payload for creating or updating an agent's configuration.
@@ -146,15 +152,6 @@ components:
           type: object
           description: The configuration object for the agent (e.g., model, prompts, tool settings).
           additionalProperties: true
-    Flow:
-      type: object
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-        graph:
-          type: object
     Dataset:
       type: object
       properties:
@@ -176,6 +173,8 @@ components:
           type: string
         type:
           type: string
+        status:
+          type: string
     Run:
       type: object
       properties:
@@ -189,6 +188,12 @@ components:
           type: number
         cost_usd:
           type: number
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
     Job:
       type: object
       properties:
@@ -200,6 +205,9 @@ components:
           type: string
         status:
           type: string
+        task_definition:
+          type: object
+          additionalProperties: true
     User:
       type: object
       properties:
@@ -233,6 +241,7 @@ components:
       properties:
         value:
           type: object
+          additionalProperties: true
           description: The new value for the setting.
           additionalProperties: true
     AuditEntry:
@@ -260,6 +269,7 @@ components:
           type: string
         value:
           type: object
+          additionalProperties: true
     Flow:
       type: object
       properties:
@@ -297,6 +307,46 @@ components:
         config_yaml:
           type: string
           description: Updated YAML configuration.
+    FlowValidation:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        errors:
+          type: array
+          items:
+            type: string
+    FlowDryRunStep:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum: [success, skipped, failure]
+        output:
+          type: object
+          additionalProperties: true
+    FlowDryRunResult:
+      type: object
+      properties:
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlowDryRunStep'
+    FlowTestResult:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [success, failure]
+        logs:
+          type: array
+          items:
+            type: string
+        output:
+          type: object
+          additionalProperties: true
     Secret:
       type: object
       properties:
@@ -2661,285 +2711,5 @@ paths:
                   job_id:
                     type: string
                     format: uuid
-  /flows:
-    get:
-      tags: [Flows]
-      summary: List all flows
-      description: Retrieves a paginated list of all flows in the system, filtered by status or environment if specified.
-      parameters:
-        - $ref: '#/components/parameters/PaginationLimit'
-        - $ref: '#/components/parameters/PaginationOffset'
-        - name: status
-          in: query
-          description: Filter flows by status (e.g., active, archived).
-          schema:
-            type: string
-            enum: [active, draft, archived]
-        - name: env
-          in: query
-          description: Filter flows by environment (e.g., prod, staging).
-          schema:
-            type: string
-            enum: [draft, dev, staging, prod]
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: A paginated list of flows.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Flow'
-                  total:
-                    type: integer
-                  limit:
-                    type: integer
-                  offset:
-                    type: integer
-        '401':
-          description: Unauthorized - Invalid or missing JWT.
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-        '500':
-          description: Internal server error.
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-
-  /flows/{id}:
-    get:
-      tags: [Flows]
-      summary: Get a specific flow by ID
-      description: Retrieves detailed information about a single flow, including its YAML configuration.
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: The flow details.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Flow'
-        '404':
-          description: Flow not found.
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-        '401':
-          description: Unauthorized.
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-
-    put:
-      tags: [Flows]
-      summary: Update a flow by ID
-      description: Updates the configuration or status of an existing flow.
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/FlowUpdateRequest'
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: The updated flow.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Flow'
-        '400':
-          description: Invalid request payload.
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-        '404':
-          description: Flow not found.
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-        '401':
-          description: Unauthorized.
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-
-    delete:
-      tags: [Flows]
-      summary: Delete a flow by ID
-      description: Soft-deletes a flow (archives it).
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      security:
-        - BearerAuth: []
-      responses:
-        '204':
-          description: Flow successfully deleted (archived).
-        '404':
-          description: Flow not found.
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-        '401':
-          description: Unauthorized.
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-
-  /flows/generate:
-    post:
-      tags: [Flows]
-      summary: Generate a flow from natural language prompt (NL2Flow)
-      description: |
-        Generates an AstraDSL YAML flow configuration from a natural language prompt.
-        This endpoint uses AstraFlow 2.0 to convert prompts like "Build agent to monitor JIRA tickets" into executable YAML/JSON.
-        The generated flow can be saved or tested immediately.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [prompt]
-              properties:
-                prompt:
-                  type: string
-                  description: Natural language description of the desired flow.
-                  example: "Build an agent to monitor JIRA tickets and alert on high priority issues"
-                format:
-                  type: string
-                  enum: [yaml, json]
-                  default: yaml
-                  description: Output format for the generated flow.
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: The generated flow configuration.
-          content:
-            application/yaml:  # Or application/json based on format
-              schema:
-                type: string
-                description: The generated YAML/JSON string.
-                example: |
-                  flow:
-                    name: jira_monitor
-                    trigger: cron("*/5 * * * *")
-                    steps:
-                      - get_tickets: jira.list_open()
-                      - filter: priority > "High"
-                      - notify: ops_agent.alert("New critical issue")
-        '400':
-          description: Invalid prompt or generation failed.
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-        '401':
-          description: Unauthorized.
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-        '500':
-          description: Internal error during generation (e.g., LLM failure).
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-
-  /flows/{id}:test:
-    post:
-      tags: [Flows]
-      summary: Test a flow by ID
-      description: Executes a dry-run test of the flow and returns results/logs.
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                test_data:
-                  type: object
-                  additionalProperties: true
-                  description: Optional test input data for the flow.
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Test results.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    enum: [success, failure]
-                  logs:
-                    type: array
-                    items:
-                      type: string
-                  output:
-                    type: object
-                    additionalProperties: true
-        '404':
-          description: Flow not found.
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-        '401':
-          description: Unauthorized.
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetail'
-
-
 security:
   - BearerAuth: []

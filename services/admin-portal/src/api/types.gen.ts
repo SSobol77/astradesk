@@ -2469,6 +2469,15 @@ export interface paths {
                         "application/json": components["schemas"]["Job"];
                     };
                 };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetail"];
+                    };
+                };
                 /** @description Job not found. */
                 404: {
                     headers: {
@@ -2816,6 +2825,15 @@ export interface paths {
                         "application/json": components["schemas"]["User"];
                     };
                 };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetail"];
+                    };
+                };
                 /** @description User not found. */
                 404: {
                     headers: {
@@ -3017,6 +3035,15 @@ export interface paths {
                         "application/json": components["schemas"]["Policy"];
                     };
                 };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetail"];
+                    };
+                };
                 /** @description Policy not found. */
                 404: {
                     headers: {
@@ -3047,6 +3074,15 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetail"];
+                    };
                 };
                 /** @description Policy not found. */
                 404: {
@@ -3324,255 +3360,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/settings/integrations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get integrations settings */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description Maximum number of items to return per page. */
-                    limit?: components["parameters"]["PaginationLimit"];
-                    /** @description Number of items to skip for pagination. */
-                    offset?: components["parameters"]["PaginationOffset"];
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Integrations */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Setting"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/problem+json": components["schemas"]["ProblemDetail"];
-                    };
-                };
-            };
-        };
-        /** Update integrations */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["Setting"];
-                };
-            };
-            responses: {
-                /** @description Updated */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Setting"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/problem+json": components["schemas"]["ProblemDetail"];
-                    };
-                };
-            };
-        };
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/settings/localization": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get localization settings */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description Maximum number of items to return per page. */
-                    limit?: components["parameters"]["PaginationLimit"];
-                    /** @description Number of items to skip for pagination. */
-                    offset?: components["parameters"]["PaginationOffset"];
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Localization */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Setting"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/problem+json": components["schemas"]["ProblemDetail"];
-                    };
-                };
-            };
-        };
-        /** Update localization */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["Setting"];
-                };
-            };
-            responses: {
-                /** @description Updated */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Setting"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/problem+json": components["schemas"]["ProblemDetail"];
-                    };
-                };
-            };
-        };
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/settings/platform": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get platform settings */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description Maximum number of items to return per page. */
-                    limit?: components["parameters"]["PaginationLimit"];
-                    /** @description Number of items to skip for pagination. */
-                    offset?: components["parameters"]["PaginationOffset"];
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Platform */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Setting"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/problem+json": components["schemas"]["ProblemDetail"];
-                    };
-                };
-            };
-        };
-        /** Update platform */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["Setting"];
-                };
-            };
-            responses: {
-                /** @description Updated */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Setting"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/problem+json": components["schemas"]["ProblemDetail"];
-                    };
-                };
-            };
-        };
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/settings/{group}": {
         parameters: {
             query?: never;
@@ -3615,7 +3402,10 @@ export interface paths {
                 };
             };
         };
-        /** Update a specific setting within a group */
+        /**
+         * Update a specific setting within a group
+         * @description Updates the value of a single setting identified by its key within a group.
+         */
         put: {
             parameters: {
                 query?: never;
@@ -3654,6 +3444,15 @@ export interface paths {
                         "application/problem+json": components["schemas"]["ProblemDetail"];
                     };
                 };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetail"];
+                    };
+                };
                 /** @description The settings group was not found. */
                 404: {
                     headers: {
@@ -3666,6 +3465,124 @@ export interface paths {
             };
         };
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/domain-packs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List installed domain packs */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description List of packs */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DomainPack"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/domain-packs/{name}:install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Install a domain pack by name */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Install job accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            job_id?: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/domain-packs/{name}:uninstall": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Uninstall a domain pack by name */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uninstall job accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            job_id?: string;
+                        };
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -3739,11 +3656,6 @@ export interface components {
                 [key: string]: unknown;
             };
         };
-        Flow: {
-            id?: string;
-            name?: string;
-            graph?: Record<string, never>;
-        };
         Dataset: {
             id?: string;
             name?: string;
@@ -3805,6 +3717,29 @@ export interface components {
             group?: string;
             key?: string;
             value?: Record<string, never>;
+        };
+        Flow: {
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+            version?: string;
+            /** @enum {string} */
+            status?: "active" | "draft" | "archived";
+            /** @enum {string} */
+            env?: "draft" | "dev" | "staging" | "prod";
+            /** @description The YAML configuration of the flow. */
+            config_yaml?: string;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
+        };
+        FlowUpdateRequest: {
+            name?: string;
+            /** @enum {string} */
+            status?: "active" | "draft" | "archived";
+            /** @description Updated YAML configuration. */
+            config_yaml: string;
         };
         Secret: {
             id?: string;
@@ -3934,6 +3869,12 @@ export interface components {
             name: string;
             /** @description The policy content in Rego language. */
             rego_text: string;
+        };
+        DomainPack: {
+            name?: string;
+            version?: string;
+            /** @enum {string} */
+            status?: "installed" | "error" | "disabled";
         };
     };
     responses: never;

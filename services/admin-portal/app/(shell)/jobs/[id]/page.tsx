@@ -22,33 +22,36 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
   const { id } = await params;
   const job = await getJob(id);
 
-  if (!job) {
+  if (!job || !job.id) {
     notFound();
   }
+
+  const jobId = job.id;
+  const taskDefinition = (job as { task_definition?: Record<string, unknown> }).task_definition ?? {};
 
   return (
     <div className="space-y-4">
       <Card>
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">{job.name}</h2>
-            <p className="text-sm text-slate-500">Schedule: {job.schedule_expr}</p>
+            <h2 className="text-lg font-semibold text-slate-900">{job.name ?? 'Untitled job'}</h2>
+            <p className="text-sm text-slate-500">Schedule: {job.schedule_expr ?? '—'}</p>
           </div>
-          <JobActions id={job.id} />
+          <JobActions id={jobId} />
         </div>
         <dl className="mt-4 grid gap-4 md:grid-cols-3">
           <div>
             <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Status</dt>
-            <dd className="mt-1 text-sm text-slate-700">{job.status}</dd>
+            <dd className="mt-1 text-sm text-slate-700">{job.status ?? '—'}</dd>
           </div>
           <div>
             <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Job ID</dt>
-            <dd className="mt-1 text-sm text-slate-700">{job.id}</dd>
+            <dd className="mt-1 text-sm text-slate-700">{jobId}</dd>
           </div>
           <div>
             <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Task Definition</dt>
             <dd className="mt-1 text-sm text-slate-700">
-              <code className="text-xs">{JSON.stringify(job.task_definition ?? {}, null, 2)}</code>
+              <code className="text-xs">{JSON.stringify(taskDefinition, null, 2)}</code>
             </dd>
           </div>
         </dl>

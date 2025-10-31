@@ -1,20 +1,19 @@
 import DataTable from '@/components/data/DataTable';
 import { openApiClient } from '@/api/client';
-import type { Flow, FlowList } from '@/api/types';
+import type { Flow } from '@/api/types';
 import Link from 'next/link';
 
-async function getFlows(): Promise<FlowList> {
+async function getFlows(): Promise<Flow[]> {
   try {
     return await openApiClient.flows.list();
   } catch (error) {
     console.error('Failed to load flows', error);
-    return { items: [], total: 0, limit: 0, offset: 0 };
+    return [];
   }
 }
 
 export default async function FlowsPage() {
-  const flowList = await getFlows();
-  const flows: Flow[] = flowList.items ?? [];
+  const flows = await getFlows();
 
   return (
     <div className="space-y-4">

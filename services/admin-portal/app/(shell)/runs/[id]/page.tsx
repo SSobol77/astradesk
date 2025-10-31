@@ -26,18 +26,20 @@ export default async function RunDetailPage({ params }: RunDetailPageProps) {
     notFound();
   }
 
+  const runId = run.id ?? id;
+
   return (
     <div className="space-y-4">
       <Card>
-        <h2 className="text-lg font-semibold text-slate-900">Run {run.id}</h2>
+        <h2 className="text-lg font-semibold text-slate-900">Run {runId}</h2>
         <dl className="mt-4 grid gap-4 md:grid-cols-3">
           <div>
             <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Agent</dt>
-            <dd className="mt-1 text-sm text-slate-700">{run.agent_id}</dd>
+            <dd className="mt-1 text-sm text-slate-700">{run.agent_id ?? '—'}</dd>
           </div>
           <div>
             <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Status</dt>
-            <dd className="mt-1 text-sm text-slate-700">{run.status}</dd>
+            <dd className="mt-1 text-sm text-slate-700">{run.status ?? '—'}</dd>
           </div>
           <div>
             <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Latency</dt>
@@ -49,11 +51,11 @@ export default async function RunDetailPage({ params }: RunDetailPageProps) {
           </div>
           <div>
             <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Created</dt>
-            <dd className="mt-1 text-sm text-slate-700">{formatDate(run.created_at)}</dd>
+            <dd className="mt-1 text-sm text-slate-700">{formatDate(run.created_at ?? null)}</dd>
           </div>
           <div>
             <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Completed</dt>
-            <dd className="mt-1 text-sm text-slate-700">{formatDate(run.completed_at)}</dd>
+            <dd className="mt-1 text-sm text-slate-700">{formatDate(run.completed_at ?? null)}</dd>
           </div>
         </dl>
       </Card>

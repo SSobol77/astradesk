@@ -41,7 +41,7 @@ const config: Config = {
     },
   },
   plugins: [
-    ({ addVariant }) => {
+    ({ addVariant }: { addVariant: (name: string, generator: string) => void }) => {
       // Adds a focus-visible within variant to ensure keyboard accessibility styles.
       addVariant("focus-within-visible", "&:focus-within-visible");
     },

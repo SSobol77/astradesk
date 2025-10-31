@@ -22,16 +22,18 @@ export default async function PolicyDetailPage({ params }: PolicyDetailPageProps
   const { id } = await params;
   const policy = await getPolicy(id);
 
-  if (!policy) {
+  if (!policy || !policy.id) {
     notFound();
   }
+
+  const policyId = policy.id;
 
   return (
     <div className="space-y-4">
       <Card>
         <h2 className="text-lg font-semibold text-slate-900">{policy.name}</h2>
       </Card>
-      <PolicyActions id={policy.id} />
+      <PolicyActions id={policyId} />
       <JsonViewer value={policy} />
     </div>
   );

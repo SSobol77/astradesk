@@ -1,9 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
-
-declare global {
-  // eslint-disable-next-line no-var
-  var EventSource: typeof MockEventSource;
-}
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 class MockEventSource {
   public static instances: MockEventSource[] = [];
@@ -20,13 +15,22 @@ class MockEventSource {
 }
 
 describe('createSseStream', () => {
+  let originalEventSource: typeof EventSource | undefined;
+
   beforeEach(() => {
     MockEventSource.instances = [];
+    originalEventSource = globalThis.EventSource;
     globalThis.EventSource = MockEventSource as unknown as typeof EventSource;
     process.env.NEXT_PUBLIC_API_BASE_URL = 'http://localhost:4000';
     process.env.ASTRADESK_API_TOKEN = '';
     vi.resetModules();
     vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    if (originalEventSource) {
+      globalThis.EventSource = originalEventSource;
+    }
   });
 
   it('reconnects after errors and emits messages', async () => {

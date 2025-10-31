@@ -41,22 +41,29 @@ export default async function JobsPage() {
       </div>
       <DataTable
         columns={[
-          { key: 'name', header: 'Name' },
-          { key: 'schedule_expr', header: 'Schedule' },
-          { key: 'status', header: 'Status' },
+          { key: 'name', header: 'Name', render: (job) => job.name ?? '—' },
+          { key: 'schedule_expr', header: 'Schedule', render: (job) => job.schedule_expr ?? '—' },
+          { key: 'status', header: 'Status', render: (job) => job.status ?? '—' },
           {
             key: 'task_definition',
             header: 'Task',
-            render: (job) => <code className="text-xs">{JSON.stringify(job.task_definition ?? {}, null, 2)}</code>,
+            render: (job) => {
+              const taskDefinition = (job as { task_definition?: Record<string, unknown> }).task_definition ?? {};
+              return <code className="text-xs">{JSON.stringify(taskDefinition, null, 2)}</code>;
+            },
           },
           {
             key: 'actions',
             header: 'Actions',
             render: (job) => (
               <div className="flex gap-2">
-                <Link className="text-indigo-600 hover:underline" href={`/jobs/${job.id}`}>
-                  View
-                </Link>
+                {job.id ? (
+                  <Link className="text-indigo-600 hover:underline" href={`/jobs/${job.id}`}>
+                    View
+                  </Link>
+                ) : (
+                  <span className="text-slate-400">No ID</span>
+                )}
               </div>
             ),
           },

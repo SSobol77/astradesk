@@ -16,9 +16,7 @@ import type {
   Flow,
   FlowCreateRequest,
   FlowDryRunResult,
-  FlowGenerationRequest,
   FlowList,
-  FlowTestResult,
   FlowUpdateRequest,
   FlowValidation,
   FlowLogEntry,
@@ -142,14 +140,6 @@ export const openApiClient = {
       apiFetch<FlowValidation>({ path: `${ADMIN_PREFIX}/flows/${id}:validate`, method: 'POST' }),
     dryRun: (id: string) =>
       apiFetch<FlowDryRunResult>({ path: `${ADMIN_PREFIX}/flows/${id}:dryrun`, method: 'POST' }),
-    test: (id: string) =>
-      apiFetch<FlowTestResult>({ path: `${ADMIN_PREFIX}/flows/${id}:test`, method: 'POST' }),
-    generate: (payload: FlowGenerationRequest) =>
-      apiFetch<string, FlowGenerationRequest>({
-        path: `${ADMIN_PREFIX}/flows/generate`,
-        method: 'POST',
-        body: payload,
-      }),
     log: (id: string, params: PaginationParams = {}) =>
       apiFetch<FlowLogEntry[]>({
         path: `${ADMIN_PREFIX}/flows/${id}/log`,
@@ -248,11 +238,20 @@ export const openApiClient = {
         },
       }),
     get: (id: string) => apiFetch<Run>({ path: `${ADMIN_PREFIX}/runs/${id}`, method: 'GET' }),
-    exportLogs: (format: 'json' | 'ndjson' | 'csv', params: Record<string, string | number | undefined> = {}) =>
+    exportLogs: (
+      format: 'json' | 'ndjson' | 'csv',
+      params: { agentId?: string; status?: Run['status']; from?: string; to?: string } = {},
+    ) =>
       apiFetch<string>({
         path: `${ADMIN_PREFIX}/logs/export`,
         method: 'GET',
-        searchParams: { format, ...params },
+        searchParams: {
+          format,
+          agentId: params.agentId,
+          status: params.status,
+          from: params.from,
+          to: params.to,
+        },
       }),
   },
   jobs: {

@@ -125,8 +125,6 @@ export const pathsMap = {
         { key: 'offset', label: 'Offset' },
       ],
     },
-    generate: { method: 'POST', path: '/flows/generate' },
-    test: { method: 'POST', path: '/flows/{id}:test' },
   },
   datasets: {
     list: { method: 'GET', path: '/datasets' },
@@ -164,12 +162,10 @@ export const pathsMap = {
       method: 'GET',
       path: '/runs',
       query: [
-        { key: 'agentId', label: 'Agent' },
+        { key: 'agentId', label: 'Agent ID' },
         { key: 'status', label: 'Status' },
         { key: 'from', label: 'From', type: 'date' },
         { key: 'to', label: 'To', type: 'date' },
-        { key: 'limit', label: 'Limit' },
-        { key: 'offset', label: 'Offset' },
       ],
     },
     stream: { method: 'GET', path: '/runs/stream' },
@@ -224,13 +220,11 @@ export const pathsMap = {
       method: 'GET',
       path: '/audit',
       query: [
-        { key: 'userId', label: 'User' },
+        { key: 'userId', label: 'User ID' },
         { key: 'action', label: 'Action' },
         { key: 'resource', label: 'Resource' },
         { key: 'from', label: 'From', type: 'date' },
         { key: 'to', label: 'To', type: 'date' },
-        { key: 'limit', label: 'Limit' },
-        { key: 'offset', label: 'Offset' },
       ],
     },
     export: {

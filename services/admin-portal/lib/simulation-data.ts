@@ -299,12 +299,7 @@ export function getSimulationResponse(path: string): unknown {
     return agent;
   }
   if (normalized === '/flows') {
-    return {
-      items: simulationFlows,
-      total: simulationFlows.length,
-      limit: simulationFlows.length,
-      offset: 0,
-    };
+    return simulationFlows;
   }
   if (normalized.startsWith('/flows/')) {
     const flow = simulationFlows[0];
@@ -313,9 +308,6 @@ export function getSimulationResponse(path: string): unknown {
     }
     if (normalized.endsWith(':dryrun')) {
       return simulationFlowDryRun;
-    }
-    if (normalized.endsWith(':test')) {
-      return { status: 'success', logs: ['Flow simulated successfully'], output: { message: 'ok' } };
     }
     if (normalized.endsWith('/log')) {
       return simulationFlowLog;

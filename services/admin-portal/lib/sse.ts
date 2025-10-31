@@ -23,8 +23,23 @@ export function createSseStream({
   let closed = false;
 
   const connect = async () => {
-    const token = (await getToken?.()) ?? apiToken;
+    let token = apiToken;
+    if (getToken) {
+      try {
+        const resolved = await getToken();
+        if (resolved) {
+          token = resolved;
+        }
+      } catch (error) {
+        console.error('Failed to resolve SSE token', error);
+      }
+    }
+
     const url = new URL(path, apiBaseUrl);
+    if (token) {
+      url.searchParams.set('token', token);
+    }
+
     eventSource = new EventSource(url, {
       withCredentials: false,
     });
@@ -52,13 +67,6 @@ export function createSseStream({
       setTimeout(connect, delay);
     };
 
-    // Inject Authorization header if the browser supports it via token query param.
-    if (token) {
-      eventSource.close();
-      const authedUrl = new URL(path, apiBaseUrl);
-      authedUrl.searchParams.set('token', token);
-      eventSource = new EventSource(authedUrl);
-    }
   };
 
   connect();

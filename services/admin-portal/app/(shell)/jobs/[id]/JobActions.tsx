@@ -14,7 +14,7 @@ export default function JobActions({ id }: { id: string }) {
     try {
       setIsTriggering(true);
       const result = await openApiClient.jobs.trigger(id);
-      push({ title: 'Job triggered', description: result.run_id, variant: 'success' });
+      push({ title: 'Job triggered', description: result.run_id ?? 'Accepted', variant: 'success' });
     } catch (error) {
       push({ title: 'Trigger failed', variant: 'error' });
     } finally {

@@ -30,16 +30,21 @@ export default async function ToolsPage() {
       </div>
       <DataTable
         columns={[
-          { key: 'name', header: 'Name' },
-          { key: 'type', header: 'Type' },
+          { key: 'name', header: 'Name', render: (connector) => connector.name ?? '—' },
+          { key: 'type', header: 'Type', render: (connector) => connector.type ?? '—' },
+          { key: 'status', header: 'Status', render: (connector) => connector.status ?? '—' },
           {
             key: 'actions',
             header: 'Actions',
             render: (connector) => (
               <div className="flex gap-2">
-                <Link className="text-indigo-600 hover:underline" href={`/tools/${connector.id}`}>
-                  View
-                </Link>
+                {connector.id ? (
+                  <Link className="text-indigo-600 hover:underline" href={`/tools/${connector.id}`}>
+                    View
+                  </Link>
+                ) : (
+                  <span className="text-slate-400">No ID</span>
+                )}
               </div>
             ),
           },

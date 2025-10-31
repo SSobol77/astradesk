@@ -34,8 +34,6 @@ export default function AuditClient({
     setFilters(values);
     try {
       const next = await openApiClient.audit.list({
-        limit: values.limit ? Number(values.limit) : undefined,
-        offset: values.offset ? Number(values.offset) : undefined,
         userId: values.userId,
         action: values.action,
         resource: values.resource,
@@ -85,10 +83,10 @@ export default function AuditClient({
       <FilterBar filters={filtersMeta.map(toFilterConfig)} onChange={applyFilters} initialValues={filters} />
       <DataTable
         columns={[
-          { key: 'when_ts', header: 'Timestamp', render: (entry) => formatDate(entry.when_ts) },
-          { key: 'user_id', header: 'User' },
-          { key: 'action', header: 'Action' },
-          { key: 'resource', header: 'Resource' },
+          { key: 'when_ts', header: 'Timestamp', render: (entry) => formatDate(entry.when_ts ?? null) },
+          { key: 'user_id', header: 'User', render: (entry) => entry.user_id ?? '—' },
+          { key: 'action', header: 'Action', render: (entry) => entry.action ?? '—' },
+          { key: 'resource', header: 'Resource', render: (entry) => entry.resource ?? '—' },
           {
             key: 'actions',
             header: 'Actions',
