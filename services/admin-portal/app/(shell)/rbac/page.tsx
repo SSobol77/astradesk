@@ -1,8 +1,8 @@
 import Card from '@/components/primitives/Card';
 import DataTable from '@/components/data/DataTable';
 import { Tabs } from '@/components/primitives/Tabs';
-import { openApiClient } from '@/openapi/openapi-client';
-import type { User } from '@/openapi/openapi-types';
+import { openApiClient } from '@/api/client';
+import type { User } from '@/api/types';
 
 async function getUsers(): Promise<User[]> {
   try {
@@ -50,8 +50,7 @@ export default async function RbacPage() {
                   columns={[
                     { key: 'email', header: 'Email' },
                     { key: 'role', header: 'Role' },
-                    { key: 'status', header: 'Status' },
-                    { key: 'last_active_at', header: 'Last Active' },
+                    { key: 'id', header: 'User ID' },
                   ]}
                   data={users}
                   emptyState={<p>No users invited yet.</p>}

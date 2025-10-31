@@ -1,8 +1,8 @@
 import Card from '@/components/primitives/Card';
 import { Tabs } from '@/components/primitives/Tabs';
 import JsonViewer from '@/components/misc/JsonViewer';
-import { openApiClient } from '@/openapi/openapi-client';
-import type { Flow, FlowDryRunResult, FlowValidation } from '@/openapi/openapi-types';
+import { openApiClient } from '@/api/client';
+import type { Flow, FlowDryRunResult, FlowValidation, FlowLogEntry } from '@/api/types';
 import { notFound } from 'next/navigation';
 
 async function getFlow(id: string): Promise<Flow | null> {
@@ -32,7 +32,7 @@ async function getDryRun(id: string): Promise<FlowDryRunResult | null> {
   }
 }
 
-async function getLog(id: string): Promise<string[]> {
+async function getLog(id: string): Promise<FlowLogEntry[]> {
   try {
     return await openApiClient.flows.log(id);
   } catch (error) {
@@ -68,7 +68,7 @@ export default async function FlowDetailPage({ params }: FlowDetailPageProps) {
           content: (
             <Card className="bg-slate-900 text-slate-100">
               <pre className="max-h-[500px] overflow-auto text-xs leading-5">
-                {flow.yaml}
+                {flow.config_yaml}
               </pre>
             </Card>
           ),
@@ -130,9 +130,13 @@ export default async function FlowDetailPage({ params }: FlowDetailPageProps) {
               <h3 className="text-base font-semibold text-slate-900">GET /flows/{id}/log</h3>
               {log.length ? (
                 <ul className="mt-4 space-y-2 text-sm text-slate-700">
-                  {log.map((line, index) => (
-                    <li key={index} className="font-mono text-xs text-slate-600">
-                      {line}
+                  {log.map((entry) => (
+                    <li key={`${entry.timestamp}-${entry.message}`} className="rounded border border-slate-200 bg-white p-3">
+                      <div className="flex items-center justify-between text-xs text-slate-500">
+                        <span>{new Date(entry.timestamp).toLocaleString()}</span>
+                        <span className="font-semibold">{entry.level}</span>
+                      </div>
+                      <div className="mt-2 font-mono text-xs text-slate-600">{entry.message}</div>
                     </li>
                   ))}
                 </ul>

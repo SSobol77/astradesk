@@ -1,4 +1,4 @@
-export type HttpMethod = 'GET' | 'POST' | 'PUT';
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
 export type QueryParamMeta = {
   key: string;
@@ -40,6 +40,7 @@ export const pathsMap = {
     detail: { method: 'GET', path: '/agents/{id}' },
     create: { method: 'POST', path: '/agents' },
     update: { method: 'PUT', path: '/agents/{id}' },
+    delete: { method: 'DELETE', path: '/agents/{id}' },
     test: { method: 'POST', path: '/agents/{id}:test' },
     clone: { method: 'POST', path: '/agents/{id}:clone' },
     promote: { method: 'POST', path: '/agents/{id}:promote' },
@@ -47,15 +48,33 @@ export const pathsMap = {
       method: 'GET',
       path: '/agents/{id}/metrics',
       query: [
-        { key: 'p95', label: 'p95', type: 'select', options: [ { label: 'true', value: 'true' }, { label: 'false', value: 'false' } ] },
-        { key: 'p99', label: 'p99', type: 'select', options: [ { label: 'true', value: 'true' }, { label: 'false', value: 'false' } ] },
+        {
+          key: 'timeWindow',
+          label: 'Time window',
+          type: 'select',
+          options: [
+            { label: '1h', value: '1h' },
+            { label: '24h', value: '24h' },
+            { label: '7d', value: '7d' },
+          ],
+        },
       ],
     },
     io: {
       method: 'GET',
       path: '/agents/{id}/io',
       query: [
-        { key: 'tail', label: 'Tail', type: 'select', options: [ { label: '10', value: '10' }, { label: '50', value: '50' }, { label: '100', value: '100' } ] },
+        {
+          key: 'limit',
+          label: 'Limit',
+          type: 'select',
+          options: [
+            { label: '10', value: '10' },
+            { label: '25', value: '25' },
+            { label: '50', value: '50' },
+          ],
+        },
+        { key: 'offset', label: 'Offset' },
       ],
     },
   },
@@ -63,25 +82,74 @@ export const pathsMap = {
     graph: { method: 'GET', path: '/intents/graph' },
   },
   flows: {
-    list: { method: 'GET', path: '/flows' },
+    list: {
+      method: 'GET',
+      path: '/flows',
+      query: [
+        {
+          key: 'status',
+          label: 'Status',
+          type: 'select',
+          options: [
+            { label: 'Draft', value: 'draft' },
+            { label: 'Active', value: 'active' },
+            { label: 'Archived', value: 'archived' },
+          ],
+        },
+        {
+          key: 'env',
+          label: 'Environment',
+          type: 'select',
+          options: [
+            { label: 'Draft', value: 'draft' },
+            { label: 'Dev', value: 'dev' },
+            { label: 'Staging', value: 'staging' },
+            { label: 'Production', value: 'prod' },
+          ],
+        },
+        { key: 'limit', label: 'Limit' },
+        { key: 'offset', label: 'Offset' },
+      ],
+    },
     detail: { method: 'GET', path: '/flows/{id}' },
     create: { method: 'POST', path: '/flows' },
+    update: { method: 'PUT', path: '/flows/{id}' },
+    delete: { method: 'DELETE', path: '/flows/{id}' },
     validate: { method: 'POST', path: '/flows/{id}:validate' },
     dryRun: { method: 'POST', path: '/flows/{id}:dryrun' },
-    log: { method: 'GET', path: '/flows/{id}/log' },
+    log: {
+      method: 'GET',
+      path: '/flows/{id}/log',
+      query: [
+        { key: 'limit', label: 'Limit' },
+        { key: 'offset', label: 'Offset' },
+      ],
+    },
+    generate: { method: 'POST', path: '/flows/generate' },
+    test: { method: 'POST', path: '/flows/{id}:test' },
   },
   datasets: {
     list: { method: 'GET', path: '/datasets' },
     detail: { method: 'GET', path: '/datasets/{id}' },
     create: { method: 'POST', path: '/datasets' },
+    delete: { method: 'DELETE', path: '/datasets/{id}' },
     reindex: { method: 'POST', path: '/datasets/{id}:reindex' },
     schema: { method: 'GET', path: '/datasets/{id}/schema' },
-    embeddings: { method: 'GET', path: '/datasets/{id}/embeddings' },
+    embeddings: {
+      method: 'GET',
+      path: '/datasets/{id}/embeddings',
+      query: [
+        { key: 'limit', label: 'Limit' },
+        { key: 'offset', label: 'Offset' },
+      ],
+    },
   },
   tools: {
     list: { method: 'GET', path: '/connectors' },
     detail: { method: 'GET', path: '/connectors/{id}' },
     create: { method: 'POST', path: '/connectors' },
+    update: { method: 'PUT', path: '/connectors/{id}' },
+    delete: { method: 'DELETE', path: '/connectors/{id}' },
     test: { method: 'POST', path: '/connectors/{id}:test' },
     probe: { method: 'POST', path: '/connectors/{id}:probe' },
   },
@@ -89,18 +157,19 @@ export const pathsMap = {
     list: { method: 'GET', path: '/secrets' },
     create: { method: 'POST', path: '/secrets' },
     rotate: { method: 'POST', path: '/secrets/{id}:rotate' },
-    disable: { method: 'POST', path: '/secrets/{id}:disable' },
+    disable: { method: 'DELETE', path: '/secrets/{id}:disable' },
   },
   runs: {
     list: {
       method: 'GET',
       path: '/runs',
       query: [
-        { key: 'agent', label: 'Agent' },
-        { key: 'intent', label: 'Intent' },
+        { key: 'agentId', label: 'Agent' },
         { key: 'status', label: 'Status' },
         { key: 'from', label: 'From', type: 'date' },
         { key: 'to', label: 'To', type: 'date' },
+        { key: 'limit', label: 'Limit' },
+        { key: 'offset', label: 'Offset' },
       ],
     },
     stream: { method: 'GET', path: '/runs/stream' },
@@ -109,7 +178,16 @@ export const pathsMap = {
       method: 'GET',
       path: '/logs/export',
       query: [
-        { key: 'format', label: 'Format', type: 'select', options: [ { label: 'JSON', value: 'json' }, { label: 'NDJSON', value: 'ndjson' } ] },
+        {
+          key: 'format',
+          label: 'Format',
+          type: 'select',
+          options: [
+            { label: 'JSON', value: 'json' },
+            { label: 'NDJSON', value: 'ndjson' },
+            { label: 'CSV', value: 'csv' },
+          ],
+        },
       ],
     },
   },
@@ -117,15 +195,20 @@ export const pathsMap = {
     list: { method: 'GET', path: '/jobs' },
     detail: { method: 'GET', path: '/jobs/{id}' },
     create: { method: 'POST', path: '/jobs' },
+    update: { method: 'PUT', path: '/jobs/{id}' },
+    delete: { method: 'DELETE', path: '/jobs/{id}' },
     trigger: { method: 'POST', path: '/jobs/{id}:trigger' },
     pause: { method: 'POST', path: '/jobs/{id}:pause' },
+    resume: { method: 'POST', path: '/jobs/{id}:resume' },
     dlq: { method: 'GET', path: '/dlq' },
   },
   rbac: {
     users: { method: 'GET', path: '/users' },
-    invite: { method: 'POST', path: '/users:invite' },
+    create: { method: 'POST', path: '/users' },
+    detail: { method: 'GET', path: '/users/{id}' },
+    delete: { method: 'DELETE', path: '/users/{id}' },
     resetMfa: { method: 'POST', path: '/users/{id}:reset-mfa' },
-    updateRole: { method: 'POST', path: '/users/{id}:role' },
+    updateRole: { method: 'PUT', path: '/users/{id}/role' },
     roles: { method: 'GET', path: '/roles' },
   },
   policies: {
@@ -133,6 +216,7 @@ export const pathsMap = {
     detail: { method: 'GET', path: '/policies/{id}' },
     create: { method: 'POST', path: '/policies' },
     update: { method: 'PUT', path: '/policies/{id}' },
+    delete: { method: 'DELETE', path: '/policies/{id}' },
     simulate: { method: 'POST', path: '/policies/{id}:simulate' },
   },
   audit: {
@@ -140,29 +224,41 @@ export const pathsMap = {
       method: 'GET',
       path: '/audit',
       query: [
-        { key: 'user', label: 'User' },
+        { key: 'userId', label: 'User' },
         { key: 'action', label: 'Action' },
         { key: 'resource', label: 'Resource' },
         { key: 'from', label: 'From', type: 'date' },
         { key: 'to', label: 'To', type: 'date' },
+        { key: 'limit', label: 'Limit' },
+        { key: 'offset', label: 'Offset' },
       ],
     },
     export: {
       method: 'GET',
       path: '/audit/export',
       query: [
-        { key: 'format', label: 'Format', type: 'select', options: [ { label: 'JSON', value: 'json' }, { label: 'NDJSON', value: 'ndjson' } ] },
+        {
+          key: 'format',
+          label: 'Format',
+          type: 'select',
+          options: [
+            { label: 'JSON', value: 'json' },
+            { label: 'NDJSON', value: 'ndjson' },
+            { label: 'CSV', value: 'csv' },
+          ],
+        },
       ],
     },
     detail: { method: 'GET', path: '/audit/{id}' },
   },
   settings: {
-    integrations: { method: 'GET', path: '/settings/integrations' },
-    updateIntegrations: { method: 'PUT', path: '/settings/integrations' },
-    localization: { method: 'GET', path: '/settings/localization' },
-    updateLocalization: { method: 'PUT', path: '/settings/localization' },
-    platform: { method: 'GET', path: '/settings/platform' },
-    updatePlatform: { method: 'PUT', path: '/settings/platform' },
+    list: { method: 'GET', path: '/settings/{group}' },
+    update: { method: 'PUT', path: '/settings/{group}' },
+  },
+  domainPacks: {
+    list: { method: 'GET', path: '/domain-packs' },
+    install: { method: 'POST', path: '/domain-packs/{name}:install' },
+    uninstall: { method: 'POST', path: '/domain-packs/{name}:uninstall' },
   },
 } as const;
 

@@ -1,6 +1,6 @@
-import { pathsMap } from '@/openapi/paths-map';
 import type { Breadcrumb, QuickCreateLink } from '@/lib/types';
-import type { QueryParamMeta } from '@/openapi/paths-map';
+import { pathsMap } from '@/api/operations-map';
+import type { QueryParamMeta } from '@/api/operations-map';
 
 const quickCreateConfig: Array<
   { resource: keyof typeof pathsMap; operation: string } & QuickCreateLink
@@ -13,7 +13,7 @@ const quickCreateConfig: Array<
   { resource: 'jobs', operation: 'create', label: 'New Job', pathname: '/jobs', query: { create: '1' } },
   {
     resource: 'rbac',
-    operation: 'invite',
+    operation: 'create',
     label: 'Invite User',
     pathname: '/rbac',
     query: { tab: 'users', invite: '1' },

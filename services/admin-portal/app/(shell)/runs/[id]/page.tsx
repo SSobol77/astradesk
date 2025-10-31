@@ -1,8 +1,8 @@
 import Card from '@/components/primitives/Card';
 import JsonViewer from '@/components/misc/JsonViewer';
 import { formatCurrency, formatDate, formatLatency } from '@/lib/format';
-import { openApiClient } from '@/openapi/openapi-client';
-import type { Run } from '@/openapi/openapi-types';
+import { openApiClient } from '@/api/client';
+import type { Run } from '@/api/types';
 import { notFound } from 'next/navigation';
 
 async function getRun(id: string): Promise<Run | null> {

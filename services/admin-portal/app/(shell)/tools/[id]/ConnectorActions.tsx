@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Button from '@/components/primitives/Button';
 import { useToast } from '@/hooks/useToast';
-import { openApiClient } from '@/openapi/openapi-client';
+import { openApiClient } from '@/api/client';
 
 export default function ConnectorActions({ id }: { id: string }) {
   const { push } = useToast();

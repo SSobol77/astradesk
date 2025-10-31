@@ -1,8 +1,8 @@
 import Card from '@/components/primitives/Card';
 import JsonViewer from '@/components/misc/JsonViewer';
 import { Tabs } from '@/components/primitives/Tabs';
-import { openApiClient } from '@/openapi/openapi-client';
-import type { Dataset, DatasetEmbedding, DatasetSchema } from '@/openapi/openapi-types';
+import { openApiClient } from '@/api/client';
+import type { Dataset, DatasetEmbedding, DatasetSchema } from '@/api/types';
 import { notFound } from 'next/navigation';
 
 async function getDataset(id: string): Promise<Dataset | null> {

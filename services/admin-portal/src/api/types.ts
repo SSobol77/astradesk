@@ -12,6 +12,8 @@ type GetFlowDryRunResponse =
   paths['/flows/{id}:dryrun']['post']['responses']['200']['content']['application/json'];
 type GetFlowTestResponse =
   paths['/flows/{id}:test']['post']['responses']['200']['content']['application/json'];
+type GetFlowLogResponse =
+  paths['/flows/{id}/log']['get']['responses']['200']['content']['application/json'];
 type GetConnectorTestResponse =
   paths['/connectors/{id}:test']['post']['responses']['200']['content']['application/json'];
 type GetConnectorProbeResponse =
@@ -84,7 +86,8 @@ export type Setting = components['schemas']['Setting'];
 export type IntentGraph = Required<GetIntentGraphResponse>;
 export type DomainPack = components['schemas']['DomainPack'];
 export type RecentError = GetErrorsRecentResponse[number];
-export type SettingsResponse = Required<GetSettingsResponse>;
+export type FlowLogEntry = GetFlowLogResponse extends Array<infer Item> ? Item : never;
+export type SettingsResponse = GetSettingsResponse extends Array<Setting> ? Setting[] : Setting[];
 export type ErrorResponse = ProblemDetail;
 export type JobTriggerResult = Required<GetJobsTriggerResponse>;
 export type AgentTestResult = Required<AgentTestSchema>;

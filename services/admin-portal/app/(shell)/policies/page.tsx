@@ -1,6 +1,6 @@
 import DataTable from '@/components/data/DataTable';
-import { openApiClient } from '@/openapi/openapi-client';
-import type { Policy } from '@/openapi/openapi-types';
+import { openApiClient } from '@/api/client';
+import type { Policy } from '@/api/types';
 import Link from 'next/link';
 
 async function getPolicies(): Promise<Policy[]> {

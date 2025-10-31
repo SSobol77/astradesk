@@ -21,6 +21,7 @@ import type {
   FlowTestResult,
   FlowUpdateRequest,
   FlowValidation,
+  FlowLogEntry,
   HealthStatus,
   IntentGraph,
   Job,
@@ -143,17 +144,17 @@ export const openApiClient = {
       apiFetch<FlowDryRunResult>({ path: `${ADMIN_PREFIX}/flows/${id}:dryrun`, method: 'POST' }),
     test: (id: string) =>
       apiFetch<FlowTestResult>({ path: `${ADMIN_PREFIX}/flows/${id}:test`, method: 'POST' }),
-    log: (id: string, params: PaginationParams = {}) =>
-      apiFetch<string[]>({
-        path: `${ADMIN_PREFIX}/flows/${id}/log`,
-        method: 'GET',
-        searchParams: params,
-      }),
     generate: (payload: FlowGenerationRequest) =>
       apiFetch<string, FlowGenerationRequest>({
         path: `${ADMIN_PREFIX}/flows/generate`,
         method: 'POST',
         body: payload,
+      }),
+    log: (id: string, params: PaginationParams = {}) =>
+      apiFetch<FlowLogEntry[]>({
+        path: `${ADMIN_PREFIX}/flows/${id}/log`,
+        method: 'GET',
+        searchParams: params,
       }),
   },
   datasets: {
@@ -185,7 +186,7 @@ export const openApiClient = {
         searchParams: params,
       }),
   },
-  connectors: {
+  tools: {
     list: (params: PaginationParams = {}) =>
       apiFetch<Connector[]>({
         path: `${ADMIN_PREFIX}/connectors`,
@@ -232,7 +233,7 @@ export const openApiClient = {
   },
   runs: {
     list: (
-      params: PaginationParams & { agentId?: string; status?: Run['status'] } = {},
+      params: PaginationParams & { agentId?: string; status?: Run['status']; from?: string; to?: string } = {},
     ) =>
       apiFetch<Run[]>({
         path: `${ADMIN_PREFIX}/runs`,
@@ -242,6 +243,8 @@ export const openApiClient = {
           offset: params.offset,
           agentId: params.agentId,
           status: params.status,
+          from: params.from,
+          to: params.to,
         },
       }),
     get: (id: string) => apiFetch<Run>({ path: `${ADMIN_PREFIX}/runs/${id}`, method: 'GET' }),
@@ -304,7 +307,7 @@ export const openApiClient = {
     updateRole: (id: string, role: User['role']) =>
       apiFetch<User, { role: User['role'] }>({
         path: `${ADMIN_PREFIX}/users/${id}/role`,
-        method: 'POST',
+        method: 'PUT',
         body: { role },
       }),
     roles: () => apiFetch<string[]>({ path: `${ADMIN_PREFIX}/roles`, method: 'GET' }),
@@ -338,23 +341,50 @@ export const openApiClient = {
       }),
   },
   audit: {
-    list: (params: PaginationParams & { user?: string; action?: string } = {}) =>
+    list: (
+      params: PaginationParams & {
+        userId?: string;
+        action?: string;
+        resource?: string;
+        from?: string;
+        to?: string;
+      } = {},
+    ) =>
       apiFetch<AuditEntry[]>({
         path: `${ADMIN_PREFIX}/audit`,
         method: 'GET',
         searchParams: {
           limit: params.limit,
           offset: params.offset,
-          user: params.user,
+          userId: params.userId,
           action: params.action,
+          resource: params.resource,
+          from: params.from,
+          to: params.to,
         },
       }),
     get: (id: string) => apiFetch<AuditEntry>({ path: `${ADMIN_PREFIX}/audit/${id}`, method: 'GET' }),
-    exportData: (format: 'json' | 'ndjson', params: Record<string, string | number | undefined> = {}) =>
+    exportData: (
+      format: 'json' | 'ndjson' | 'csv',
+      params: {
+        userId?: string;
+        action?: string;
+        resource?: string;
+        from?: string;
+        to?: string;
+      } = {},
+    ) =>
       apiFetch<string>({
         path: `${ADMIN_PREFIX}/audit/export`,
         method: 'GET',
-        searchParams: { format, ...params },
+        searchParams: {
+          format,
+          userId: params.userId,
+          action: params.action,
+          resource: params.resource,
+          from: params.from,
+          to: params.to,
+        },
       }),
   },
   settings: {

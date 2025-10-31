@@ -3,15 +3,11 @@ import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const root = process.cwd();
-const specPath = join(root, 'openapi', 'OpenAPI.yaml');
-const generatedFiles = [
-  join(root, 'openapi', 'openapi-types.d.ts'),
-  join(root, 'openapi', 'openapi-client.ts'),
-  join(root, 'openapi', 'paths-map.ts'),
-];
+const specPath = join(root, 'OpenAPI.yaml');
+const generatedFiles = [join(root, 'src', 'api', 'types.gen.ts')];
 
 if (!existsSync(specPath)) {
-  console.error('OpenAPI specification not found at openapi/OpenAPI.yaml');
+  console.error('OpenAPI specification not found at OpenAPI.yaml');
   process.exit(1);
 }
 

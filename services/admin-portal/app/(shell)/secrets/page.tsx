@@ -1,7 +1,7 @@
 import DataTable from '@/components/data/DataTable';
 import { formatDate } from '@/lib/format';
-import { openApiClient } from '@/openapi/openapi-client';
-import type { Secret } from '@/openapi/openapi-types';
+import { openApiClient } from '@/api/client';
+import type { Secret } from '@/api/types';
 import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';

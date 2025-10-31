@@ -17,7 +17,7 @@ description = "AstraDesk Ticket Adapter Service"
 
 java {
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(21))
+        languageVersion.set(JavaLanguageVersion.of(25))
     }
     // Lepsze wsparcie dla refleksji (np. Jackson, Spring Validation)
     withJavadocJar()

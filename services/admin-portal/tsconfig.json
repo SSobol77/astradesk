@@ -44,7 +44,6 @@
     "lib/**/*.tsx",
     "next-env.d.ts",
     "next.config.ts",
-    "openapi/**/*.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
     "scripts/**/*.ts",

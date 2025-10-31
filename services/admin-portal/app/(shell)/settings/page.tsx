@@ -1,18 +1,18 @@
 import SettingsClient from './SettingsClient';
-import { openApiClient } from '@/openapi/openapi-client';
-import type { SettingsGroup } from '@/openapi/openapi-types';
+import { openApiClient } from '@/api/client';
+import type { Setting } from '@/api/types';
 
 async function fetchSettings() {
   const [integrations, localization, platform] = await Promise.all([
-    openApiClient.settings.integrations(),
-    openApiClient.settings.localization(),
-    openApiClient.settings.platform(),
+    openApiClient.settings.list('integrations'),
+    openApiClient.settings.list('localization'),
+    openApiClient.settings.list('platform'),
   ]);
 
   return { integrations, localization, platform } satisfies {
-    integrations: SettingsGroup;
-    localization: SettingsGroup;
-    platform: SettingsGroup;
+    integrations: Setting[];
+    localization: Setting[];
+    platform: Setting[];
   };
 }
 

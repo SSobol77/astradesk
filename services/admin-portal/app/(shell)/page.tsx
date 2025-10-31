@@ -1,8 +1,8 @@
 import KpiCard from '@/components/charts/KpiCard';
 import Card from '@/components/primitives/Card';
 import { formatCurrency, formatLatency, formatNumber } from '@/lib/format';
-import { openApiClient } from '@/openapi/openapi-client';
-import type { HealthStatus, UsageMetrics } from '@/openapi/openapi-types';
+import { openApiClient } from '@/api/client';
+import type { HealthStatus, UsageMetrics, RecentError } from '@/api/types';
 import Link from 'next/link';
 
 async function getUsage(): Promise<UsageMetrics | null> {
@@ -23,10 +23,9 @@ async function getHealth(): Promise<HealthStatus | null> {
   }
 }
 
-async function getRecentErrors(limit: number) {
+async function getRecentErrors(limit: number): Promise<RecentError[]> {
   try {
-    const result = await openApiClient.dashboard.getRecentErrors(limit);
-    return result.errors;
+    return await openApiClient.dashboard.getRecentErrors({ limit });
   } catch (error) {
     console.error('Failed to load recent errors', error);
     return [];
@@ -39,6 +38,7 @@ export default async function DashboardPage() {
   const totalRequests = formatNumber(usage?.total_requests ?? 0);
   const totalCost = formatCurrency(usage?.cost_usd ?? 0);
   const p95Latency = formatLatency(usage?.latency_p95_ms ?? 0);
+  const healthEntries = health ? Object.entries(health.components ?? {}) : [];
 
   return (
     <div className="space-y-6">
@@ -56,12 +56,12 @@ export default async function DashboardPage() {
             </div>
           </div>
           <div className="mt-4 space-y-3">
-            {health?.components?.length ? (
+            {healthEntries.length ? (
               <ul className="divide-y divide-slate-200 text-sm text-slate-700">
-                {health.components.map((component) => (
-                  <li key={component.name} className="flex items-center justify-between py-2">
-                    <span>{component.name}</span>
-                    <span className="capitalize text-slate-500">{component.status}</span>
+                {healthEntries.map(([componentName, componentStatus]) => (
+                  <li key={componentName} className="flex items-center justify-between py-2">
+                    <span>{componentName}</span>
+                    <span className="capitalize text-slate-500">{componentStatus}</span>
                   </li>
                 ))}
               </ul>
@@ -86,9 +86,10 @@ export default async function DashboardPage() {
           <div className="mt-4 space-y-2">
             {errors.length ? (
               <ul className="space-y-2 text-sm text-rose-600">
-                {errors.map((errorMessage, index) => (
-                  <li key={index} className="rounded-lg border border-rose-100 bg-rose-50 px-3 py-2">
-                    {errorMessage}
+                {errors.map((errorItem) => (
+                  <li key={`${errorItem.trace_id}-${errorItem.timestamp}`} className="rounded-lg border border-rose-100 bg-rose-50 px-3 py-2">
+                    <span className="block text-xs text-rose-400">{new Date(errorItem.timestamp).toLocaleString()}</span>
+                    <span>{errorItem.message}</span>
                   </li>
                 ))}
               </ul>

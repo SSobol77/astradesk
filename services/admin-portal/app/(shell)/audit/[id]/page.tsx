@@ -1,8 +1,8 @@
 import Card from '@/components/primitives/Card';
 import JsonViewer from '@/components/misc/JsonViewer';
 import { formatDate } from '@/lib/format';
-import { openApiClient } from '@/openapi/openapi-client';
-import type { AuditEntry } from '@/openapi/openapi-types';
+import { openApiClient } from '@/api/client';
+import type { AuditEntry } from '@/api/types';
 import { notFound } from 'next/navigation';
 
 async function getAuditEntry(id: string): Promise<AuditEntry | null> {

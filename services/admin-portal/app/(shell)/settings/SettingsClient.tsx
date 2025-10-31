@@ -5,8 +5,8 @@ import Button from '@/components/primitives/Button';
 import { Form, FormField, Textarea } from '@/components/primitives/Form';
 import { Tabs } from '@/components/primitives/Tabs';
 import { useToast } from '@/hooks/useToast';
-import { openApiClient } from '@/openapi/openapi-client';
-import type { SettingsGroup } from '@/openapi/openapi-types';
+import { openApiClient } from '@/api/client';
+import type { Setting } from '@/api/types';
 
 function asPretty(value: Record<string, unknown>) {
   return JSON.stringify(value, null, 2);
@@ -17,30 +17,40 @@ export default function SettingsClient({
   localization,
   platform,
 }: {
-  integrations: SettingsGroup;
-  localization: SettingsGroup;
-  platform: SettingsGroup;
+  integrations: Setting[];
+  localization: Setting[];
+  platform: Setting[];
 }) {
   const { push } = useToast();
 
-  const [integrationJson, setIntegrationJson] = useState(asPretty(integrations.value));
-  const [localizationJson, setLocalizationJson] = useState(asPretty(localization.value));
-  const [platformJson, setPlatformJson] = useState(asPretty(platform.value));
+  const [integrationSetting, setIntegrationSetting] = useState<Setting>(
+    integrations[0] ?? { group: 'integrations', key: 'config', value: {} },
+  );
+  const [localizationSetting, setLocalizationSetting] = useState<Setting>(
+    localization[0] ?? { group: 'localization', key: 'defaults', value: {} },
+  );
+  const [platformSetting, setPlatformSetting] = useState<Setting>(
+    platform[0] ?? { group: 'platform', key: 'timezone', value: { timezone: 'UTC' } },
+  );
+
+  const [integrationJson, setIntegrationJson] = useState(asPretty(integrationSetting.value ?? {}));
+  const [localizationJson, setLocalizationJson] = useState(asPretty(localizationSetting.value ?? {}));
+  const [platformJson, setPlatformJson] = useState(asPretty(platformSetting.value ?? {}));
   const [isSaving, setIsSaving] = useState(false);
 
-  const save = async (type: 'integrations' | 'localization' | 'platform') => {
+  const save = async (
+    group: 'integrations' | 'localization' | 'platform',
+    current: Setting,
+    jsonValue: string,
+    onSettingChange: (next: Setting) => void,
+    onJsonChange: (next: string) => void,
+  ) => {
     try {
       setIsSaving(true);
-      const payload = JSON.parse(
-        type === 'integrations' ? integrationJson : type === 'localization' ? localizationJson : platformJson,
-      );
-      if (type === 'integrations') {
-        await openApiClient.settings.updateIntegrations({ ...integrations, value: payload });
-      } else if (type === 'localization') {
-        await openApiClient.settings.updateLocalization({ ...localization, value: payload });
-      } else {
-        await openApiClient.settings.updatePlatform({ ...platform, value: payload });
-      }
+      const payload = JSON.parse(jsonValue) as Record<string, unknown>;
+      const result = await openApiClient.settings.update(group, { key: current.key, value: payload });
+      onSettingChange(result);
+      onJsonChange(asPretty(result.value ?? {}));
       push({ title: 'Settings updated', variant: 'success' });
     } catch (error) {
       push({ title: 'Failed to update settings', variant: 'error' });
@@ -57,14 +67,18 @@ export default function SettingsClient({
           label: 'Integrations',
           content: (
             <Form onSubmit={(event) => event.preventDefault()}>
-              <FormField label="Integration Config" description="GET/PUT /settings/integrations">
+              <FormField label={`Integration: ${integrationSetting.key}`} description="GET/PUT /settings/integrations">
                 <Textarea
                   rows={12}
                   value={integrationJson}
                   onChange={(event) => setIntegrationJson(event.target.value)}
                 />
               </FormField>
-              <Button type="button" onClick={() => save('integrations')} disabled={isSaving}>
+              <Button
+                type="button"
+                onClick={() => save('integrations', integrationSetting, integrationJson, setIntegrationSetting, setIntegrationJson)}
+                disabled={isSaving}
+              >
                 Save Changes
               </Button>
             </Form>
@@ -75,14 +89,20 @@ export default function SettingsClient({
           label: 'Localization',
           content: (
             <Form onSubmit={(event) => event.preventDefault()}>
-              <FormField label="Localization Config" description="GET/PUT /settings/localization">
+              <FormField label={`Localization: ${localizationSetting.key}`} description="GET/PUT /settings/localization">
                 <Textarea
                   rows={12}
                   value={localizationJson}
                   onChange={(event) => setLocalizationJson(event.target.value)}
                 />
               </FormField>
-              <Button type="button" onClick={() => save('localization')} disabled={isSaving}>
+              <Button
+                type="button"
+                onClick={() =>
+                  save('localization', localizationSetting, localizationJson, setLocalizationSetting, setLocalizationJson)
+                }
+                disabled={isSaving}
+              >
                 Save Changes
               </Button>
             </Form>
@@ -93,14 +113,18 @@ export default function SettingsClient({
           label: 'Platform',
           content: (
             <Form onSubmit={(event) => event.preventDefault()}>
-              <FormField label="Platform Config" description="GET/PUT /settings/platform">
+              <FormField label={`Platform: ${platformSetting.key}`} description="GET/PUT /settings/platform">
                 <Textarea
                   rows={12}
                   value={platformJson}
                   onChange={(event) => setPlatformJson(event.target.value)}
                 />
               </FormField>
-              <Button type="button" onClick={() => save('platform')} disabled={isSaving}>
+              <Button
+                type="button"
+                onClick={() => save('platform', platformSetting, platformJson, setPlatformSetting, setPlatformJson)}
+                disabled={isSaving}
+              >
                 Save Changes
               </Button>
             </Form>

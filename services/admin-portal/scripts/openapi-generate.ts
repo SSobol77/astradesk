@@ -40,7 +40,7 @@ async function main() {
     new Set([
       specPath,
       defaultSpecPath,
-      resolve(adminPortalRoot, "openapi/astradesk-admin.v1.yaml"),
+      resolve(adminPortalRoot, "OpenAPI.yaml"),
     ]),
   );
 

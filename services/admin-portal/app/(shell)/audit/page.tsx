@@ -1,7 +1,7 @@
 import AuditClient from './AuditClient';
 import { getQueryParamsFor } from '@/lib/guards';
-import { openApiClient } from '@/openapi/openapi-client';
-import type { AuditEntry } from '@/openapi/openapi-types';
+import { openApiClient } from '@/api/client';
+import type { AuditEntry } from '@/api/types';
 
 async function getAuditEntries(): Promise<AuditEntry[]> {
   try {

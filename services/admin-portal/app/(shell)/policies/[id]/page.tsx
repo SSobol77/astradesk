@@ -1,7 +1,7 @@
 import Card from '@/components/primitives/Card';
 import JsonViewer from '@/components/misc/JsonViewer';
-import { openApiClient } from '@/openapi/openapi-client';
-import type { Policy } from '@/openapi/openapi-types';
+import { openApiClient } from '@/api/client';
+import type { Policy } from '@/api/types';
 import { notFound } from 'next/navigation';
 import PolicyActions from './PolicyActions';
 
@@ -30,7 +30,6 @@ export default async function PolicyDetailPage({ params }: PolicyDetailPageProps
     <div className="space-y-4">
       <Card>
         <h2 className="text-lg font-semibold text-slate-900">{policy.name}</h2>
-        {policy.description ? <p className="mt-2 text-sm text-slate-600">{policy.description}</p> : null}
       </Card>
       <PolicyActions id={policy.id} />
       <JsonViewer value={policy} />

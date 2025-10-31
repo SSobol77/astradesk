@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Button from '@/components/primitives/Button';
 import { Form, FormField, Textarea } from '@/components/primitives/Form';
 import { useToast } from '@/hooks/useToast';
-import { openApiClient } from '@/openapi/openapi-client';
+import { openApiClient } from '@/api/client';
 
 export default function PolicyActions({ id }: { id: string }) {
   const { push } = useToast();

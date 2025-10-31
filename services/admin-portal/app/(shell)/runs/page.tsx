@@ -1,7 +1,7 @@
 import RunsClient from './RunsClient';
 import { getQueryParamsFor } from '@/lib/guards';
-import { openApiClient } from '@/openapi/openapi-client';
-import type { Run } from '@/openapi/openapi-types';
+import { openApiClient } from '@/api/client';
+import type { Run } from '@/api/types';
 
 async function getRuns(): Promise<Run[]> {
   try {

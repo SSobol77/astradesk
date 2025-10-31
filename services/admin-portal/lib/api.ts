@@ -1,8 +1,8 @@
 import { apiBaseUrl, apiToken } from '@/lib/env';
 import { resolveSimulationResponse, isSimulationModeEnabled } from '@/lib/simulation';
-import type { ErrorResponse } from '@/openapi/openapi-types';
+import type { ProblemDetail } from '@/api/types';
 
-type HttpMethod = 'GET' | 'POST' | 'PUT';
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD';
 
 type ApiRequestConfig<TBody> = {
   path: string;
@@ -16,7 +16,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
-    public readonly problem?: ErrorResponse,
+    public readonly problem?: ProblemDetail,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -70,11 +70,11 @@ export async function apiFetch<TResponse, TBody = unknown>({
   const response = await fetch(url, init);
 
   if (!response.ok) {
-    let problem: ErrorResponse | undefined;
+    let problem: ProblemDetail | undefined;
     const contentType = response.headers.get('content-type');
     if (contentType?.includes('application/problem+json')) {
       try {
-        problem = (await response.json()) as ErrorResponse;
+        problem = (await response.json()) as ProblemDetail;
       } catch (error) {
         problem = undefined;
       }

@@ -4,9 +4,9 @@ import { useState } from 'react';
 import FilterBar, { type FilterConfig } from '@/components/data/FilterBar';
 import DataTable from '@/components/data/DataTable';
 import Button from '@/components/primitives/Button';
-import { openApiClient } from '@/openapi/openapi-client';
-import type { AuditEntry } from '@/openapi/openapi-types';
-import type { QueryParamMeta } from '@/openapi/paths-map';
+import { openApiClient } from '@/api/client';
+import type { AuditEntry } from '@/api/types';
+import type { QueryParamMeta } from '@/api/operations-map';
 import { useToast } from '@/hooks/useToast';
 import { formatDate } from '@/lib/format';
 
@@ -33,16 +33,30 @@ export default function AuditClient({
   const applyFilters = async (values: Record<string, string>) => {
     setFilters(values);
     try {
-      const next = await openApiClient.audit.list(values);
+      const next = await openApiClient.audit.list({
+        limit: values.limit ? Number(values.limit) : undefined,
+        offset: values.offset ? Number(values.offset) : undefined,
+        userId: values.userId,
+        action: values.action,
+        resource: values.resource,
+        from: values.from,
+        to: values.to,
+      });
       setEntries(next);
     } catch (error) {
       push({ title: 'Failed to filter audit trail', variant: 'error' });
     }
   };
 
-  const exportAudit = async (format: 'json' | 'ndjson') => {
+  const exportAudit = async (format: 'json' | 'ndjson' | 'csv') => {
     try {
-      await openApiClient.audit.exportData(format);
+      await openApiClient.audit.exportData(format, {
+        userId: filters.userId,
+        action: filters.action,
+        resource: filters.resource,
+        from: filters.from,
+        to: filters.to,
+      });
       push({ title: `Audit export started (${format.toUpperCase()})`, variant: 'info' });
     } catch (error) {
       push({ title: 'Audit export failed', variant: 'error' });
@@ -62,6 +76,9 @@ export default function AuditClient({
           </Button>
           <Button type="button" variant="secondary" onClick={() => exportAudit('ndjson')}>
             Export NDJSON
+          </Button>
+          <Button type="button" variant="secondary" onClick={() => exportAudit('csv')}>
+            Export CSV
           </Button>
         </div>
       </div>

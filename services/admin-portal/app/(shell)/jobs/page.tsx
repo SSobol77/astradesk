@@ -1,7 +1,7 @@
 import DataTable from '@/components/data/DataTable';
 import { formatDate } from '@/lib/format';
-import { openApiClient } from '@/openapi/openapi-client';
-import type { DlqItem, Job } from '@/openapi/openapi-types';
+import { openApiClient } from '@/api/client';
+import type { DlqItem, Job } from '@/api/types';
 import Link from 'next/link';
 
 async function getJobs(): Promise<Job[]> {
@@ -45,14 +45,9 @@ export default async function JobsPage() {
           { key: 'schedule_expr', header: 'Schedule' },
           { key: 'status', header: 'Status' },
           {
-            key: 'last_run_at',
-            header: 'Last Run',
-            render: (job) => formatDate(job.last_run_at ?? null),
-          },
-          {
-            key: 'next_run_at',
-            header: 'Next Run',
-            render: (job) => formatDate(job.next_run_at ?? null),
+            key: 'task_definition',
+            header: 'Task',
+            render: (job) => <code className="text-xs">{JSON.stringify(job.task_definition ?? {}, null, 2)}</code>,
           },
           {
             key: 'actions',
@@ -73,12 +68,12 @@ export default async function JobsPage() {
         <h3 className="text-base font-semibold text-slate-900">Dead Letter Queue</h3>
         <DataTable
           columns={[
-            { key: 'job_id', header: 'Job' },
-            { key: 'failure_reason', header: 'Reason' },
+            { key: 'id', header: 'ID' },
+            { key: 'error_message', header: 'Reason' },
             {
-              key: 'created_at',
-              header: 'Created',
-              render: (item) => formatDate(item.created_at),
+              key: 'failed_at',
+              header: 'Failed At',
+              render: (item) => formatDate(item.failed_at),
             },
           ]}
           data={dlq}

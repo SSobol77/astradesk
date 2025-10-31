@@ -1,5 +1,5 @@
 import DataTable from '@/components/data/DataTable';
-import { openApiClient } from '@/openapi/openapi-client';
+import { openApiClient } from '@/api/client';
 import Link from 'next/link';
 
 async function getConnectors() {

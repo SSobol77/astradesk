@@ -3,24 +3,27 @@ import type {
   AgentIoMessage,
   AgentMetrics,
   AuditEntry,
+  Connector,
   Dataset,
   DatasetEmbedding,
   DatasetSchema,
   DlqItem,
+  DomainPack,
   Flow,
   FlowDryRunResult,
+  FlowLogEntry,
   FlowValidation,
   HealthStatus,
   IntentGraph,
   Job,
   Policy,
-  Role,
+  RecentError,
   Run,
   Secret,
-  SettingsGroup,
+  Setting,
   UsageMetrics,
   User,
-} from '@/openapi/openapi-types';
+} from '@/api/types';
 
 const now = () => new Date().toISOString();
 
@@ -31,8 +34,7 @@ export const simulationAgents: Agent[] = [
     version: '1.4.0',
     env: 'prod',
     status: 'active',
-    description: 'Provides contextual answers using the AstraDesk knowledge base.',
-    updatedAt: now(),
+    config: { model: 'gpt-4o-mini', temperature: 0.2 },
   },
   {
     id: 'agent-sim-2',
@@ -40,27 +42,26 @@ export const simulationAgents: Agent[] = [
     version: '0.9.5',
     env: 'staging',
     status: 'degraded',
-    description: 'Routes incidents to the correct runbooks during outages.',
-    updatedAt: now(),
+    config: { model: 'gpt-4o-mini', temperature: 0.4 },
   },
 ];
 
 export const simulationAgentMetrics: AgentMetrics = {
-  latencyP95Ms: 1200,
-  latencyP99Ms: 1500,
-  tokensPerMinute: 4200,
+  p95_latency_ms: 1200,
+  p99_latency_ms: 1500,
+  request_count: 4200,
 };
 
 export const simulationAgentIo: AgentIoMessage[] = [
   {
     timestamp: now(),
-    role: 'user',
-    content: 'How do I rotate the customer API key?',
+    input: 'How do I rotate the customer API key?',
+    output: 'Navigate to Settings → Keys & Secrets, select the API key, and choose “Rotate”.',
   },
   {
     timestamp: now(),
-    role: 'assistant',
-    content: 'Navigate to Settings → Keys & Secrets, select the API key, then choose “Rotate”.',
+    input: 'What is our current CSAT score?',
+    output: 'The latest CSAT score is 4.7/5 based on 231 recent tickets.',
   },
 ];
 
@@ -68,12 +69,18 @@ export const simulationFlows: Flow[] = [
   {
     id: 'flow-sim-1',
     name: 'Daily Reporting',
-    yaml: 'steps:\n  - name: export\n    action: export_daily_metrics\n  - name: email\n    action: email_summary',
+    version: '1.0.0',
+    status: 'active',
+    env: 'prod',
+    config_yaml: 'steps:\n  - id: export\n    action: export_daily_metrics\n  - id: email\n    action: email_summary\n',
+    created_at: now(),
+    updated_at: now(),
   },
 ];
 
 export const simulationFlowValidation: FlowValidation = {
   valid: true,
+  errors: [],
 };
 
 export const simulationFlowDryRun: FlowDryRunResult = {
@@ -86,16 +93,23 @@ export const simulationFlowDryRun: FlowDryRunResult = {
     {
       name: 'email',
       status: 'success',
+      output: { recipients: 12 },
     },
   ],
 };
+
+export const simulationFlowLog: FlowLogEntry[] = [
+  { timestamp: now(), level: 'INFO', message: 'Flow execution started' },
+  { timestamp: now(), level: 'INFO', message: 'Exported 128 records' },
+  { timestamp: now(), level: 'INFO', message: 'Summary email dispatched' },
+];
 
 export const simulationDatasets: Dataset[] = [
   {
     id: 'dataset-sim-1',
     name: 'Knowledge Base',
     type: 'git',
-    indexing_status: 'idle',
+    indexing_status: 'indexed',
   },
 ];
 
@@ -109,19 +123,47 @@ export const simulationDatasetSchema: DatasetSchema = {
 
 export const simulationDatasetEmbeddings: DatasetEmbedding[] = [
   {
-    vectorId: 'vec-1',
-    dimension: 1536,
-    metadata: { source: 'knowledge-base/article-1.md' },
+    id: 'embedding-1',
+    source: 'knowledge-base/article-1.md',
+    created_at: now(),
   },
 ];
 
 export const simulationIntentGraph: IntentGraph = {
   nodes: [
-    { id: 'intent-1', label: 'Reset password' },
-    { id: 'intent-2', label: 'Rotate API key' },
+    { id: 'intent-reset', label: 'Reset password', type: 'intent' },
+    { id: 'tool-zendesk', label: 'Zendesk', type: 'tool' },
   ],
-  edges: [{ from: 'intent-1', to: 'intent-2', label: 'related' }],
+  edges: [{ source: 'intent-reset', target: 'tool-zendesk', label: 'uses' }],
 };
+
+export const simulationUsageMetrics: UsageMetrics = {
+  total_requests: 1482,
+  cost_usd: 12.45,
+  latency_p95_ms: 945,
+};
+
+export const simulationHealthStatus: HealthStatus = {
+  status: 'healthy',
+  components: {
+    workers: 'healthy',
+    'vector-db': 'healthy',
+    cache: 'degraded',
+  },
+};
+
+export const simulationRecentErrors: RecentError[] = [
+  {
+    timestamp: now(),
+    message: 'Connector timeout: zendesk',
+    trace_id: 'trace-connector-1',
+  },
+  {
+    timestamp: now(),
+    message: 'Flow dry run failed at step validate_schema',
+    trace_id: 'trace-flow-1',
+  },
+];
 
 export const simulationJobs: Job[] = [
   {
@@ -129,17 +171,16 @@ export const simulationJobs: Job[] = [
     name: 'Daily summary email',
     schedule_expr: '0 9 * * *',
     status: 'active',
-    last_run_at: now(),
-    next_run_at: now(),
+    task_definition: { type: 'email-summary', recipients: ['ops@astradesk.com'] },
   },
 ];
 
 export const simulationDlqItems: DlqItem[] = [
   {
     id: 'dlq-1',
-    job_id: 'job-sim-1',
-    failure_reason: 'Temporary SMTP failure',
-    created_at: now(),
+    original_message: { job_id: 'job-sim-1' },
+    error_message: 'Temporary SMTP failure',
+    failed_at: now(),
   },
 ];
 
@@ -147,8 +188,7 @@ export const simulationPolicies: Policy[] = [
   {
     id: 'policy-sim-1',
     name: 'Support analysts',
-    description: 'Allow read access to tickets and knowledge base.',
-    raw: 'allow group:support to read resource:tickets',
+    rego_text: 'package astradesk.authz\n\nallow { input.user.role == \"support\" }',
   },
 ];
 
@@ -182,11 +222,10 @@ export const simulationSecrets: Secret[] = [
     type: 'api-key',
     last_used_at: now(),
     created_at: now(),
-    status: 'active',
   },
 ];
 
-export const simulationConnectors = [
+export const simulationConnectors: Connector[] = [
   { id: 'connector-sim-1', name: 'Zendesk', type: 'zendesk', status: 'healthy' },
 ];
 
@@ -195,62 +234,58 @@ export const simulationUsers: User[] = [
     id: 'user-sim-1',
     email: 'admin@example.com',
     role: 'admin',
-    status: 'active',
-    last_active_at: now(),
   },
 ];
 
-export const simulationRoles: Role[] = [
-  {
-    id: 'role-sim-1',
-    name: 'admin',
-    description: 'Full access to administration features.',
-  },
+export const simulationDomainPacks: DomainPack[] = [
+  { name: 'customer-support', version: '2.1.0', status: 'installed' },
+  { name: 'it-operations', version: '1.4.3', status: 'disabled' },
 ];
 
-export const simulationSettingsGroups: SettingsGroup[] = [
-  {
-    group: 'platform',
-    key: 'timezone',
-    value: { timezone: 'UTC' },
-  },
-];
-
-export const simulationUsageMetrics: UsageMetrics = {
-  total_requests: 1482,
-  cost_usd: 12.45,
-  latency_p95_ms: 945,
-};
-
-export const simulationHealthStatus: HealthStatus = {
-  status: 'healthy',
-  components: [
-    { name: 'workers', status: 'healthy' },
-    { name: 'vector-db', status: 'healthy' },
+export const simulationSettings: Record<'integrations' | 'localization' | 'platform', Setting[]> = {
+  integrations: [
+    {
+      group: 'integrations',
+      key: 'zendesk',
+      value: { subdomain: 'astradesk', enabled: true },
+    },
+  ],
+  localization: [
+    {
+      group: 'localization',
+      key: 'default_locale',
+      value: { locale: 'en-US', currency: 'USD' },
+    },
+  ],
+  platform: [
+    {
+      group: 'platform',
+      key: 'timezone',
+      value: { timezone: 'UTC' },
+    },
   ],
 };
 
-export const simulationRecentErrors = {
-  errors: ['2024-10-12T12:18:04Z connector timeout: zendesk'],
-};
+export const simulationRecentErrorsResponse = simulationRecentErrors;
 
 export function getSimulationResponse(path: string): unknown {
   const cleanPath = path.replace(/\?.*$/, '');
+  const normalized = cleanPath.replace(/^\/api\/admin\/v1/, '');
 
-  if (cleanPath === '/usage/llm') {
+  if (normalized === '/usage/llm') {
     return simulationUsageMetrics;
   }
-  if (cleanPath === '/health') {
+  if (normalized === '/health') {
     return simulationHealthStatus;
   }
-  if (cleanPath === '/errors/recent') {
-    return simulationRecentErrors;
+  if (normalized === '/errors/recent') {
+    return simulationRecentErrorsResponse;
   }
-  if (cleanPath === '/agents') {
+  if (normalized === '/agents') {
     return simulationAgents;
   }
-  if (cleanPath.startsWith('/agents/')) {
-    const [, , agentId, rest] = cleanPath.split('/');
+  if (normalized.startsWith('/agents/')) {
+    const [, , agentId, rest] = normalized.split('/');
     const agent = simulationAgents.find((item) => item.id === agentId) ?? simulationAgents[0];
     if (!rest) {
       return agent;
@@ -263,87 +298,107 @@ export function getSimulationResponse(path: string): unknown {
     }
     return agent;
   }
-  if (cleanPath === '/flows') {
-    return simulationFlows;
+  if (normalized === '/flows') {
+    return {
+      items: simulationFlows,
+      total: simulationFlows.length,
+      limit: simulationFlows.length,
+      offset: 0,
+    };
   }
-  if (cleanPath.startsWith('/flows/')) {
+  if (normalized.startsWith('/flows/')) {
     const flow = simulationFlows[0];
-    if (cleanPath.endsWith(':validate')) {
+    if (normalized.endsWith(':validate')) {
       return simulationFlowValidation;
     }
-    if (cleanPath.endsWith(':dryrun')) {
+    if (normalized.endsWith(':dryrun')) {
       return simulationFlowDryRun;
     }
-    if (cleanPath.endsWith('/log')) {
-      return ['2024-10-12T12:17:00Z step export completed'];
+    if (normalized.endsWith(':test')) {
+      return { status: 'success', logs: ['Flow simulated successfully'], output: { message: 'ok' } };
+    }
+    if (normalized.endsWith('/log')) {
+      return simulationFlowLog;
     }
     return flow;
   }
-  if (cleanPath === '/datasets') {
+  if (normalized === '/datasets') {
     return simulationDatasets;
   }
-  if (cleanPath.startsWith('/datasets/')) {
-    if (cleanPath.endsWith('/schema')) {
+  if (normalized.startsWith('/datasets/')) {
+    if (normalized.endsWith('/schema')) {
       return simulationDatasetSchema;
     }
-    if (cleanPath.endsWith('/embeddings')) {
+    if (normalized.endsWith('/embeddings')) {
       return simulationDatasetEmbeddings;
     }
     return simulationDatasets[0];
   }
-  if (cleanPath === '/intents/graph') {
+  if (normalized === '/intents/graph') {
     return simulationIntentGraph;
   }
-  if (cleanPath === '/jobs') {
+  if (normalized === '/jobs') {
     return simulationJobs;
   }
-  if (cleanPath === '/dlq') {
-    return simulationDlqItems;
-  }
-  if (cleanPath.startsWith('/jobs/')) {
+  if (normalized.startsWith('/jobs/')) {
     return simulationJobs[0];
   }
-  if (cleanPath === '/policies') {
+  if (normalized === '/dlq') {
+    return simulationDlqItems;
+  }
+  if (normalized === '/policies') {
     return simulationPolicies;
   }
-  if (cleanPath.startsWith('/policies/')) {
-    if (cleanPath.endsWith(':simulate')) {
-      return { allow: true };
+  if (normalized.startsWith('/policies/')) {
+    if (normalized.endsWith(':simulate')) {
+      return { allow: true, violations: [] };
     }
     return simulationPolicies[0];
   }
-  if (cleanPath === '/runs') {
+  if (normalized === '/runs') {
     return simulationRuns;
   }
-  if (cleanPath.startsWith('/runs/')) {
+  if (normalized.startsWith('/runs/')) {
     return simulationRuns[0];
   }
-  if (cleanPath === '/users') {
+  if (normalized === '/users') {
     return simulationUsers;
   }
-  if (cleanPath === '/roles') {
-    return simulationRoles.map((role) => role.name);
+  if (normalized === '/roles') {
+    return ['admin', 'operator', 'viewer'];
   }
-  if (cleanPath === '/connectors') {
+  if (normalized === '/connectors') {
     return simulationConnectors;
   }
-  if (cleanPath.startsWith('/connectors/')) {
+  if (normalized.startsWith('/connectors/')) {
     return simulationConnectors[0];
   }
-  if (cleanPath === '/secrets') {
+  if (normalized === '/secrets') {
     return simulationSecrets;
   }
-  if (cleanPath === '/audit') {
+  if (normalized === '/audit') {
     return simulationAuditEntries;
   }
-  if (cleanPath.startsWith('/audit/')) {
+  if (normalized.startsWith('/audit/')) {
+    if (normalized.endsWith('/export')) {
+      return 'simulation-export';
+    }
     return simulationAuditEntries[0];
   }
-  if (cleanPath === '/settings/platform') {
-    return simulationSettingsGroups[0];
+  if (normalized.startsWith('/logs/export')) {
+    return 'simulation-log-export';
   }
-  if (cleanPath === '/settings/integrations' || cleanPath === '/settings/localization') {
-    return simulationSettingsGroups[0];
+  if (normalized === '/settings/integrations') {
+    return simulationSettings.integrations;
+  }
+  if (normalized === '/settings/localization') {
+    return simulationSettings.localization;
+  }
+  if (normalized === '/settings/platform') {
+    return simulationSettings.platform;
+  }
+  if (normalized === '/domain-packs') {
+    return simulationDomainPacks;
   }
 
   return undefined;

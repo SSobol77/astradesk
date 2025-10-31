@@ -1,6 +1,6 @@
 import DataTable from '@/components/data/DataTable';
-import { openApiClient } from '@/openapi/openapi-client';
-import type { Dataset } from '@/openapi/openapi-types';
+import { openApiClient } from '@/api/client';
+import type { Dataset } from '@/api/types';
 import Link from 'next/link';
 
 async function getDatasets(): Promise<Dataset[]> {

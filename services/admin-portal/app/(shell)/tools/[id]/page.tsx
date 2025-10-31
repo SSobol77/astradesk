@@ -1,6 +1,6 @@
 import Card from '@/components/primitives/Card';
 import JsonViewer from '@/components/misc/JsonViewer';
-import { openApiClient } from '@/openapi/openapi-client';
+import { openApiClient } from '@/api/client';
 import { notFound } from 'next/navigation';
 import ConnectorActions from './ConnectorActions';
 

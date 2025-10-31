@@ -1,6 +1,6 @@
 'use client';
 
-import type { RunStreamEvent } from '@/openapi/openapi-types';
+import type { RunStreamEvent } from '@/api/types';
 import { apiBaseUrl, apiToken } from '@/lib/env';
 
 export type SseOptions<TData> = {

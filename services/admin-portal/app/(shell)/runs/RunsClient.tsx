@@ -5,9 +5,9 @@ import FilterBar, { type FilterConfig } from '@/components/data/FilterBar';
 import DataTable from '@/components/data/DataTable';
 import Button from '@/components/primitives/Button';
 import { createSseStream } from '@/lib/sse';
-import { openApiClient } from '@/openapi/openapi-client';
-import type { Run } from '@/openapi/openapi-types';
-import type { QueryParamMeta } from '@/openapi/paths-map';
+import { openApiClient } from '@/api/client';
+import type { Run } from '@/api/types';
+import type { QueryParamMeta } from '@/api/operations-map';
 import { useToast } from '@/hooks/useToast';
 
 function toFilterConfig(meta: QueryParamMeta): FilterConfig {
@@ -49,14 +49,21 @@ export default function RunsClient({
   const applyFilters = async (values: Record<string, string>) => {
     setFilters(values);
     try {
-      const nextRuns = await openApiClient.runs.list(values);
+      const nextRuns = await openApiClient.runs.list({
+        limit: values.limit ? Number(values.limit) : undefined,
+        offset: values.offset ? Number(values.offset) : undefined,
+        agentId: values.agentId,
+        status: values.status as Run['status'] | undefined,
+        from: values.from,
+        to: values.to,
+      });
       setRuns(nextRuns);
     } catch (error) {
       push({ title: 'Failed to filter runs', variant: 'error' });
     }
   };
 
-  const exportLogs = async (format: 'json' | 'ndjson') => {
+  const exportLogs = async (format: 'json' | 'ndjson' | 'csv') => {
     try {
       await openApiClient.runs.exportLogs(format);
       push({ title: `Export started (${format.toUpperCase()})`, variant: 'info' });
@@ -78,6 +85,9 @@ export default function RunsClient({
           </Button>
           <Button type="button" variant="secondary" onClick={() => exportLogs('ndjson')}>
             Export NDJSON
+          </Button>
+          <Button type="button" variant="secondary" onClick={() => exportLogs('csv')}>
+            Export CSV
           </Button>
         </div>
       </div>

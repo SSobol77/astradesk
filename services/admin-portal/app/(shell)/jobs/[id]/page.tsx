@@ -1,8 +1,7 @@
 import Card from '@/components/primitives/Card';
 import JsonViewer from '@/components/misc/JsonViewer';
-import { formatDate } from '@/lib/format';
-import { openApiClient } from '@/openapi/openapi-client';
-import type { Job } from '@/openapi/openapi-types';
+import { openApiClient } from '@/api/client';
+import type { Job } from '@/api/types';
 import { notFound } from 'next/navigation';
 import JobActions from './JobActions';
 
@@ -43,12 +42,14 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
             <dd className="mt-1 text-sm text-slate-700">{job.status}</dd>
           </div>
           <div>
-            <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Last Run</dt>
-            <dd className="mt-1 text-sm text-slate-700">{formatDate(job.last_run_at ?? null)}</dd>
+            <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Job ID</dt>
+            <dd className="mt-1 text-sm text-slate-700">{job.id}</dd>
           </div>
           <div>
-            <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Next Run</dt>
-            <dd className="mt-1 text-sm text-slate-700">{formatDate(job.next_run_at ?? null)}</dd>
+            <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Task Definition</dt>
+            <dd className="mt-1 text-sm text-slate-700">
+              <code className="text-xs">{JSON.stringify(job.task_definition ?? {}, null, 2)}</code>
+            </dd>
           </div>
         </dl>
       </Card>
