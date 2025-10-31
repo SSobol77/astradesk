@@ -2,11 +2,17 @@ import Card from '@/components/primitives/Card';
 import { Tabs } from '@/components/primitives/Tabs';
 import JsonViewer from '@/components/misc/JsonViewer';
 import { formatDate } from '@/lib/format';
-import { openApiClient } from '@/openapi/openapi-client';
-import type { Agent, AgentIoMessage, AgentMetrics } from '@/openapi/openapi-types';
+import { openApiClient } from '@/api/client';
+import type { Agent, AgentIoMessage, AgentMetrics } from '@/api/types';
+import { simulationAgentIo, simulationAgentMetrics, simulationAgents } from '@/lib/simulation-data';
+import { isSimulationModeEnabled } from '@/lib/simulation';
 import { notFound } from 'next/navigation';
 
 async function getAgent(id: string): Promise<Agent | null> {
+  if (isSimulationModeEnabled()) {
+    return simulationAgents.find((agent) => agent.id === id) ?? simulationAgents[0] ?? null;
+  }
+
   try {
     return await openApiClient.agents.get(id);
   } catch (error) {
@@ -16,8 +22,12 @@ async function getAgent(id: string): Promise<Agent | null> {
 }
 
 async function getMetrics(id: string): Promise<AgentMetrics | null> {
+  if (isSimulationModeEnabled()) {
+    return simulationAgentMetrics;
+  }
+
   try {
-    return await openApiClient.agents.metrics(id, { p95: true, p99: false });
+    return await openApiClient.agents.metrics(id);
   } catch (error) {
     console.error('Failed to load metrics', error);
     return null;
@@ -25,8 +35,12 @@ async function getMetrics(id: string): Promise<AgentMetrics | null> {
 }
 
 async function getIo(id: string): Promise<AgentIoMessage[]> {
+  if (isSimulationModeEnabled()) {
+    return simulationAgentIo;
+  }
+
   try {
-    return await openApiClient.agents.io(id, 10);
+    return await openApiClient.agents.io(id, { limit: 10 });
   } catch (error) {
     console.error('Failed to load IO logs', error);
     return [];
@@ -51,11 +65,11 @@ export default async function AgentDetailPage({ params }: AgentDetailPageProps) 
   }
 
   const overviewEntries: Array<{ label: string; value: string }> = [
+    { label: 'ID', value: agent.id },
     { label: 'Name', value: agent.name },
-    { label: 'Version', value: agent.version },
-    { label: 'Environment', value: agent.env },
-    { label: 'Status', value: agent.status },
-    { label: 'Updated', value: formatDate(agent.updatedAt) },
+    { label: 'Version', value: agent.version ?? '—' },
+    { label: 'Environment', value: agent.env ?? '—' },
+    { label: 'Status', value: agent.status ?? '—' },
   ];
 
   return (
@@ -69,12 +83,6 @@ export default async function AgentDetailPage({ params }: AgentDetailPageProps) 
               <dd className="mt-1 text-sm text-slate-700">{entry.value}</dd>
             </div>
           ))}
-          {agent.description ? (
-            <div className="md:col-span-2">
-              <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Description</dt>
-              <dd className="mt-1 text-sm text-slate-700">{agent.description}</dd>
-            </div>
-          ) : null}
         </dl>
       </Card>
 
@@ -90,15 +98,15 @@ export default async function AgentDetailPage({ params }: AgentDetailPageProps) 
                   <dl className="mt-4 grid gap-4 md:grid-cols-3">
                     <div>
                       <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">p95</dt>
-                      <dd className="mt-1 text-sm text-slate-700">{metrics.latencyP95Ms ?? '—'}</dd>
+                      <dd className="mt-1 text-sm text-slate-700">{metrics.p95_latency_ms ?? '—'}</dd>
                     </div>
                     <div>
                       <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">p99</dt>
-                      <dd className="mt-1 text-sm text-slate-700">{metrics.latencyP99Ms ?? '—'}</dd>
+                      <dd className="mt-1 text-sm text-slate-700">{metrics.p99_latency_ms ?? '—'}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tokens per minute</dt>
-                      <dd className="mt-1 text-sm text-slate-700">{metrics.tokensPerMinute ?? '—'}</dd>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Request count</dt>
+                      <dd className="mt-1 text-sm text-slate-700">{metrics.request_count ?? '—'}</dd>
                     </div>
                   </dl>
                 ) : (
@@ -116,12 +124,14 @@ export default async function AgentDetailPage({ params }: AgentDetailPageProps) 
                 {io.length ? (
                   <ul className="mt-4 space-y-3 text-sm text-slate-700">
                     {io.map((entry, index) => (
-                      <li key={index} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                      <li key={`${entry.timestamp}-${index}`} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
                         <div className="flex items-center justify-between text-xs text-slate-500">
-                          <span className="uppercase tracking-wide">{entry.role}</span>
+                          <span>Input</span>
                           <span>{formatDate(entry.timestamp)}</span>
                         </div>
-                        <p className="mt-2 whitespace-pre-wrap text-sm">{entry.content}</p>
+                        <p className="mt-2 whitespace-pre-wrap text-sm">{entry.input}</p>
+                        <div className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Output</div>
+                        <p className="mt-2 whitespace-pre-wrap text-sm">{entry.output}</p>
                       </li>
                     ))}
                   </ul>

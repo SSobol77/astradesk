@@ -22,6 +22,7 @@
     ],
     "paths": {
       "@/_gen/*": ["src/_gen/*"],
+      "@/api/*": ["src/api/*"],
       "@/*": ["./*"]
     },
 //    "ignoreDeprecations": "5.0",

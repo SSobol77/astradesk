@@ -4,8 +4,8 @@ import { useState } from 'react';
 import DataTable from '@/components/data/DataTable';
 import Button from '@/components/primitives/Button';
 import Modal from '@/components/primitives/Modal';
-import { Form, FormField, Input, Select, Textarea } from '@/components/primitives/Form';
-import type { Agent } from '@/openapi/openapi-types';
+import { Form, FormField, Input, Select } from '@/components/primitives/Form';
+import type { Agent } from '@/api/types';
 
 const ENV_OPTIONS: Array<{ value: Agent['env']; label: string }> = [
   { value: 'draft', label: 'Draft' },
@@ -101,14 +101,6 @@ export default function AgentsClient({ agents }: { agents: Agent[] }) {
           </FormField>
           <FormField label="Status">
             <Input defaultValue={selectedAgent?.status} />
-          </FormField>
-
-        </Form>
-      </Modal>
-    </div>
-  );
-}
-tarea defaultValue={selectedAgent?.description} rows={3} />
           </FormField>
         </Form>
       </Modal>
