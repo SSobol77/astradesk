@@ -1,10 +1,10 @@
 import Card from '@/components/primitives/Card';
 import JsonViewer from '@/components/misc/JsonViewer';
-import { apiBaseUrl } from '@/lib/env';
 import { openApiClient } from '@/api/client';
 import type { IntentGraph } from '@/api/types';
 import { isSimulationModeEnabled } from '@/lib/simulation';
 import { simulationIntentGraph } from '@/lib/simulation-data';
+import { IntentGraphActions } from './IntentGraphActions';
 
 async function getGraph(): Promise<IntentGraph | null> {
   if (isSimulationModeEnabled()) {
@@ -30,12 +30,7 @@ export default async function IntentGraphPage() {
             <h2 className="text-lg font-semibold text-[#041724]">Intent Graph</h2>
             <p className="text-sm text-[#041724]">Read-only view sourced from GET /intents/graph</p>
           </div>
-          <a
-            href={`${apiBaseUrl}/api/admin/v1/intents/graph`}
-            className="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
-          >
-            Export JSON
-          </a>
+          <IntentGraphActions graph={graph} />
         </div>
         <p className="mt-4 text-sm text-[#041724]">
           Visualisation is forthcoming. For now, the OpenAPI response is shown below for validation.

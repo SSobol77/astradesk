@@ -3,23 +3,45 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DataTable from '@/components/data/DataTable';
-import Card from '@/components/primitives/Card';
 import Button from '@/components/primitives/Button';
 import { openApiClient } from '@/api/client';
-import type { DomainPack } from '@/api/types';
 import { useToast } from '@/hooks/useToast';
 
-export default function DomainPacksClient({ packs }: { packs: DomainPack[] }) {
+export type DomainPackAssetMap = {
+  agents: string[];
+  flows: string[];
+  tools: string[];
+  policies: string[];
+};
+
+export type DomainPackInfo = {
+  slug: string;
+  title: string;
+  packageName: string;
+  localVersion?: string;
+  remoteVersion?: string;
+  description?: string;
+  status: 'available' | 'installed' | 'error' | 'disabled';
+  assets: DomainPackAssetMap;
+};
+
+const STATUS_LABEL: Record<DomainPackInfo['status'], string> = {
+  available: 'Available (not installed)',
+  installed: 'Installed',
+  error: 'Error',
+  disabled: 'Disabled',
+};
+
+export default function DomainPacksClient({ packs }: { packs: DomainPackInfo[] }) {
   const router = useRouter();
   const { push } = useToast();
   const [isActioning, setActioning] = useState<string | null>(null);
 
-  const handleInstall = async (pack: DomainPack) => {
-    if (!pack.name) return;
-    setActioning(pack.name);
+  const handleInstall = async (pack: DomainPackInfo) => {
+    setActioning(pack.slug);
     try {
-      await openApiClient.domainPacks.install(pack.name);
-      push({ title: `Install triggered for ${pack.name}`, variant: 'success' });
+      await openApiClient.domainPacks.install(pack.slug);
+      push({ title: `Install triggered for ${pack.title}`, variant: 'success' });
       router.refresh();
     } catch (error) {
       console.error('Install domain pack failed', error);
@@ -29,14 +51,13 @@ export default function DomainPacksClient({ packs }: { packs: DomainPack[] }) {
     }
   };
 
-  const handleUninstall = async (pack: DomainPack) => {
-    if (!pack.name) return;
-    const confirmed = window.confirm(`Uninstall ${pack.name}?`);
+  const handleUninstall = async (pack: DomainPackInfo) => {
+    const confirmed = window.confirm(`Uninstall ${pack.title}?`);
     if (!confirmed) return;
-    setActioning(pack.name);
+    setActioning(pack.slug);
     try {
-      await openApiClient.domainPacks.uninstall(pack.name);
-      push({ title: `Uninstall triggered for ${pack.name}`, variant: 'info' });
+      await openApiClient.domainPacks.uninstall(pack.slug);
+      push({ title: `Uninstall triggered for ${pack.title}`, variant: 'info' });
       router.refresh();
     } catch (error) {
       console.error('Uninstall domain pack failed', error);
@@ -47,44 +68,88 @@ export default function DomainPacksClient({ packs }: { packs: DomainPack[] }) {
   };
 
   return (
-    <Card>
-      <h2 className="text-lg font-semibold text-slate-900">Domain Packs</h2>
-      <p className="text-sm text-slate-500">GET /domain-packs</p>
-      <div className="mt-4">
-        <DataTable
-          columns={[
-            { key: 'name', header: 'Name' },
-            { key: 'version', header: 'Version' },
-            { key: 'status', header: 'Status' },
-            {
-              key: 'actions',
-              header: 'Actions',
-              render: (pack: DomainPack) => (
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    disabled={isActioning === pack.name}
-                    onClick={() => handleInstall(pack)}
-                  >
-                    Install
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    disabled={isActioning === pack.name}
-                    onClick={() => handleUninstall(pack)}
-                  >
-                    Uninstall
-                  </Button>
-                </div>
-              ),
-            },
-          ]}
-          data={packs}
-          emptyState={<p>No domain packs available.</p>}
-        />
-      </div>
-    </Card>
+    <DataTable
+      title="Domain Packs"
+      description="Local packages + GET /domain-packs"
+      columns={[
+        {
+          key: 'title',
+          header: 'Name',
+          render: (pack: DomainPackInfo) => (
+            <div>
+              <div className="font-medium text-slate-900">{pack.title}</div>
+              <div className="text-xs text-slate-500">{pack.packageName}</div>
+              {pack.description ? <p className="mt-1 text-xs text-slate-500">{pack.description}</p> : null}
+            </div>
+          ),
+        },
+        {
+          key: 'localVersion',
+          header: 'Local Version',
+          render: (pack: DomainPackInfo) => pack.localVersion ?? '—',
+        },
+        {
+          key: 'remoteVersion',
+          header: 'Installed Version',
+          render: (pack: DomainPackInfo) => pack.remoteVersion ?? '—',
+        },
+        {
+          key: 'agents',
+          header: 'Agents',
+          render: (pack: DomainPackInfo) => pack.assets.agents.length,
+        },
+        {
+          key: 'flows',
+          header: 'Flows',
+          render: (pack: DomainPackInfo) => pack.assets.flows.length,
+        },
+        {
+          key: 'tools',
+          header: 'Tools',
+          render: (pack: DomainPackInfo) => pack.assets.tools.length,
+        },
+        {
+          key: 'policies',
+          header: 'Policies',
+          render: (pack: DomainPackInfo) => pack.assets.policies.length,
+        },
+        {
+          key: 'status',
+          header: 'Status',
+          render: (pack: DomainPackInfo) => STATUS_LABEL[pack.status] ?? pack.status ?? 'Unknown',
+        },
+        {
+          key: 'actions',
+          header: 'Actions',
+          render: (pack: DomainPackInfo) => {
+            const isInstalled = pack.status === 'installed';
+            const disableInstall = isActioning === pack.slug || isInstalled;
+            const disableUninstall = isActioning === pack.slug || !isInstalled;
+            return (
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={disableInstall}
+                  onClick={() => handleInstall(pack)}
+                >
+                  Install
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={disableUninstall}
+                  onClick={() => handleUninstall(pack)}
+                >
+                  Uninstall
+                </Button>
+              </div>
+            );
+          },
+        },
+      ]}
+      data={packs}
+      emptyState={<p>No domain packs available.</p>}
+    />
   );
 }
