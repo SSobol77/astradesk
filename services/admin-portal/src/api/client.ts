@@ -1,4 +1,5 @@
 import { apiFetch } from '@/lib/api';
+import { apiBaseUrl, apiToken } from '@/lib/env';
 import type {
   Agent,
   AgentConfigRequest,
@@ -31,11 +32,14 @@ import type {
   PolicySimulationResult,
   RecentError,
   Run,
+  RunStreamEvent,
   Secret,
   SecretCreateRequest,
   SecretRotationResult,
   Setting,
   SettingsResponse,
+  StreamHandlers,
+  StreamParams,
   UsageMetrics,
   User,
   UserCreateRequest,
@@ -43,7 +47,7 @@ import type {
   ConnectorConfigRequest,
   ConnectorProbeResult,
   ConnectorTestResult,
-} from '@/api/types';
+} from './types';
 
 const ADMIN_PREFIX = '/api/admin/v1';
 
@@ -253,6 +257,52 @@ export const openApiClient = {
           to: params.to,
         },
       }),
+    stream: (params: StreamParams = {}, handlers?: StreamHandlers) => {
+      if (typeof window === 'undefined') {
+        throw new Error('Runs stream is only available in the browser');
+      }
+
+      const url = new URL(`${ADMIN_PREFIX}/runs/stream`, apiBaseUrl);
+      if (params.agentId) {
+        url.searchParams.set('agentId', params.agentId);
+      }
+      if (params.status) {
+        url.searchParams.set('status', params.status);
+      }
+      if (apiToken) {
+        url.searchParams.set('token', apiToken);
+      }
+
+      const eventSource = new EventSource(url.toString(), { withCredentials: false });
+
+      if (handlers?.onOpen) {
+        eventSource.onopen = handlers.onOpen;
+      }
+      if (handlers?.onMessage) {
+        eventSource.onmessage = (event) => {
+          try {
+            const parsed = JSON.parse(event.data) as Partial<RunStreamEvent> | Run;
+            const runEvent: RunStreamEvent =
+              parsed && typeof parsed === 'object' && 'type' in parsed && 'data' in parsed
+                ? (parsed as RunStreamEvent)
+                : { type: 'update', data: parsed as Run };
+            handlers.onMessage?.(runEvent);
+          } catch (error) {
+            console.error('Failed to parse run stream event', error);
+          }
+        };
+      }
+      if (handlers?.onError) {
+        eventSource.onerror = handlers.onError;
+      }
+
+      const close = () => {
+        eventSource.close();
+        handlers?.onClose?.();
+      };
+
+      return { eventSource, close };
+    },
   },
   jobs: {
     list: (params: PaginationParams = {}) =>

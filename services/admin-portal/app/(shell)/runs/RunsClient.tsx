@@ -1,14 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import FilterBar, { type FilterConfig } from '@/components/data/FilterBar';
 import DataTable from '@/components/data/DataTable';
 import Button from '@/components/primitives/Button';
-import { createSseStream } from '@/lib/sse';
 import { openApiClient } from '@/api/client';
 import type { Run } from '@/api/types';
 import type { QueryParamMeta } from '@/api/operations-map';
 import { useToast } from '@/hooks/useToast';
+import { useRunsStream } from '@/hooks/useRunsStream';
 
 function toFilterConfig(meta: QueryParamMeta): FilterConfig {
   return {
@@ -20,45 +20,44 @@ function toFilterConfig(meta: QueryParamMeta): FilterConfig {
 }
 
 export default function RunsClient({
-  initialRuns,
   filtersMeta,
 }: {
-  initialRuns: Run[];
   filtersMeta: QueryParamMeta[];
 }) {
-  const [runs, setRuns] = useState(initialRuns);
   const [filters, setFilters] = useState<Record<string, string>>({});
   const { push } = useToast();
+  const streamParams = useMemo(() => {
+    const agentIdRaw = filters.agentId;
+    const statusRaw = filters.status;
+
+    return {
+      agentId: agentIdRaw ? agentIdRaw.trim() || undefined : undefined,
+      status: statusRaw ? (statusRaw as Run['status']) : undefined,
+    };
+  }, [filters.agentId, filters.status]);
+
+  const listParams = useMemo(() => {
+    const fromRaw = filters.from;
+    const toRaw = filters.to;
+
+    return {
+      ...streamParams,
+      from: fromRaw ? fromRaw : undefined,
+      to: toRaw ? toRaw : undefined,
+    };
+  }, [filters.from, filters.to, streamParams]);
+  const { runs, error } = useRunsStream(streamParams, { initialFetchParams: listParams });
 
   useEffect(() => {
-    const cleanup = createSseStream({
-      path: '/runs/stream',
-      onMessage: (event) => {
-        setRuns((current) => [event, ...current].slice(0, 50));
-      },
-      onError: () => {
-        push({ title: 'Stream disconnected', variant: 'warn' });
-      },
-    });
-
-    return cleanup;
-  }, [push]);
+    if (error) {
+      push({ title: error, variant: 'warn' });
+    }
+  }, [error, push]);
 
   const filterConfigs = useMemo(() => filtersMeta.map(toFilterConfig), [filtersMeta]);
 
-  const applyFilters = async (values: Record<string, string>) => {
+  const applyFilters = (values: Record<string, string>) => {
     setFilters(values);
-    try {
-      const nextRuns = await openApiClient.runs.list({
-        agentId: values.agentId,
-        status: values.status as Run['status'] | undefined,
-        from: values.from,
-        to: values.to,
-      });
-      setRuns(nextRuns);
-    } catch (error) {
-      push({ title: 'Failed to filter runs', variant: 'error' });
-    }
   };
 
   const exportLogs = async (format: 'json' | 'ndjson' | 'csv') => {

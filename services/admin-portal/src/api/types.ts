@@ -102,7 +102,24 @@ export type Run = RunBase & {
   created_at?: string;
   completed_at?: string;
 };
-export type RunStreamEvent = Run;
+
+export interface RunStreamEvent {
+  type: 'start' | 'update' | 'complete' | 'error';
+  data: Run;
+  timestamp?: string;
+}
+
+export interface StreamParams {
+  agentId?: string;
+  status?: Run['status'];
+}
+
+export interface StreamHandlers {
+  onOpen?: () => void;
+  onMessage?: (event: RunStreamEvent) => void;
+  onError?: (error: Event) => void;
+  onClose?: () => void;
+}
 
 type JobBase = components['schemas']['Job'];
 export type Job = WithRecord<JobBase, 'task_definition'>;
