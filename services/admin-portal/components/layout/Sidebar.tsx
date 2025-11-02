@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { href: '/secrets', label: 'Keys & Secrets' },
   { href: '/runs', label: 'Runs & Logs' },
   { href: '/jobs', label: 'Jobs & Schedules' },
+  { href: '/domain-packs', label: 'Domain Packs' },
   { href: '/rbac', label: 'Users & Roles' },
   { href: '/policies', label: 'Policies' },
   { href: '/audit', label: 'Audit Trail' },

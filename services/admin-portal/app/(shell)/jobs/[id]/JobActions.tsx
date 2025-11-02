@@ -9,6 +9,7 @@ export default function JobActions({ id }: { id: string }) {
   const { push } = useToast();
   const [isTriggering, setIsTriggering] = useState(false);
   const [isPausing, setIsPausing] = useState(false);
+  const [isResuming, setIsResuming] = useState(false);
 
   const trigger = async () => {
     try {
@@ -34,13 +35,28 @@ export default function JobActions({ id }: { id: string }) {
     }
   };
 
+  const resume = async () => {
+    try {
+      setIsResuming(true);
+      await openApiClient.jobs.resume(id);
+      push({ title: 'Job resume request sent', variant: 'success' });
+    } catch (error) {
+      push({ title: 'Resume failed', variant: 'error' });
+    } finally {
+      setIsResuming(false);
+    }
+  };
+
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-wrap gap-2">
       <Button type="button" onClick={trigger} disabled={isTriggering}>
         {isTriggering ? 'Triggering…' : 'Trigger Now'}
       </Button>
       <Button type="button" variant="secondary" onClick={pause} disabled={isPausing}>
-        {isPausing ? 'Pausing…' : 'Pause / Resume'}
+        {isPausing ? 'Pausing…' : 'Pause'}
+      </Button>
+      <Button type="button" variant="ghost" onClick={resume} disabled={isResuming}>
+        {isResuming ? 'Resuming…' : 'Resume'}
       </Button>
     </div>
   );
