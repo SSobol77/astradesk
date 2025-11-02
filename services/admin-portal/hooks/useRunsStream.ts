@@ -24,10 +24,7 @@ function upsertRun(list: Run[], incoming: Run, limit: number): Run[] {
   return next;
 }
 
-export function useRunsStream(
-  streamParams: StreamParams = {},
-  options: UseRunsStreamOptions = {},
-) {
+export function useRunsStream(streamParams: StreamParams = {}, options: UseRunsStreamOptions = {}) {
   const { initialFetchParams, maxRuns = DEFAULT_MAX_RUNS } = options;
   const [runs, setRuns] = useState<Run[]>([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -35,8 +32,24 @@ export function useRunsStream(
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
   const streamRef = useRef<{ close: () => void } | null>(null);
 
+  const initialAgentId = initialFetchParams?.agentId;
+  const initialStatus = initialFetchParams?.status;
+  const initialFrom = initialFetchParams?.from;
+  const initialTo = initialFetchParams?.to;
+  const streamAgentId = streamParams.agentId;
+  const streamStatus = streamParams.status;
+
   const connect = useCallback(async () => {
-    const fetchParams: RunsListParams = initialFetchParams ?? streamParams;
+    const fetchParams: RunsListParams = {
+      agentId: initialAgentId ?? streamAgentId,
+      status: initialStatus ?? streamStatus,
+      from: initialFrom,
+      to: initialTo,
+    };
+    const streamFilter: StreamParams = {
+      agentId: streamAgentId,
+      status: streamStatus,
+    };
 
     setIsConnected(false);
     setError(null);
@@ -56,7 +69,7 @@ export function useRunsStream(
       setRuns([]);
     }
 
-    const stream = apiClient.runs.stream(streamParams, {
+    const stream = apiClient.runs.stream(streamFilter, {
       onOpen: () => {
         setIsConnected(true);
         setError(null);
@@ -95,13 +108,13 @@ export function useRunsStream(
 
     streamRef.current = stream;
   }, [
-    initialFetchParams?.agentId,
-    initialFetchParams?.status,
-    initialFetchParams?.from,
-    initialFetchParams?.to,
+    initialAgentId,
+    initialStatus,
+    initialFrom,
+    initialTo,
     maxRuns,
-    streamParams.agentId,
-    streamParams.status,
+    streamAgentId,
+    streamStatus,
   ]);
 
   useEffect(() => {
