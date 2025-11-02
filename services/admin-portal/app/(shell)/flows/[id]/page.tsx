@@ -67,7 +67,7 @@ export default async function FlowDetailPage({ params }: FlowDetailPageProps) {
           label: 'YAML View',
           content: (
             <Card className="bg-slate-900 text-slate-100">
-              <pre className="max-h-[500px] overflow-auto text-xs leading-5">
+              <pre className="max-h-[500px] overflow-auto text-xs leading-5 text-[#2978B3]">
                 {flow.config_yaml}
               </pre>
             </Card>

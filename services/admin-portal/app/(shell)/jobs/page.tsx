@@ -49,7 +49,7 @@ export default async function JobsPage() {
             header: 'Task',
             render: (job) => {
               const taskDefinition = (job as { task_definition?: Record<string, unknown> }).task_definition ?? {};
-              return <code className="text-xs">{JSON.stringify(taskDefinition, null, 2)}</code>;
+              return <code className="text-xs text-[#2978B3]">{JSON.stringify(taskDefinition, null, 2)}</code>;
             },
           },
           {

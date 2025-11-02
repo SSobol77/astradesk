@@ -37,7 +37,7 @@ export default function PolicyActions({ id }: { id: string }) {
         </Button>
       </Form>
       {result ? (
-        <pre className="rounded-xl border border-slate-200 bg-slate-900 p-4 text-xs text-slate-100">{result}</pre>
+        <pre className="rounded-xl border border-slate-200 bg-slate-900 p-4 text-xs text-[#2978B3]">{result}</pre>
       ) : null}
     </div>
   );

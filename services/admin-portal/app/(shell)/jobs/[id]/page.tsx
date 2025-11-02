@@ -51,7 +51,7 @@ export default async function JobDetailPage({ params }: JobDetailPageProps) {
           <div>
             <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Task Definition</dt>
             <dd className="mt-1 text-sm text-slate-700">
-              <code className="text-xs">{JSON.stringify(taskDefinition, null, 2)}</code>
+              <code className="text-xs text-[#2978B3]">{JSON.stringify(taskDefinition, null, 2)}</code>
             </dd>
           </div>
         </dl>

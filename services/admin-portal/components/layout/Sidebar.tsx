@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
@@ -29,9 +30,14 @@ export default function Sidebar() {
       aria-label="Primary"
     >
       <div className="flex items-center gap-3 border-b border-slate-200 px-6 py-5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-600 text-white">
-          AD
-        </div>
+        <Image
+          src="/logo.png"
+          alt="AstraDesk logo"
+          width={40}
+          height={40}
+          className="h-10 w-10 rounded-lg object-contain"
+          priority
+        />
         <div>
           <p className="text-sm font-semibold text-slate-900">AstraDesk</p>
           <p className="text-xs text-slate-500">Admin Panel</p>
