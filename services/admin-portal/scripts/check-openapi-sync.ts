@@ -35,7 +35,10 @@ if (!existsSync(specPath)) {
   process.exit(1);
 }
 
-const generatedFiles = [join(adminPortalRoot, 'src', 'api', 'types.gen.ts')];
+const generatedFiles = [
+  join(adminPortalRoot, 'src', 'api', 'types.gen.ts'),
+  join(adminPortalRoot, 'src', 'api', 'spec-operations.gen.ts'),
+];
 
 const stale = generatedFiles.filter((file) => {
   if (!existsSync(file)) {

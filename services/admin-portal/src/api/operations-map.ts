@@ -1,3 +1,5 @@
+import { assertSpecOperation } from '@/api/spec-operations.gen';
+
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
 export type QueryParamMeta = {
@@ -14,13 +16,21 @@ export type OperationDescriptor = {
   query?: readonly QueryParamMeta[];
 };
 
+const createOperation = (
+  tag: string,
+  method: HttpMethod,
+  path: string,
+  descriptor: Omit<OperationDescriptor, 'method' | 'path'> = {},
+): OperationDescriptor => {
+  assertSpecOperation(tag, method, path);
+  return { method, path, ...descriptor };
+};
+
 export const pathsMap = {
   dashboard: {
-    health: { method: 'GET', path: '/health' },
-    usage: { method: 'GET', path: '/usage/llm' },
-    errorsRecent: {
-      method: 'GET',
-      path: '/errors/recent',
+    health: createOperation('Dashboard', 'GET', '/health'),
+    usage: createOperation('Dashboard', 'GET', '/usage/llm'),
+    errorsRecent: createOperation('Dashboard', 'GET', '/errors/recent', {
       query: [
         {
           key: 'limit',
@@ -33,20 +43,18 @@ export const pathsMap = {
           ],
         },
       ],
-    },
+    }),
   },
   agents: {
-    list: { method: 'GET', path: '/agents' },
-    detail: { method: 'GET', path: '/agents/{id}' },
-    create: { method: 'POST', path: '/agents' },
-    update: { method: 'PUT', path: '/agents/{id}' },
-    delete: { method: 'DELETE', path: '/agents/{id}' },
-    test: { method: 'POST', path: '/agents/{id}:test' },
-    clone: { method: 'POST', path: '/agents/{id}:clone' },
-    promote: { method: 'POST', path: '/agents/{id}:promote' },
-    metrics: {
-      method: 'GET',
-      path: '/agents/{id}/metrics',
+    list: createOperation('Agents', 'GET', '/agents'),
+    detail: createOperation('Agents', 'GET', '/agents/{id}'),
+    create: createOperation('Agents', 'POST', '/agents'),
+    update: createOperation('Agents', 'PUT', '/agents/{id}'),
+    delete: createOperation('Agents', 'DELETE', '/agents/{id}'),
+    test: createOperation('Agents', 'POST', '/agents/{id}:test'),
+    clone: createOperation('Agents', 'POST', '/agents/{id}:clone'),
+    promote: createOperation('Agents', 'POST', '/agents/{id}:promote'),
+    metrics: createOperation('Agents', 'GET', '/agents/{id}/metrics', {
       query: [
         {
           key: 'timeWindow',
@@ -59,10 +67,8 @@ export const pathsMap = {
           ],
         },
       ],
-    },
-    io: {
-      method: 'GET',
-      path: '/agents/{id}/io',
+    }),
+    io: createOperation('Agents', 'GET', '/agents/{id}/io', {
       query: [
         {
           key: 'limit',
@@ -76,15 +82,13 @@ export const pathsMap = {
         },
         { key: 'offset', label: 'Offset' },
       ],
-    },
+    }),
   },
   intentGraph: {
-    graph: { method: 'GET', path: '/intents/graph' },
+    graph: createOperation('Intent Graph', 'GET', '/intents/graph'),
   },
   flows: {
-    list: {
-      method: 'GET',
-      path: '/flows',
+    list: createOperation('Flows', 'GET', '/flows', {
       query: [
         {
           key: 'status',
@@ -110,69 +114,61 @@ export const pathsMap = {
         { key: 'limit', label: 'Limit' },
         { key: 'offset', label: 'Offset' },
       ],
-    },
-    detail: { method: 'GET', path: '/flows/{id}' },
-    create: { method: 'POST', path: '/flows' },
-    update: { method: 'PUT', path: '/flows/{id}' },
-    delete: { method: 'DELETE', path: '/flows/{id}' },
-    validate: { method: 'POST', path: '/flows/{id}:validate' },
-    dryRun: { method: 'POST', path: '/flows/{id}:dryrun' },
-    log: {
-      method: 'GET',
-      path: '/flows/{id}/log',
+    }),
+    detail: createOperation('Flows', 'GET', '/flows/{id}'),
+    create: createOperation('Flows', 'POST', '/flows'),
+    update: createOperation('Flows', 'PUT', '/flows/{id}'),
+    delete: createOperation('Flows', 'DELETE', '/flows/{id}'),
+    validate: createOperation('Flows', 'POST', '/flows/{id}:validate'),
+    dryRun: createOperation('Flows', 'POST', '/flows/{id}:dryrun'),
+    log: createOperation('Flows', 'GET', '/flows/{id}/log', {
       query: [
         { key: 'limit', label: 'Limit' },
         { key: 'offset', label: 'Offset' },
       ],
-    },
+    }),
   },
   datasets: {
-    list: { method: 'GET', path: '/datasets' },
-    detail: { method: 'GET', path: '/datasets/{id}' },
-    create: { method: 'POST', path: '/datasets' },
-    delete: { method: 'DELETE', path: '/datasets/{id}' },
-    reindex: { method: 'POST', path: '/datasets/{id}:reindex' },
-    schema: { method: 'GET', path: '/datasets/{id}/schema' },
-    embeddings: {
-      method: 'GET',
-      path: '/datasets/{id}/embeddings',
+    list: createOperation('Datasets', 'GET', '/datasets'),
+    detail: createOperation('Datasets', 'GET', '/datasets/{id}'),
+    create: createOperation('Datasets', 'POST', '/datasets'),
+    delete: createOperation('Datasets', 'DELETE', '/datasets/{id}'),
+    reindex: createOperation('Datasets', 'POST', '/datasets/{id}:reindex'),
+    schema: createOperation('Datasets', 'GET', '/datasets/{id}/schema'),
+    embeddings: createOperation('Datasets', 'GET', '/datasets/{id}/embeddings', {
       query: [
         { key: 'limit', label: 'Limit' },
         { key: 'offset', label: 'Offset' },
       ],
-    },
+    }),
   },
   tools: {
-    list: { method: 'GET', path: '/connectors' },
-    detail: { method: 'GET', path: '/connectors/{id}' },
-    create: { method: 'POST', path: '/connectors' },
-    update: { method: 'PUT', path: '/connectors/{id}' },
-    delete: { method: 'DELETE', path: '/connectors/{id}' },
-    test: { method: 'POST', path: '/connectors/{id}:test' },
-    probe: { method: 'POST', path: '/connectors/{id}:probe' },
+    list: createOperation('Tools/Connectors', 'GET', '/connectors'),
+    detail: createOperation('Tools/Connectors', 'GET', '/connectors/{id}'),
+    create: createOperation('Tools/Connectors', 'POST', '/connectors'),
+    update: createOperation('Tools/Connectors', 'PUT', '/connectors/{id}'),
+    delete: createOperation('Tools/Connectors', 'DELETE', '/connectors/{id}'),
+    test: createOperation('Tools/Connectors', 'POST', '/connectors/{id}:test'),
+    probe: createOperation('Tools/Connectors', 'POST', '/connectors/{id}:probe'),
   },
   secrets: {
-    list: { method: 'GET', path: '/secrets' },
-    create: { method: 'POST', path: '/secrets' },
-    rotate: { method: 'POST', path: '/secrets/{id}:rotate' },
-    disable: { method: 'DELETE', path: '/secrets/{id}:disable' },
+    list: createOperation('Keys & Secrets', 'GET', '/secrets'),
+    create: createOperation('Keys & Secrets', 'POST', '/secrets'),
+    rotate: createOperation('Keys & Secrets', 'POST', '/secrets/{id}:rotate'),
+    disable: createOperation('Keys & Secrets', 'DELETE', '/secrets/{id}:disable'),
   },
   runs: {
-    list: {
-      method: 'GET',
-      path: '/runs',
+    list: createOperation('Runs & Logs', 'GET', '/runs', {
       query: [
         { key: 'agentId', label: 'Agent ID' },
         { key: 'status', label: 'Status' },
         { key: 'from', label: 'From', type: 'date' },
         { key: 'to', label: 'To', type: 'date' },
       ],
-    },
-    stream: { method: 'GET', path: '/runs/stream' },
-    detail: { method: 'GET', path: '/runs/{id}' },
-    exportLogs: {
-      method: 'GET',
-      path: '/logs/export',
+    }),
+    stream: createOperation('Runs & Logs', 'GET', '/runs/stream'),
+    detail: createOperation('Runs & Logs', 'GET', '/runs/{id}'),
+    exportLogs: createOperation('Runs & Logs', 'GET', '/logs/export', {
       query: [
         {
           key: 'format',
@@ -185,40 +181,38 @@ export const pathsMap = {
           ],
         },
       ],
-    },
+    }),
   },
   jobs: {
-    list: { method: 'GET', path: '/jobs' },
-    detail: { method: 'GET', path: '/jobs/{id}' },
-    create: { method: 'POST', path: '/jobs' },
-    update: { method: 'PUT', path: '/jobs/{id}' },
-    delete: { method: 'DELETE', path: '/jobs/{id}' },
-    trigger: { method: 'POST', path: '/jobs/{id}:trigger' },
-    pause: { method: 'POST', path: '/jobs/{id}:pause' },
-    resume: { method: 'POST', path: '/jobs/{id}:resume' },
-    dlq: { method: 'GET', path: '/dlq' },
+    list: createOperation('Jobs & Schedules', 'GET', '/jobs'),
+    detail: createOperation('Jobs & Schedules', 'GET', '/jobs/{id}'),
+    create: createOperation('Jobs & Schedules', 'POST', '/jobs'),
+    update: createOperation('Jobs & Schedules', 'PUT', '/jobs/{id}'),
+    delete: createOperation('Jobs & Schedules', 'DELETE', '/jobs/{id}'),
+    trigger: createOperation('Jobs & Schedules', 'POST', '/jobs/{id}:trigger'),
+    pause: createOperation('Jobs & Schedules', 'POST', '/jobs/{id}:pause'),
+    resume: createOperation('Jobs & Schedules', 'POST', '/jobs/{id}:resume'),
+    dlq: createOperation('Jobs & Schedules', 'GET', '/dlq'),
   },
   rbac: {
-    users: { method: 'GET', path: '/users' },
-    create: { method: 'POST', path: '/users' },
-    detail: { method: 'GET', path: '/users/{id}' },
-    delete: { method: 'DELETE', path: '/users/{id}' },
-    resetMfa: { method: 'POST', path: '/users/{id}:reset-mfa' },
-    updateRole: { method: 'PUT', path: '/users/{id}/role' },
-    roles: { method: 'GET', path: '/roles' },
+    users: createOperation('Users & Roles', 'GET', '/users'),
+    create: createOperation('Users & Roles', 'POST', '/users'),
+    detail: createOperation('Users & Roles', 'GET', '/users/{id}'),
+    delete: createOperation('Users & Roles', 'DELETE', '/users/{id}'),
+    resetMfa: createOperation('Users & Roles', 'POST', '/users/{id}:reset-mfa'),
+    updateRole: createOperation('Users & Roles', 'PUT', '/users/{id}/role'),
+    roles: createOperation('Users & Roles', 'GET', '/roles'),
   },
   policies: {
-    list: { method: 'GET', path: '/policies' },
-    detail: { method: 'GET', path: '/policies/{id}' },
-    create: { method: 'POST', path: '/policies' },
-    update: { method: 'PUT', path: '/policies/{id}' },
-    delete: { method: 'DELETE', path: '/policies/{id}' },
-    simulate: { method: 'POST', path: '/policies/{id}:simulate' },
+    list: createOperation('Policies', 'GET', '/policies'),
+    detail: createOperation('Policies', 'GET', '/policies/{id}'),
+    create: createOperation('Policies', 'POST', '/policies'),
+    update: createOperation('Policies', 'PUT', '/policies/{id}'),
+    delete: createOperation('Policies', 'DELETE', '/policies/{id}'),
+    simulate: createOperation('Policies', 'POST', '/policies/{id}:simulate'),
   },
   audit: {
-    list: {
-      method: 'GET',
-      path: '/audit',
+    list: createOperation('Audit Trail', 'GET', '/audit', {
       query: [
         { key: 'userId', label: 'User ID' },
         { key: 'action', label: 'Action' },
@@ -226,10 +220,9 @@ export const pathsMap = {
         { key: 'from', label: 'From', type: 'date' },
         { key: 'to', label: 'To', type: 'date' },
       ],
-    },
-    export: {
-      method: 'GET',
-      path: '/audit/export',
+    }),
+    get: createOperation('Audit Trail', 'GET', '/audit/{id}'),
+    exportData: createOperation('Audit Trail', 'GET', '/audit/export', {
       query: [
         {
           key: 'format',
@@ -242,17 +235,16 @@ export const pathsMap = {
           ],
         },
       ],
-    },
-    detail: { method: 'GET', path: '/audit/{id}' },
+    }),
   },
   settings: {
-    list: { method: 'GET', path: '/settings/{group}' },
-    update: { method: 'PUT', path: '/settings/{group}' },
+    list: createOperation('Settings', 'GET', '/settings/{group}'),
+    update: createOperation('Settings', 'PUT', '/settings/{group}'),
   },
   domainPacks: {
-    list: { method: 'GET', path: '/domain-packs' },
-    install: { method: 'POST', path: '/domain-packs/{name}:install' },
-    uninstall: { method: 'POST', path: '/domain-packs/{name}:uninstall' },
+    list: createOperation('Domain Packs', 'GET', '/domain-packs'),
+    install: createOperation('Domain Packs', 'POST', '/domain-packs/{name}:install'),
+    uninstall: createOperation('Domain Packs', 'POST', '/domain-packs/{name}:uninstall'),
   },
 } as const;
 

@@ -101,6 +101,10 @@ jobs:
         working-directory: services/admin-portal
         run: npm ci
 
+      - name: API contract sync
+        working-directory: services/admin-portal
+        run: npm run openapi:check
+
       - name: Run Tests with Coverage
         working-directory: services/admin-portal
         run: npm run test -- --coverage

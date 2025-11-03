@@ -1,5 +1,6 @@
-// services/ticket-adapter-java/build.gradle.kts
-// Module: Ticket Adapter (Spring Boot WebFlux + R2DBC MySQL), Gradle 8+, JDK 21.
+/* File: services/ticket-adapter-java/build.gradle.kts
+ *  Module: Ticket Adapter (Spring Boot WebFlux + R2DBC MySQL), Gradle 8+, JDK 21.
+*/
 
 import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.springframework.boot.gradle.tasks.bundling.BootJar

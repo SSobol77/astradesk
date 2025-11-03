@@ -70,6 +70,10 @@ export default function UsersTab({ users }: { users: User[] }) {
       const detail = await openApiClient.rbac.get(user.id);
       push({ title: 'User detail', description: JSON.stringify(detail, null, 2), variant: 'info' });
     } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        push({ title: 'User not found', variant: 'warn' });
+        return;
+      }
       push({ title: 'Failed to fetch user', variant: 'error' });
     }
   };
