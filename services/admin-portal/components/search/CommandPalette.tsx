@@ -109,7 +109,7 @@ function CommandPalette({
 
   const commands = useMemo<Command[]>(() => {
     const navigationCommands: Command[] = [
-      ...NAV_ITEMS.map((item) => ({
+      ...NAV_ITEMS.map((item): Command => ({
         id: `nav-${item.href}`,
         label: item.label,
         hint: item.href,
@@ -133,7 +133,7 @@ function CommandPalette({
       },
     ];
 
-    const quickCommands: Command[] = quickCreates.map((link, index) => ({
+    const quickCommands: Command[] = quickCreates.map((link, index): Command => ({
       id: `quick-${index}`,
       label: link.label,
       hint: 'Quick action',
