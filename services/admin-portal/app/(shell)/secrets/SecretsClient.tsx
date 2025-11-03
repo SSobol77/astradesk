@@ -72,7 +72,7 @@ export default function SecretsClient({ secrets }: { secrets: Secret[] }) {
 
   const handleDisable = async (secret: Secret) => {
     if (!secret.id) return;
-    const confirmed = window.confirm(`Disable secret "${secret.name ?? secret.id}"?`);
+  const confirmed = globalThis.confirm?.(`Disable secret "${secret.name ?? secret.id}"?`);
     if (!confirmed) return;
     try {
       await openApiClient.secrets.disable(secret.id);

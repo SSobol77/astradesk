@@ -134,7 +134,7 @@ export default function AgentsClient({ agents }: { agents: Agent[] }) {
 
   const handleDelete = async (agent: Agent) => {
     if (!agent.id) return;
-    const confirmed = window.confirm(`Delete agent "${agent.name ?? agent.id}"?`);
+  const confirmed = globalThis.confirm?.(`Delete agent "${agent.name ?? agent.id}"?`);
     if (!confirmed) return;
     try {
       await openApiClient.agents.delete(agent.id);
@@ -148,7 +148,7 @@ export default function AgentsClient({ agents }: { agents: Agent[] }) {
 
   const handleTest = async (agent: Agent) => {
     if (!agent.id) return;
-    const input = window.prompt('Enter a test input message for the agent');
+  const input = globalThis.prompt?.('Enter a test input message for the agent');
     if (input === null) return;
     try {
       const result = await openApiClient.agents.test(agent.id, input);

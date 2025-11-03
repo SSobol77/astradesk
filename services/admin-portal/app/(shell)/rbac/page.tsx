@@ -1,5 +1,4 @@
 import Card from '@/components/primitives/Card';
-import DataTable from '@/components/data/DataTable';
 import { Tabs } from '@/components/primitives/Tabs';
 import { openApiClient } from '@/api/client';
 import type { User } from '@/api/types';

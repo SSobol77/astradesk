@@ -13,7 +13,14 @@ export interface paths {
         };
         /**
          * Get system health status
-         * @description Retrieves a high-level status of the entire platform and its core components.
+         * @description Retrieves a comprehensive health status of the AstraDesk platform and all its core components.
+         *     This endpoint provides real-time monitoring information including:
+         *     - Overall system health state (healthy/degraded/down)
+         *     - Individual component status checks
+         *     - Core service availability metrics
+         *     - Infrastructure health indicators
+         *
+         *     Use this endpoint for system monitoring, automated health checks, and incident response.
          */
         get: {
             parameters: {
@@ -70,7 +77,14 @@ export interface paths {
         };
         /**
          * Get platform-wide LLM usage metrics
-         * @description Retrieves aggregated metrics such as total requests, total cost, and latency percentiles.
+         * @description Retrieves comprehensive analytics and usage metrics for all LLM operations across the platform.
+         *     The endpoint provides essential operational and financial insights including:
+         *     - Total API requests and successful completions
+         *     - Aggregated costs and usage breakdown by model
+         *     - Performance metrics (p95/p99 latency, error rates)
+         *     - Usage trends and patterns
+         *
+         *     Critical for billing reconciliation, performance monitoring, and capacity planning.
          */
         get: {
             parameters: {
@@ -176,7 +190,15 @@ export interface paths {
         };
         /**
          * List all agents
-         * @description Retrieves a paginated list of all configured agents.
+         * @description Retrieves a paginated list of all configured AI agents in the system.
+         *     Returns detailed information about each agent including:
+         *     - Agent ID and name
+         *     - Current version and environment (draft/dev/staging/prod)
+         *     - Operational status and health
+         *     - Configuration details and capabilities
+         *     - Associated model and tool settings
+         *
+         *     Essential for agent inventory management and system administration.
          */
         get: {
             parameters: {
@@ -349,7 +371,40 @@ export interface paths {
             };
         };
         post?: never;
-        delete?: never;
+        /**
+         * Delete an agent
+         * @description Permanently removes an agent and all of its configuration versions.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The unique identifier of the agent to delete. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The agent was successfully deleted. */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Agent not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetail"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -366,7 +421,16 @@ export interface paths {
         put?: never;
         /**
          * Run a test query against an agent
-         * @description Executes a dry-run of the agent with a given input to test its behavior.
+         * @description Executes a controlled test run of an agent in an isolated environment to validate its behavior.
+         *     This endpoint enables developers to:
+         *     - Verify agent responses and logic
+         *     - Test tool integrations and permissions
+         *     - Debug issues without affecting production data
+         *     - Validate configuration changes
+         *     - Analyze performance characteristics
+         *
+         *     The test environment mimics production but prevents any real-world actions or side effects.
+         *     Responses include detailed execution traces and tool invocations for thorough analysis.
          */
         post: {
             parameters: {
@@ -684,7 +748,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List flows */
+        /**
+         * List flows
+         * @description Retrieves a paginated list of all configured automation flows in the system.
+         *     Each flow represents a series of automated tasks and includes:
+         *     - Flow ID and name
+         *     - Version information and current status
+         *     - Environment context (draft/dev/staging/prod)
+         *     - Configuration details in YAML format
+         *     - Creation and last update timestamps
+         *
+         *     Essential for managing and monitoring automated workflows in the platform.
+         */
         get: {
             parameters: {
                 query?: {
@@ -808,9 +883,90 @@ export interface paths {
                 };
             };
         };
-        put?: never;
+        /**
+         * Update an existing flow
+         * @description Updates the metadata or YAML configuration for an existing flow.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The unique identifier of the flow to update. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["FlowUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description The updated flow. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Flow"];
+                    };
+                };
+                /** @description Invalid request body. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetail"];
+                    };
+                };
+                /** @description Flow not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetail"];
+                    };
+                };
+            };
+        };
         post?: never;
-        delete?: never;
+        /**
+         * Delete a flow
+         * @description Permanently removes a flow and all of its versions.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The unique identifier of the flow to delete. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The flow was successfully deleted. */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Flow not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetail"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -1652,7 +1808,15 @@ export interface paths {
         };
         /**
          * List secret metadata
-         * @description Retrieves a paginated list of metadata for all configured secrets. The secret values are never returned.
+         * @description Retrieves a paginated list of metadata for all configured secrets in the system.
+         *     For security reasons, actual secret values are never returned. The endpoint provides:
+         *     - Secret ID and name
+         *     - Type classification (API key, credential, etc.)
+         *     - Creation timestamp and last usage information
+         *     - Associated metadata and tags
+         *
+         *     Critical for secret inventory management and audit compliance.
+         *     Helps track secret usage patterns and identify unused credentials.
          */
         get: {
             parameters: {
@@ -2120,7 +2284,19 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List jobs */
+        /**
+         * List jobs
+         * @description Retrieves a paginated list of all scheduled jobs and their current states.
+         *     Jobs represent scheduled or recurring tasks in the system. The endpoint provides:
+         *     - Job ID and name
+         *     - Schedule expression (CRON format)
+         *     - Current status and last execution result
+         *     - Task definition and configuration
+         *     - Next scheduled run time
+         *
+         *     Essential for monitoring automated tasks and scheduling maintenance operations.
+         *     Supports job management and execution tracking across the platform.
+         */
         get: {
             parameters: {
                 query?: {
@@ -2555,7 +2731,19 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List users */
+        /**
+         * List users
+         * @description Retrieves a paginated list of all users registered in the system.
+         *     User management is central to platform access control. The endpoint provides:
+         *     - User ID and email
+         *     - Assigned role (admin, operator, viewer)
+         *     - Account status and last activity
+         *     - Associated permissions and access levels
+         *     - MFA status and security settings
+         *
+         *     Critical for user administration, access management, and security auditing.
+         *     Supports RBAC (Role-Based Access Control) implementation.
+         */
         get: {
             parameters: {
                 query?: {
@@ -2895,7 +3083,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List policies */
+        /**
+         * List policies
+         * @description Retrieves a paginated list of all OPA (Open Policy Agent) policies configured in the system.
+         *     Policies define access control and business rules. The endpoint provides:
+         *     - Policy ID and name
+         *     - Rego policy definitions
+         *     - Policy status and version information
+         *     - Associated metadata and tags
+         *
+         *     Essential for policy management, compliance monitoring, and access control administration.
+         *     Enables policy auditing and version tracking across the platform.
+         */
         get: {
             parameters: {
                 query?: {
@@ -3177,7 +3376,16 @@ export interface paths {
         };
         /**
          * List and filter audit trail entries
-         * @description Retrieves a paginated list of immutable audit log entries, with support for filtering.
+         * @description Retrieves a paginated list of immutable audit log entries with comprehensive filtering capabilities.
+         *     The audit trail provides a complete record of system activities including:
+         *     - User actions and authentication events
+         *     - System configuration changes
+         *     - Resource access and modifications
+         *     - Policy evaluations and decisions
+         *     - Security-relevant events
+         *
+         *     Critical for compliance reporting, security investigations, and operational audits.
+         *     All entries are cryptographically signed to ensure integrity.
          */
         get: {
             parameters: {
@@ -3369,7 +3577,15 @@ export interface paths {
         };
         /**
          * Get all settings for a specific group
-         * @description Retrieves a collection of key-value settings for a given configuration group (e.g., 'integrations', 'platform').
+         * @description Retrieves all configuration settings within a specified group (e.g., 'integrations', 'platform', 'localization').
+         *     Settings management is hierarchical and grouped by functional area. The endpoint provides:
+         *     - All key-value pairs within the specified group
+         *     - Setting metadata and descriptions
+         *     - Default and current values
+         *     - Configuration constraints and validation rules
+         *
+         *     Critical for platform configuration management and system customization.
+         *     Supports dynamic system behavior modification without service restarts.
          */
         get: {
             parameters: {
@@ -3478,7 +3694,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List installed domain packs */
+        /**
+         * List installed domain packs
+         * @description Retrieves a list of all installed domain-specific extension packs in the system.
+         *     Domain packs extend platform capabilities with specialized knowledge and tools.
+         *     The endpoint provides:
+         *     - Pack name and version information
+         *     - Installation status (installed/error/disabled)
+         *     - Pack capabilities and dependencies
+         *     - Associated domain-specific configurations
+         *
+         *     Essential for managing platform extensions and domain-specific functionality.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -3598,12 +3825,15 @@ export interface components {
          *     This ensures consistent and machine-readable error handling.
          */
         ProblemDetail: {
+            type?: string;
             /**
              * Format: uri
              * @description A URI identifier for the problem type.
              * @example https://astradesk.com/errors/authentication-failed
              */
-            type?: string;
+            task_definition?: {
+                [key: string]: unknown;
+            };
             /**
              * @description A short, human-readable summary of the problem type.
              * @example Authentication Failed
@@ -3645,7 +3875,9 @@ export interface components {
             /** @enum {string} */
             env?: "draft" | "dev" | "staging" | "prod";
             status?: string;
-            config?: Record<string, never>;
+            config?: {
+                [key: string]: unknown;
+            };
         };
         /** @description Payload for creating or updating an agent's configuration. */
         AgentConfigRequest: {
@@ -3667,6 +3899,7 @@ export interface components {
             id?: string;
             name?: string;
             type?: string;
+            status?: string;
         };
         Run: {
             id?: string;
@@ -3674,12 +3907,19 @@ export interface components {
             status?: string;
             latency_ms?: number;
             cost_usd?: number;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            completed_at?: string;
         };
         Job: {
             id?: string;
             name?: string;
             schedule_expr?: string;
             status?: string;
+            task_definition?: {
+                [key: string]: unknown;
+            };
         };
         User: {
             id?: string;
@@ -3716,7 +3956,9 @@ export interface components {
         Setting: {
             group?: string;
             key?: string;
-            value?: Record<string, never>;
+            value?: {
+                [key: string]: unknown;
+            };
         };
         Flow: {
             /** Format: uuid */
@@ -3740,6 +3982,29 @@ export interface components {
             status?: "active" | "draft" | "archived";
             /** @description Updated YAML configuration. */
             config_yaml: string;
+        };
+        FlowValidation: {
+            valid?: boolean;
+            errors?: string[];
+        };
+        FlowDryRunStep: {
+            name?: string;
+            /** @enum {string} */
+            status?: "success" | "skipped" | "failure";
+            output?: {
+                [key: string]: unknown;
+            };
+        };
+        FlowDryRunResult: {
+            steps?: components["schemas"]["FlowDryRunStep"][];
+        };
+        FlowTestResult: {
+            /** @enum {string} */
+            status?: "success" | "failure";
+            logs?: string[];
+            output?: {
+                [key: string]: unknown;
+            };
         };
         Secret: {
             id?: string;

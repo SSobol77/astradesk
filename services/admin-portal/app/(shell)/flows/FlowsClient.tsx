@@ -55,7 +55,7 @@ export default function FlowsClient({ flows }: { flows: Flow[] }) {
 
   const handleDelete = async (flow: Flow) => {
     if (!flow.id) return;
-    const confirmed = window.confirm(`Delete flow "${flow.name ?? flow.id}"?`);
+  const confirmed = globalThis.confirm?.(`Delete flow "${flow.name ?? flow.id}"?`);
     if (!confirmed) return;
     try {
       await openApiClient.flows.delete(flow.id);

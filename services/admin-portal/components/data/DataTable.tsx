@@ -12,7 +12,7 @@ export type DataTableProps<T> = {
   title?: string;
   description?: string;
   columns: TableColumn<T>[];
-  data: T[];
+  data?: T[];
   emptyState?: ReactNode;
   pagination?: {
     page: number;
@@ -26,7 +26,7 @@ export default function DataTable<T>({
   title,
   description,
   columns,
-  data,
+  data = [],
   emptyState,
   pagination,
 }: DataTableProps<T>) {

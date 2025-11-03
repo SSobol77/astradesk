@@ -15,9 +15,9 @@ export type FilterConfig = {
 };
 
 type FilterBarProps = {
-  filters: FilterConfig[];
-  onChange?: (values: Record<string, string>) => void;
-  initialValues?: Record<string, string>;
+  readonly filters: FilterConfig[];
+  readonly onChange?: (values: Record<string, string>) => void;
+  readonly initialValues?: Record<string, string>;
 };
 
 export default function FilterBar({ filters, onChange, initialValues }: FilterBarProps) {
@@ -34,7 +34,13 @@ export default function FilterBar({ filters, onChange, initialValues }: FilterBa
   };
 
   return (
-    <div className="flex flex-wrap items-end gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    // suppressHydrationWarning: Some browser extensions (e.g. password managers) may inject
+    // attributes into the DOM between server render and client hydration which causes
+    // spurious React hydration warnings. This flag tells React to ignore mismatches here.
+    <div
+      suppressHydrationWarning
+      className="flex flex-wrap items-end gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+    >
       {filters.map((filter) => {
         const value = values[filter.key] ?? '';
         if (filter.type === 'select' && filter.options) {

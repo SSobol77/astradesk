@@ -11,10 +11,12 @@ import Button from '@/components/primitives/Button';
 import { openApiClient } from '@/api/client';
 import type { Policy } from '@/api/types';
 import { useToast } from '@/hooks/useToast';
+import { useConfirm } from '@/hooks/useConfirm';
 
 export default function PoliciesClient({ policies }: { policies: Policy[] }) {
   const router = useRouter();
   const { push } = useToast();
+  const { confirm, ConfirmDialog } = useConfirm();
 
   const [name, setName] = useState('');
   const [rego, setRego] = useState('package astra.policy\n\nallow { true }');
@@ -27,23 +29,44 @@ export default function PoliciesClient({ policies }: { policies: Policy[] }) {
 
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!name.trim() || !rego.trim()) {
-      push({ title: 'Provide name and Rego text', variant: 'error' });
+    
+    const trimmedName = name.trim();
+    const trimmedRego = rego.trim();
+    
+    if (!trimmedName) {
+      push({ title: 'Name is required', description: 'Please provide a policy name', variant: 'error' });
       return;
     }
+    
+    if (!trimmedRego) {
+      push({ title: 'Rego text is required', description: 'Please provide the policy definition', variant: 'error' });
+      return;
+    }
+    
     setCreating(true);
     try {
       await openApiClient.policies.create({
-        name: name.trim(),
-        rego_text: rego,
+        name: trimmedName,
+        rego_text: trimmedRego,
       });
-      push({ title: 'Policy created', variant: 'success' });
+      
+      push({ 
+        title: 'Policy created successfully',
+        description: `Policy "${trimmedName}" has been created`,
+        variant: 'success' 
+      });
+      
+      // Reset form
       setName('');
       setRego('package astra.policy\n\nallow { true }');
       router.refresh();
     } catch (error) {
-      console.error('Create policy failed', error);
-      push({ title: 'Failed to create policy', variant: 'error' });
+      console.error('Create policy failed:', error);
+      push({ 
+        title: 'Failed to create policy',
+        description: error instanceof Error ? error.message : 'Unknown error occurred',
+        variant: 'error'
+      });
     } finally {
       setCreating(false);
     }
@@ -58,21 +81,50 @@ export default function PoliciesClient({ policies }: { policies: Policy[] }) {
 
   const handleUpdate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!editId.trim() || !editRego.trim()) {
-      push({ title: 'Provide policy ID and Rego text', variant: 'error' });
+    
+    const trimmedId = editId.trim();
+    const trimmedRego = editRego.trim();
+    const trimmedName = editName.trim();
+    
+    if (!trimmedId) {
+      push({ 
+        title: 'Invalid policy',
+        description: 'No policy selected for update',
+        variant: 'error'
+      });
       return;
     }
+    
+    if (!trimmedRego) {
+      push({ 
+        title: 'Rego text is required',
+        description: 'Please provide the policy definition',
+        variant: 'error'
+      });
+      return;
+    }
+    
     setUpdating(true);
     try {
-      await openApiClient.policies.update(editId, {
-        name: editName.trim() || undefined,
-        rego_text: editRego,
+      await openApiClient.policies.update(trimmedId, {
+        name: trimmedName || 'New Policy',  // Default name if empty
+        rego_text: trimmedRego,
       });
-      push({ title: 'Policy updated', variant: 'success' });
+      
+      push({ 
+        title: 'Policy updated successfully',
+        description: `Policy "${trimmedName || 'New Policy'}" has been updated`,
+        variant: 'success'
+      });
+      
       router.refresh();
     } catch (error) {
-      console.error('Update policy failed', error);
-      push({ title: 'Failed to update policy', variant: 'error' });
+      console.error('Update policy failed:', error);
+      push({ 
+        title: 'Failed to update policy',
+        description: error instanceof Error ? error.message : 'Unknown error occurred',
+        variant: 'error'
+      });
     } finally {
       setUpdating(false);
     }
@@ -80,20 +132,33 @@ export default function PoliciesClient({ policies }: { policies: Policy[] }) {
 
   const handleDelete = async (policy: Policy) => {
     if (!policy.id) return;
-    const confirmed = window.confirm(`Delete policy "${policy.name ?? policy.id}"?`);
+    
+    const confirmed = await confirm({
+      title: 'Delete Policy',
+      message: `Are you sure you want to delete policy "${policy.name ?? policy.id}"?`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel'
+    });
+    
     if (!confirmed) return;
+    
     try {
       await openApiClient.policies.delete(policy.id);
       push({ title: 'Policy deleted', variant: 'success' });
       router.refresh();
     } catch (error) {
-      console.error('Delete policy failed', error);
-      push({ title: 'Failed to delete policy', variant: 'error' });
+      console.error('Delete policy failed:', error);
+      push({ 
+        title: 'Failed to delete policy',
+        description: error instanceof Error ? error.message : 'Unknown error occurred',
+        variant: 'error'
+      });
     }
   };
 
   return (
     <div className="space-y-6">
+      {ConfirmDialog}
       <Card>
         <h2 className="text-lg font-semibold text-slate-900">Create Policy</h2>
         <p className="text-sm text-slate-500">POST /policies</p>

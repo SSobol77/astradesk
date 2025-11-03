@@ -4,7 +4,7 @@
 #     Defines services for AstraDesk local dev environment.
 #     Includes API, Prometheus, ticket-adapter (Java), admin-portal (Node.js), auditor,
 #     MySQL, Postgres, Redis, NATS, and domain packs (Python, Java, gRPC).
-#     Supports polyglot stack (Python 3.14+, Java 25, Node 22+, Postgres 18).
+#     Supports polyglot stack (Python 3.14+, Java 25, Node 22+, Postgres 17).
 # Author: Siergej Sobolewski
 # Since: 2025-10-25
 
@@ -31,7 +31,7 @@ services:
         condition: service_healthy
 
   prometheus:
-    image: prom/prometheus:v3.7.1  # Latest stable
+    image: prom/prometheus:v3.7.1
     ports:
       - "9090:9090"
     volumes:

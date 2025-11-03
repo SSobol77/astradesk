@@ -473,8 +473,11 @@ store = DataStore()
 
 app = FastAPI(
     title="AstraDesk Admin API",
-    description="Provides administrative endpoints for the AstraDesk platform.",
-    version="1.2.0",
+    description="API for AstraDesk Admin v1.2 - operational and governance panel for agents, data, policies, and audits.",
+    version="0.3.0",
+    openapi_url="/openapi.json",
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
 

@@ -75,7 +75,7 @@ packages/
 - **flows/**: YAML files in AstraDSL format defining workflows (triggers, steps, policies). Parsed by `src/runtime/planner.py`.
 - **policies/**: OPA Rego files for governance (e.g., restricting JQL queries in JIRA). Loaded by `src/runtime/policy.py`.
 - **tests/**: Pytest-based unit and integration tests for agents/tools. Run via `make test-packs`.
-- **pyproject.toml**: UV-managed dependencies, specifying `astradesk>=0.2.1` and domain-specific libraries (e.g., `prophet` for finance).
+- **pyproject.toml**: UV-managed dependencies, specifying `astradesk>=0.3.0` and domain-specific libraries (e.g., `prophet` for finance).
 - **README.md**: Pack-specific setup, usage, and examples.
 
 ## OAuth Configuration for External Services

@@ -10,6 +10,7 @@ import Button from '@/components/primitives/Button';
 import { openApiClient } from '@/api/client';
 import type { Dataset } from '@/api/types';
 import { useToast } from '@/hooks/useToast';
+import { ApiError } from '@/lib/api';
 
 const DATASET_TYPES: Array<{ value: Dataset['type']; label: string }> = [
   { value: 's3', label: 'Amazon S3' },
@@ -38,11 +39,17 @@ export default function DatasetsClient({ datasets }: { datasets: Dataset[] }) {
       });
       push({ title: 'Dataset created', variant: 'success' });
       setName('');
-      setType('');
       router.refresh();
     } catch (error) {
-      console.error('Create dataset failed', error);
-      push({ title: 'Failed to create dataset', variant: 'error' });
+      console.error('Create dataset failed:', error);
+      push({
+        title: 'Failed to create dataset',
+        description: error instanceof ApiError ? error.problem?.detail : 'Network error occurred',
+        variant: 'error',
+      });
+      // reset form state on failure
+      setType('');
+      router.refresh();
     } finally {
       setSubmitting(false);
     }
@@ -50,7 +57,7 @@ export default function DatasetsClient({ datasets }: { datasets: Dataset[] }) {
 
   const handleDelete = async (dataset: Dataset) => {
     if (!dataset.id) return;
-    const confirmed = window.confirm(`Delete dataset "${dataset.name ?? dataset.id}"?`);
+  const confirmed = globalThis.confirm?.(`Delete dataset "${dataset.name ?? dataset.id}"?`);
     if (!confirmed) return;
     try {
       await openApiClient.datasets.delete(dataset.id);

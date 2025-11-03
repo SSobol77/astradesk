@@ -12,7 +12,7 @@ plugins {
 }
 
 group = "com.astradesk"
-version = "0.2.1"
+version = "0.3.0"
 description = "AstraDesk Ticket Adapter Service"
 
 java {

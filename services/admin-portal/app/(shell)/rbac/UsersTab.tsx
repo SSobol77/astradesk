@@ -9,34 +9,59 @@ import type { User } from '@/api/types';
 import { openApiClient } from '@/api/client';
 import { useToast } from '@/hooks/useToast';
 import { useRouter } from 'next/navigation';
+import { useConfirm } from '@/hooks/useConfirm';
+import { ApiError } from '@/lib/api';
 
 const ROLE_OPTIONS: Array<User['role']> = ['admin', 'operator', 'viewer'];
 
 export default function UsersTab({ users }: { users: User[] }) {
   const router = useRouter();
   const { push } = useToast();
+  const { confirm, ConfirmDialog } = useConfirm();
+
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<User['role']>('viewer');
+  const [role, setRole] = useState<NonNullable<User['role']>>('viewer' as NonNullable<User['role']>);
   const [isSubmitting, setSubmitting] = useState(false);
 
   const handleInvite = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!email.trim()) {
-      push({ title: 'Email is required', variant: 'error' });
+    
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      push({ 
+        title: 'Email is required',
+        description: 'Please provide a valid email address',
+        variant: 'error'
+      });
       return;
     }
+    
     setSubmitting(true);
     try {
-      await openApiClient.rbac.create({ email: email.trim(), role });
-      push({ title: 'User invited', variant: 'success' });
+      await openApiClient.rbac.create({ 
+        email: trimmedEmail, 
+        role
+      });
+      
+      push({ 
+        title: 'User invited successfully',
+        description: `Invitation sent to ${trimmedEmail} with ${role} role`,
+        variant: 'success'
+      });
+
       setEmail('');
       router.refresh();
     } catch (error) {
-      console.error('Invite user failed', error);
-      push({ title: 'Failed to invite user', variant: 'error' });
+      console.error('Invite user failed:', error);
+      push({
+        title: 'Failed to invite user',
+        description: error instanceof ApiError ? error.problem?.detail : 'Network error occurred',
+        variant: 'error'
+      });
     } finally {
       setSubmitting(false);
     }
+    
   };
 
   const handleView = async (user: User) => {
@@ -51,7 +76,7 @@ export default function UsersTab({ users }: { users: User[] }) {
 
   const handleUpdateRole = async (user: User) => {
     if (!user.id) return;
-    const nextRole = window.prompt('Set role (admin, operator, viewer)', user.role ?? 'viewer');
+  const nextRole = globalThis.prompt?.('Set role (admin, operator, viewer)', user.role ?? 'viewer');
     if (!nextRole) return;
     if (!ROLE_OPTIONS.includes(nextRole as User['role'])) {
       push({ title: 'Invalid role', variant: 'error' });
@@ -78,19 +103,27 @@ export default function UsersTab({ users }: { users: User[] }) {
 
   const handleDelete = async (user: User) => {
     if (!user.id) return;
-    const confirmed = window.confirm(`Remove user "${user.email ?? user.id}"?`);
+    // Use the shared confirmation hook for a consistent modal UX
+    const confirmed = await confirm({
+      title: 'Remove user',
+      message: `Remove user "${user.email ?? user.id}"?`,
+      confirmText: 'Remove',
+      cancelText: 'Cancel',
+    });
     if (!confirmed) return;
     try {
       await openApiClient.rbac.delete(user.id);
       push({ title: 'User removed', variant: 'success' });
       router.refresh();
     } catch (error) {
+      console.error('Delete user failed:', error);
       push({ title: 'Failed to delete user', variant: 'error' });
     }
   };
 
   return (
     <div className="space-y-6">
+      {ConfirmDialog}
       <Card>
         <div className="flex items-center justify-between">
           <div>
@@ -103,7 +136,7 @@ export default function UsersTab({ users }: { users: User[] }) {
             <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
           </FormField>
           <FormField label="Role">
-            <Select value={role} onChange={(event) => setRole(event.target.value as User['role'])}>
+            <Select value={role} onChange={(event) => setRole(event.target.value as NonNullable<User['role']>)}>
               {ROLE_OPTIONS.map((option) => (
                 <option key={option} value={option}>
                   {option}

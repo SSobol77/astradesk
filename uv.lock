@@ -260,7 +260,7 @@ provides-extras = ["dev", "docs", "ingestion"]
 
 [[package]]
 name = "astradesk-admin-api"
-version = "0.1.0"
+version = "0.3.0"
 source = { editable = "services/admin_api" }
 dependencies = [
     { name = "fastapi" },

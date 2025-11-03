@@ -30,7 +30,7 @@ export async function apiFetch<TResponse, TBody = unknown>({
   body,
   headers,
 }: ApiRequestConfig<TBody>): Promise<TResponse> {
-  const simulationResponse = resolveSimulationResponse(path, method);
+  const simulationResponse = resolveSimulationResponse(path, method, body);
   if (simulationResponse !== undefined) {
     return simulationResponse as TResponse;
   }
@@ -67,35 +67,71 @@ export async function apiFetch<TResponse, TBody = unknown>({
     init.next = { revalidate: 60 };
   }
 
-  const response = await fetch(url, init);
+  const maxRetries = 3;
+  let lastError: Error | undefined;
 
-  if (!response.ok) {
-    let problem: ProblemDetail | undefined;
-    const contentType = response.headers.get('content-type');
-    if (contentType?.includes('application/problem+json')) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, { ...init, signal: AbortSignal.timeout(30000) });
+
+      if (!response.ok) {
+        let problem: ProblemDetail | undefined;
+        const contentType = response.headers.get('content-type');
+        if (contentType?.includes('application/problem+json')) {
+          try {
+            problem = await response.json() as ProblemDetail;
+          } catch {
+            // Ignore JSON parse error for problem details
+          }
+        }
+
+        // Don't retry for client errors (4xx)
+        if (response.status >= 400 && response.status < 500) {
+          throw new ApiError(
+            problem?.detail || response.statusText || `HTTP ${response.status}`,
+            response.status,
+            problem
+          );
+        }
+
+        // For server errors, retry after delay
+        if (attempt < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+          continue;
+        }
+
+        throw new ApiError(
+          problem?.detail || response.statusText || `HTTP ${response.status}`,
+          response.status,
+          problem
+        );
+      }
+
+      // Handle no-content responses
+      if (response.status === 204) {
+        return undefined as TResponse;
+      }
+
+      // Parse JSON response
       try {
-        problem = (await response.json()) as ProblemDetail;
+        return await response.json() as TResponse;
       } catch (error) {
-        problem = undefined;
+        throw new ApiError('Invalid JSON response from server', response.status);
+      }
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      lastError = error as Error;
+      if (attempt < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+        continue;
       }
     }
-    const message = problem?.detail || `Request failed with status ${response.status}`;
-    throw new ApiError(message, response.status, problem);
   }
 
-  if (response.status === 204) {
-    return undefined as TResponse;
-  }
-
-  const text = await response.text();
-  if (!text) {
-    return undefined as TResponse;
-  }
-
-  try {
-    return JSON.parse(text) as TResponse;
-  } catch (error) {
-    // The endpoint might not return JSON (e.g., NDJSON export). In that case, return raw text.
-    return text as TResponse;
-  }
+  throw new ApiError(
+    lastError?.message || 'Network request failed after multiple retries',
+    0
+  );
 }

@@ -4,6 +4,7 @@ import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
 import ToastViewport from '@/components/primitives/Toast';
 import { ToastProvider } from '@/hooks/useToast';
+import { CommandPaletteProvider } from '@/components/search/CommandPalette';
 
 export default function ShellLayout({
   children,
@@ -12,17 +13,19 @@ export default function ShellLayout({
 }) {
   return (
     <ToastProvider>
-      <div className="flex min-h-screen bg-slate-100">
-        <Sidebar />
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <Topbar />
-          <main className="flex-1 overflow-y-auto p-6" aria-label="Main content">
-            {children}
-          </main>
-          <Footer />
+      <CommandPaletteProvider>
+        <div className="flex min-h-screen bg-slate-100">
+          <Sidebar />
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <Topbar />
+            <main className="flex-1 overflow-y-auto p-6" aria-label="Main content">
+              {children}
+            </main>
+            <Footer />
+          </div>
+          <ToastViewport />
         </div>
-        <ToastViewport />
-      </div>
+      </CommandPaletteProvider>
     </ToastProvider>
   );
 }

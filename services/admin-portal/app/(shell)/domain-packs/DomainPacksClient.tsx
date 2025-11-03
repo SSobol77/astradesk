@@ -52,7 +52,7 @@ export default function DomainPacksClient({ packs }: { packs: DomainPackInfo[] }
   };
 
   const handleUninstall = async (pack: DomainPackInfo) => {
-    const confirmed = window.confirm(`Uninstall ${pack.title}?`);
+  const confirmed = globalThis.confirm?.(`Uninstall ${pack.title}?`);
     if (!confirmed) return;
     setActioning(pack.slug);
     try {

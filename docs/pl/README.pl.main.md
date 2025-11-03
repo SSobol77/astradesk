@@ -331,7 +331,7 @@ The web-based Admin Portal, available at `http://localhost:3000`, provides a UI 
 
    ```sh
    helm upgrade --install astradesk deploy/chart -f deploy/chart/values.yaml \
-     --set image.tag=0.2.1 \
+  --set image.tag=0.3.0 \
      --set autoscaling.enabled=true
    ```
 
@@ -344,7 +344,7 @@ The web-based Admin Portal, available at `http://localhost:3000`, provides a UI 
 **Procesuj template:**
 
    ```sh
-   oc process -f deploy/openshift/astradesk-template.yaml -p TAG=0.2.1 | oc apply -f -
+  oc process -f deploy/openshift/astradesk-template.yaml -p TAG=0.3.0 | oc apply -f -
    ```
 
 <br>

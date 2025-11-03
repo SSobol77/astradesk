@@ -4,7 +4,7 @@
 openapi: 3.1.0
 info:
   title: AstraDesk Admin API
-  version: "1.2.0" 
+  version: "0.3.0" 
   description: API for AstraDesk Admin v1.2 - operational and governance panel for agents, data, policies, and audits.
   contact:
     name: AstraDesk Operations
@@ -76,8 +76,6 @@ components:
         This ensures consistent and machine-readable error handling.
       properties:
         type:
-          type: string
-        status:
           type: string
         task_definition:
           type: object
@@ -241,7 +239,6 @@ components:
       properties:
         value:
           type: object
-          additionalProperties: true
           description: The new value for the setting.
           additionalProperties: true
     AuditEntry:
@@ -546,7 +543,15 @@ paths:
     get:
       tags: [Dashboard]
       summary: Get system health status
-      description: Retrieves a high-level status of the entire platform and its core components.
+      description: |
+        Retrieves a comprehensive health status of the AstraDesk platform and all its core components. 
+        This endpoint provides real-time monitoring information including:
+        - Overall system health state (healthy/degraded/down)
+        - Individual component status checks
+        - Core service availability metrics
+        - Infrastructure health indicators
+        
+        Use this endpoint for system monitoring, automated health checks, and incident response.
       security:
         - BearerAuth: []
       responses:
@@ -575,7 +580,15 @@ paths:
     get:
       tags: [Dashboard]
       summary: Get platform-wide LLM usage metrics
-      description: Retrieves aggregated metrics such as total requests, total cost, and latency percentiles.
+      description: |
+        Retrieves comprehensive analytics and usage metrics for all LLM operations across the platform.
+        The endpoint provides essential operational and financial insights including:
+        - Total API requests and successful completions
+        - Aggregated costs and usage breakdown by model
+        - Performance metrics (p95/p99 latency, error rates)
+        - Usage trends and patterns
+        
+        Critical for billing reconciliation, performance monitoring, and capacity planning.
       security:
         - BearerAuth: []
       responses:
@@ -628,7 +641,16 @@ paths:
     get:
       tags: [Agents]
       summary: List all agents
-      description: Retrieves a paginated list of all configured agents.
+      description: |
+        Retrieves a paginated list of all configured AI agents in the system.
+        Returns detailed information about each agent including:
+        - Agent ID and name
+        - Current version and environment (draft/dev/staging/prod)
+        - Operational status and health
+        - Configuration details and capabilities
+        - Associated model and tool settings
+        
+        Essential for agent inventory management and system administration.
       security:
         - BearerAuth: []
       parameters:
@@ -708,6 +730,29 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+    delete:
+      tags: [Agents]
+      summary: Delete an agent
+      description: Permanently removes an agent and all of its configuration versions.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The unique identifier of the agent to delete.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: The agent was successfully deleted.
+        '404':
+          description: Agent not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
     put:
       tags: [Agents]
       summary: Update an agent's configuration
@@ -745,7 +790,17 @@ paths:
     post:
       tags: [Agents]
       summary: Run a test query against an agent
-      description: Executes a dry-run of the agent with a given input to test its behavior.
+      description: |
+        Executes a controlled test run of an agent in an isolated environment to validate its behavior.
+        This endpoint enables developers to:
+        - Verify agent responses and logic
+        - Test tool integrations and permissions
+        - Debug issues without affecting production data
+        - Validate configuration changes
+        - Analyze performance characteristics
+        
+        The test environment mimics production but prevents any real-world actions or side effects.
+        Responses include detailed execution traces and tool invocations for thorough analysis.
       security:
         - BearerAuth: []
       parameters:
@@ -948,6 +1003,16 @@ paths:
     get:
       tags: [Flows]
       summary: List flows
+      description: |
+        Retrieves a paginated list of all configured automation flows in the system.
+        Each flow represents a series of automated tasks and includes:
+        - Flow ID and name
+        - Version information and current status
+        - Environment context (draft/dev/staging/prod)
+        - Configuration details in YAML format
+        - Creation and last update timestamps
+        
+        Essential for managing and monitoring automated workflows in the platform.
       security:
         - BearerAuth: []
       parameters:
@@ -1018,6 +1083,68 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Flow'
+        '404':
+          description: Flow not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    put:
+      tags: [Flows]
+      summary: Update an existing flow
+      description: Updates the metadata or YAML configuration for an existing flow.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The unique identifier of the flow to update.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FlowUpdateRequest'
+      responses:
+        '200':
+          description: The updated flow.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Flow'
+        '400':
+          description: Invalid request body.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Flow not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    delete:
+      tags: [Flows]
+      summary: Delete a flow
+      description: Permanently removes a flow and all of its versions.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The unique identifier of the flow to delete.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: The flow was successfully deleted.
         '404':
           description: Flow not found.
           content:
@@ -1541,7 +1668,16 @@ paths:
     get:
       tags: [Keys & Secrets]
       summary: List secret metadata
-      description: Retrieves a paginated list of metadata for all configured secrets. The secret values are never returned.
+      description: |
+        Retrieves a paginated list of metadata for all configured secrets in the system.
+        For security reasons, actual secret values are never returned. The endpoint provides:
+        - Secret ID and name
+        - Type classification (API key, credential, etc.)
+        - Creation timestamp and last usage information
+        - Associated metadata and tags
+        
+        Critical for secret inventory management and audit compliance.
+        Helps track secret usage patterns and identify unused credentials.
       security:
         - BearerAuth: []
       parameters:
@@ -1860,6 +1996,17 @@ paths:
     get:
       tags: [Jobs & Schedules]
       summary: List jobs
+      description: |
+        Retrieves a paginated list of all scheduled jobs and their current states.
+        Jobs represent scheduled or recurring tasks in the system. The endpoint provides:
+        - Job ID and name
+        - Schedule expression (CRON format)
+        - Current status and last execution result
+        - Task definition and configuration
+        - Next scheduled run time
+        
+        Essential for monitoring automated tasks and scheduling maintenance operations.
+        Supports job management and execution tracking across the platform.
       security:
         - BearerAuth: []
       parameters:
@@ -2101,6 +2248,17 @@ paths:
     get:
       tags: [Users & Roles]
       summary: List users
+      description: |
+        Retrieves a paginated list of all users registered in the system.
+        User management is central to platform access control. The endpoint provides:
+        - User ID and email
+        - Assigned role (admin, operator, viewer)
+        - Account status and last activity
+        - Associated permissions and access levels
+        - MFA status and security settings
+        
+        Critical for user administration, access management, and security auditing.
+        Supports RBAC (Role-Based Access Control) implementation.
       security:
         - BearerAuth: []
       parameters:
@@ -2268,6 +2426,16 @@ paths:
     get:
       tags: [Policies]
       summary: List policies
+      description: |
+        Retrieves a paginated list of all OPA (Open Policy Agent) policies configured in the system.
+        Policies define access control and business rules. The endpoint provides:
+        - Policy ID and name
+        - Rego policy definitions
+        - Policy status and version information
+        - Associated metadata and tags
+        
+        Essential for policy management, compliance monitoring, and access control administration.
+        Enables policy auditing and version tracking across the platform.
       security:
         - BearerAuth: []
       parameters:
@@ -2430,7 +2598,17 @@ paths:
     get:
       tags: [Audit Trail]
       summary: List and filter audit trail entries
-      description: Retrieves a paginated list of immutable audit log entries, with support for filtering.
+      description: |
+        Retrieves a paginated list of immutable audit log entries with comprehensive filtering capabilities.
+        The audit trail provides a complete record of system activities including:
+        - User actions and authentication events
+        - System configuration changes
+        - Resource access and modifications
+        - Policy evaluations and decisions
+        - Security-relevant events
+        
+        Critical for compliance reporting, security investigations, and operational audits.
+        All entries are cryptographically signed to ensure integrity.
       parameters:
         - name: userId
           in: query
@@ -2578,7 +2756,16 @@ paths:
     get:
       tags: [Settings]
       summary: Get all settings for a specific group
-      description: Retrieves a collection of key-value settings for a given configuration group (e.g., 'integrations', 'platform').
+      description: |
+        Retrieves all configuration settings within a specified group (e.g., 'integrations', 'platform', 'localization').
+        Settings management is hierarchical and grouped by functional area. The endpoint provides:
+        - All key-value pairs within the specified group
+        - Setting metadata and descriptions
+        - Default and current values
+        - Configuration constraints and validation rules
+        
+        Critical for platform configuration management and system customization.
+        Supports dynamic system behavior modification without service restarts.
       parameters:
         - name: group
           in: path
@@ -2652,6 +2839,16 @@ paths:
     get:
       tags: [Domain Packs]
       summary: List installed domain packs
+      description: |
+        Retrieves a list of all installed domain-specific extension packs in the system.
+        Domain packs extend platform capabilities with specialized knowledge and tools.
+        The endpoint provides:
+        - Pack name and version information
+        - Installation status (installed/error/disabled)
+        - Pack capabilities and dependencies
+        - Associated domain-specific configurations
+        
+        Essential for managing platform extensions and domain-specific functionality.
       security:
         - BearerAuth: []
       responses:

@@ -1,4 +1,4 @@
-# AstraDesk 0.2.1 - Dokumentacja (`docs/`)
+# AstraDesk 0.3.0 - Dokumentacja (`docs/`)
 
 **AstraDesk to wewnętrzny framework do budowy agentów AI z referencyjnymi agentami:**
 

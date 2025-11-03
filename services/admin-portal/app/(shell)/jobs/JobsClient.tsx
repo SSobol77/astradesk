@@ -12,12 +12,14 @@ import { openApiClient } from '@/api/client';
 import type { DlqItem, Job } from '@/api/types';
 import { formatDate } from '@/lib/format';
 import { useToast } from '@/hooks/useToast';
+import { useConfirm } from '@/hooks/useConfirm';
 
 const emptyTaskDefinition = '{\n  "task": "send-summary"\n}';
 
 export default function JobsClient({ jobs, dlq }: { jobs: Job[]; dlq: DlqItem[] }) {
   const router = useRouter();
   const { push } = useToast();
+  const { confirm, ConfirmDialog } = useConfirm();
 
   const [createName, setCreateName] = useState('');
   const [createSchedule, setCreateSchedule] = useState('0 * * * *');
@@ -48,28 +50,53 @@ export default function JobsClient({ jobs, dlq }: { jobs: Job[]; dlq: DlqItem[] 
 
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!createName.trim() || !createSchedule.trim()) {
-      push({ title: 'Provide job name and schedule', variant: 'error' });
+    
+    const trimmedName = createName.trim();
+    
+    if (!trimmedName) {
+      push({ 
+        title: 'Name is required', 
+        description: 'Please provide a job name',
+        variant: 'error' 
+      });
       return;
     }
+    
     if (!createTaskDefinition) {
-      push({ title: 'Invalid task definition JSON', variant: 'error' });
+      push({ 
+        title: 'Invalid task configuration',
+        description: 'Please provide valid JSON for the task definition',
+        variant: 'error'
+      });
       return;
     }
+    
     setCreating(true);
     try {
       await openApiClient.jobs.create({
-        name: createName.trim(),
-        schedule_expr: createSchedule.trim(),
+        name: trimmedName,
+        schedule_expr: createSchedule,
         task_definition: createTaskDefinition,
       });
-      push({ title: 'Job created', variant: 'success' });
+      
+      push({ 
+        title: 'Job created successfully',
+        description: `Job "${trimmedName}" has been created with schedule: ${createSchedule}`,
+        variant: 'success'
+      });
+      
+      // Reset form
       setCreateName('');
+      setCreateSchedule('0 * * * *');
       setCreateTaskJson(emptyTaskDefinition);
       router.refresh();
     } catch (error) {
-      console.error('Create job failed', error);
-      push({ title: 'Failed to create job', variant: 'error' });
+      console.error('Create job failed:', error);
+      push({ 
+        title: 'Failed to create job',
+        description: error instanceof Error ? error.message : 'Unknown error occurred',
+        variant: 'error'
+      });
     } finally {
       setCreating(false);
     }
@@ -101,7 +128,7 @@ export default function JobsClient({ jobs, dlq }: { jobs: Job[]; dlq: DlqItem[] 
     setUpdating(true);
     try {
       await openApiClient.jobs.update(editId, {
-        name: editName.trim() || undefined,
+        name: editName.trim() || 'New Job',  // Default name if empty
         schedule_expr: editSchedule.trim(),
         task_definition: updateTaskDefinition,
       });
@@ -117,20 +144,37 @@ export default function JobsClient({ jobs, dlq }: { jobs: Job[]; dlq: DlqItem[] 
 
   const handleDelete = async (job: Job) => {
     if (!job.id) return;
-    const confirmed = window.confirm(`Delete job "${job.name ?? job.id}"?`);
+    
+    const confirmed = await confirm({
+      title: 'Delete Job',
+      message: `Are you sure you want to delete job "${job.name ?? job.id}"?`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel'
+    });
+    
     if (!confirmed) return;
+    
     try {
       await openApiClient.jobs.delete(job.id);
-      push({ title: 'Job deleted', variant: 'success' });
+      push({ 
+        title: 'Job deleted successfully',
+        description: `Job "${job.name ?? job.id}" has been deleted`,
+        variant: 'success'
+      });
       router.refresh();
     } catch (error) {
-      console.error('Delete job failed', error);
-      push({ title: 'Failed to delete job', variant: 'error' });
+      console.error('Delete job failed:', error);
+      push({ 
+        title: 'Failed to delete job',
+        description: error instanceof Error ? error.message : 'Unknown error occurred',
+        variant: 'error'
+      });
     }
   };
 
   return (
     <div className="space-y-6">
+      {ConfirmDialog}
       <Card>
         <h2 className="text-lg font-semibold text-slate-900">Create Job</h2>
         <p className="text-sm text-slate-500">POST /jobs</p>

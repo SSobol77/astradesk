@@ -6,10 +6,10 @@ build-backend = "hatchling.build"
 
 [project]
 name = "astradesk-admin-api"            # Project/distribution name (can have hyphens)
-version = "0.1.0"
-description = "AstraDesk Admin API (FastAPI) — Admin UI v1.0 backend aligned with Admin API v1.2.0."
+version = "0.3.0"
+description = "AstraDesk Admin API (FastAPI) — Admin UI backend aligned with AstraDesk platform v0.3.0."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 license = { text = "Apache-2.0" }
 authors = [{ name = "AstraDesk Team" }]
 
@@ -59,10 +59,10 @@ allow-direct-references = true
 # ---------- Tooling (optional but recommended) ----------
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py314"
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.14"
 strict = true
 warn_unused_ignores = true
 warn_redundant_casts = true

@@ -593,7 +593,7 @@ AstraDesk 可部署在多种环境中，包括 Kubernetes、OpenShift、AWS 云�
    ```bash
    helm upgrade --install astradesk deploy/chart \
        -f deploy/chart/values.yaml \
-       --set image.tag=0.2.1 \
+  --set image.tag=0.3.0 \
        --set autoscaling.enabled=true
    ```
 
@@ -606,9 +606,9 @@ AstraDesk 可部署在多种环境中，包括 Kubernetes、OpenShift、AWS 云�
 
 1. **通过模板部署：**
 
-   ```bash
-   oc process -f deploy/openshift/astradesk-template.yaml -p TAG=0.2.1 | oc apply -f -
-   ```
+  ```bash
+  oc process -f deploy/openshift/astradesk-template.yaml -p TAG=0.3.0 | oc apply -f -
+  ```
 
 2. **OpenShift 优势：**
 

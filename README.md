@@ -105,7 +105,7 @@ Communication: HTTP (between components), NATS (events/audits), Redis (working m
 - **Docker** and **Docker Compose** (for local dev).
 - **Kubernetes** with Helm (for deployment).
 - **AWS CLI** and **Terraform** (for cloud setup).
-- **Node.js 22**, **JDK 21**, **Python 3.11** (for builds).
+- **Node.js 22**, **JDK 25**, **Python 3.14** (for builds).
 - **Postgres 17**, **MySQL 8**, **Redis 7**, **NATS 2** (core services).
 - **Optional:** Istio, cert-manager (for mTLS/TLS).
 
@@ -246,7 +246,7 @@ curl -X POST http://localhost:8080/v1/agents/run \
 
    ```sh
    helm upgrade --install astradesk deploy/chart -f deploy/chart/values.yaml \
-     --set image.tag=0.2.1 \
+     --set image.tag=0.3.0 \
      --set autoscaling.enabled=true
    ```
 
@@ -256,9 +256,9 @@ curl -X POST http://localhost:8080/v1/agents/run \
 
 1. Process template:
 
-   ```sh
-   oc process -f deploy/openshift/astradesk-template.yaml -p TAG=0.2.1 | oc apply -f -
-   ```
+  ```sh
+  oc process -f deploy/openshift/astradesk-template.yaml -p TAG=0.3.0 | oc apply -f -
+  ```
 
 ### AWS (Terraform)
 

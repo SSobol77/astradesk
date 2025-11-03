@@ -268,6 +268,96 @@ export const simulationSettings: Record<'integrations' | 'localization' | 'platf
 
 export const simulationRecentErrorsResponse = simulationRecentErrors;
 
+export function getSimulationMutationResponse(method: string, path: string, body?: unknown): unknown {
+  const normalized = path.replace(/^\/api\/admin\/v1/, '');
+
+  if (method === 'POST') {
+    if (normalized === '/flows') {
+      const payload = (body as { name?: string }) ?? {};
+      const timestamp = now();
+      return {
+        id: `flow-sim-${Math.random().toString(36).slice(2, 8)}`,
+        name: payload.name ?? 'Simulated Flow',
+        version: '0.1.0',
+        status: 'draft',
+        env: 'dev',
+        config_yaml: 'steps: []',
+        created_at: timestamp,
+        updated_at: timestamp,
+      } satisfies Flow;
+    }
+    if (normalized === '/agents') {
+      return simulationAgents[0];
+    }
+    if (normalized === '/datasets') {
+      return simulationDatasets[0];
+    }
+    if (normalized === '/connectors') {
+      return simulationConnectors[0];
+    }
+    if (normalized === '/jobs') {
+      return simulationJobs[0];
+    }
+    if (normalized === '/policies') {
+      return simulationPolicies[0];
+    }
+    if (normalized === '/secrets') {
+      return simulationSecrets[0];
+    }
+    if (normalized === '/users') {
+      return simulationUsers[0];
+    }
+  }
+
+  if (method === 'PUT') {
+    if (normalized.startsWith('/flows/')) {
+      return {
+        ...simulationFlows[0],
+        updated_at: now(),
+      } as Flow;
+    }
+    if (normalized.startsWith('/agents/')) {
+      return simulationAgents[0];
+    }
+    if (normalized.startsWith('/connectors/')) {
+      return simulationConnectors[0];
+    }
+    if (normalized.startsWith('/jobs/')) {
+      return simulationJobs[0];
+    }
+    if (normalized.startsWith('/policies/')) {
+      return simulationPolicies[0];
+    }
+    if (normalized.startsWith('/settings/')) {
+      const parts = normalized.split('/');
+      const settingGroup = parts[2] as keyof typeof simulationSettings | undefined;
+      if (settingGroup && simulationSettings[settingGroup]) {
+        return simulationSettings[settingGroup];
+      }
+    }
+    if (normalized.startsWith('/users/') && normalized.endsWith('/role')) {
+      return simulationUsers[0];
+    }
+  }
+
+  if (method === 'DELETE') {
+    if (
+      normalized.startsWith('/flows/') ||
+      normalized.startsWith('/datasets/') ||
+      normalized.startsWith('/connectors/') ||
+      normalized.startsWith('/jobs/') ||
+      normalized.startsWith('/policies/') ||
+      normalized.startsWith('/secrets/') ||
+      normalized.startsWith('/agents/') ||
+      normalized.startsWith('/users/')
+    ) {
+      return { status: 'deleted' };
+    }
+  }
+
+  return undefined;
+}
+
 export function getSimulationResponse(path: string): unknown {
   const cleanPath = path.replace(/\?.*$/, '');
   const normalized = cleanPath.replace(/^\/api\/admin\/v1/, '');

@@ -13,5 +13,5 @@ async function getConnectors() {
 export default async function ToolsPage() {
   const connectors = await getConnectors();
 
-  return <ToolsClient connectors={connectors} />;
+  return <ToolsClient tools={connectors} />;
 }
