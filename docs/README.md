@@ -43,6 +43,7 @@ Dokumentacja w `docs/` służy jako **jedno źródło prawdy** dla:
 - [`api.md`](./api.md) - kontrakty API (Gateway), format żądań i odpowiedzi, przykłady cURL.
 - [`operations.md`](./operations.md) - uruchamianie lokalnie i w K8s, CI/CD, runbooki, checklisty.
 - [`security.md`](./security.md) - OIDC/JWT, mTLS, RBAC/ABAC, audyt, S3/Elastic, supply chain.
+- [`workflows/openapi-contract.md`](./workflows/openapi-contract.md) - kanoniczna procedura aktualizacji specyfikacji OpenAPI i artefaktów klienckich.
 
 > Wymagania i diagramy bezpieczeństwa są spójne z praktykami: least privilege, zero trust w mesh, SBOM + skan podatności.
 
