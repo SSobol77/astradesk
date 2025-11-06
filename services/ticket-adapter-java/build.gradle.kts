@@ -18,7 +18,7 @@ description = "AstraDesk Ticket Adapter Service"
 
 java {
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(25))
+        languageVersion.set(JavaLanguageVersion.of(21))
     }
     // Lepsze wsparcie dla refleksji (np. Jackson, Spring Validation)
     withJavadocJar()
@@ -55,6 +55,7 @@ dependencies {
     // --- Testy ---
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher") // Required explicitly since Gradle 9
 }
 
 tasks.withType<JavaCompile>().configureEach {

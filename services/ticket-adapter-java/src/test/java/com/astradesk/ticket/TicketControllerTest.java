@@ -15,18 +15,21 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import static org.mockito.Mockito.when;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser; // Do wczytania SecurityConfig
+import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 import com.astradesk.ticket.http.TicketController;
 import com.astradesk.ticket.http.TicketReq;
 import com.astradesk.ticket.model.Ticket;
 import com.astradesk.ticket.repo.TicketRepo;
+import com.astradesk.ticket.repository.TicketRepository;
 
 import reactor.core.publisher.Mono;
 
@@ -46,6 +49,15 @@ class TicketControllerTest {
 
     @MockBean
     private TicketRepo repo;
+
+    @MockBean
+    private ReactiveJwtDecoder jwtDecoder;
+
+    @MockBean
+    private TicketRepository ticketRepository;
+
+    @MockBean(name = "databaseProbe")
+    private ApplicationRunner databaseProbe;
 
     @Nested
     @DisplayName("Endpoint POST /api/tickets (Create Ticket)")

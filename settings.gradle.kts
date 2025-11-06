@@ -5,7 +5,7 @@
 import org.gradle.api.GradleException
 import org.gradle.util.GradleVersion
 
-val requiredVersion = GradleVersion.version("9.1")
+val requiredVersion = GradleVersion.version("8.7")
 val currentVersion = GradleVersion.current()
 if (currentVersion < requiredVersion) {
     throw GradleException("Project requires Gradle >= ${requiredVersion.version} (current: ${currentVersion.version})")

@@ -1,48 +1,35 @@
-# File: services/ticket-adapter-java/src/main/resources/application.yml
-# SPDX-License-Identifier: Apache-2.0
-# Opis: Konfiguracja aplikacji Ticket Adapter w środowisku deweloperskim
-# Project: AstraDesk Framework
-# Autor: Siergej Sobolewski
-# Data: 2025-10-07
 server:
   port: 8081
 
-# spring:
-#   profiles:
-#     active: dev
-#   security:
-#     oauth2:
-#       resourceserver:
-#         jwt:
-#           # Adres URL twojego dostawcy tożsamości (IdP), np. Keycloak, Auth0.
-#           # Spring automatycznie znajdzie JWKS URI na podstawie tego adresu.
-#           issuer-uri: ${OIDC_ISSUER}
-#           # Opcjonalnie, jeśli chcesz walidować pole 'audience' w tokenie.
-#           # audiences: ${OIDC_AUDIENCE}
-
-#   r2dbc:
-#     # Upewnij się, że te zmienne są w pliku .env!
-#     url: r2dbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:tickets}
-#     username: ${MYSQL_USER:tickets}
-#     password: ${MYSQL_PASSWORD:tickets}
-#   sql:
-#     init:
-#       mode: ALWAYS
-
-# management:
-#   endpoints:
-#     web:
-#       exposure:
-#         include: health,info,prometheus
-
-# Konfiguracja DO Testow - prosta
 spring:
+  application:
+    name: ticket-adapter
+  r2dbc:
+    url: ${TICKET_DB_R2DBC_URL:r2dbc:mysql://localhost:3306/tickets}
+    username: ${TICKET_DB_USER:tickets}
+    password: ${TICKET_DB_PASSWORD:tickets}
   sql:
     init:
-      mode: ALWAYS
+      mode: always
 
 management:
   endpoints:
     web:
       exposure:
         include: health,info
+
+integration:
+  frontend:
+    base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
+  jira:
+    enabled: ${JIRA_ENABLED:false}
+    base-url: ${JIRA_BASE_URL:https://example.atlassian.net}
+    username: ${JIRA_USERNAME:jira-bot@example.com}
+    api-token: ${JIRA_API_TOKEN:changeme}
+    project-key: ${JIRA_PROJECT_KEY:ASTRA}
+    issue-type: ${JIRA_ISSUE_TYPE:Task}
+    default-priority: ${JIRA_DEFAULT_PRIORITY:Medium}
+  slack:
+    enabled: ${SLACK_ENABLED:false}
+    webhook-url: ${SLACK_WEBHOOK_URL:https://hooks.slack.com/services/XXXXX/XXXXX/XXXXXXXX}
+    default-channel: ${SLACK_DEFAULT_CHANNEL:}
