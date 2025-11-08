@@ -73,6 +73,7 @@
 - **Integrations**:
   - Java Ticket Adapter (Spring Boot WebFlux + MySQL) dla korporacyjnych systemów ticketingu.
   - Next.js Admin Portal do monitoringu agentów, audytów i testów promptów.
+  - **MCP Gateway**: Standardyzowany protokół dla interakcji narzędzi agentów AI z bezpieczeństwem, audytem i limitem wywołań.
 - **Security**: OIDC/JWT auth, RBAC per tool, mTLS via Istio, audyt działań.
 - **DevOps Ready**: Docker, Kubernetes (Helm), OpenShift, Terraform (AWS), Ansible/Puppet/Salt, CI/CD (Jenkins/GitLab).
 - **Observability**: OpenTelemetry, Prometheus/Grafana/Loki/Tempo.
@@ -89,7 +90,7 @@ Zapewnia modułowy rdzeń (planer, pamięć, RAG, rejestr narzędzi) i gotowe ag
 
 - **Support / Helpdesk**: RAG na dokumentach firmy (procedury, FAQ, runbooki), tworzenie/aktualizacja zgłoszeń (tickety), pamięć konwersacji.
 - **Automatyzacje SRE/DevOps**: odczyt metryk (Prometheus/Grafana), triage incydentów, kontrolowane akcje (np. restart usługi) zabezpieczone **RBAC** i objęte audytem.
-- **Integracje enterprise**: Gateway (Python/FastAPI), Adapter Ticketów (Java/WebFlux + MySQL), Portal Admin (Next.js) oraz warstwa danych (Postgres/pgvector, Redis, NATS).
+- **Integracje enterprise**: Gateway (Python/FastAPI), Adapter Ticketów (Java/WebFlux + MySQL), Portal Admin (Next.js), MCP Gateway oraz warstwa danych (Postgres/pgvector, Redis, NATS).
 - **Bezpieczeństwo i compliance**: OIDC/JWT, RBAC per-narzędzie, **mTLS** (Istio), pełen ślad audytowy.
 - **Operacje na skalę**: Docker/Kubernetes/OpenShift, Terraform (AWS), CI/CD (Jenkins/GitLab), obserwowalność (OpenTelemetry, Prometheus/Grafana/Loki/Tempo).
 
@@ -101,10 +102,11 @@ Zapewnia modułowy rdzeń (planer, pamięć, RAG, rejestr narzędzi) i gotowe ag
 
 ## Przegląd architektury
 
-AstraDesk składa się z trzech głównych komponentów:
+AstraDesk składa się z kilku głównych komponentów:
 - **Python API Gateway**: FastAPI obsługujący żądania do agentów, z RAG, pamięcią i toolami.
 - **Java Ticket Adapter**: Reaktywny serwis (WebFlux) integrujący z MySQL dla ticketingu.
 - **Next.js Admin Portal**: Interfejs webowy do monitoringu.
+- **MCP Gateway**: Standardyzowany protokół bramy dla interakcji narzędzi agentów AI z bezpieczeństwem, audytem i limitem wywołań.
 
 Komunikacja: HTTP (między komponentami), NATS (eventy/audyty), Redis (pamięć robocza), Postgres/pgvector (RAG/dialogi/audyty), MySQL (tickety). :contentReference[oaicite:2]{index=2}
 

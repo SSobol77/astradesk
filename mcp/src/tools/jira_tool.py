@@ -1,5 +1,8 @@
 """
 Jira Tool Implementation
+
+This module implements the Jira tool for creating and managing issues.
+It uses the JiraClient to interact with the actual Jira service.
 """
 
 from typing import Any, Dict

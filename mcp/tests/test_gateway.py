@@ -1,5 +1,8 @@
 """
 Tests for MCP Gateway
+
+This module contains tests for the MCP Gateway implementation,
+including both positive and negative test cases.
 """
 
 import pytest

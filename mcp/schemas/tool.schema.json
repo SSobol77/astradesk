@@ -1,0 +1,171 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://astradesk.com/schemas/mcp/tool.schema.json",
+  "title": "MCP Tool Schema",
+  "description": "Schema for MCP tool definitions and requests",
+  
+  "definitions": {
+    "toolMetadata": {
+      "type": "object",
+      "required": ["name", "version", "description"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+          "description": "Tool identifier in dot notation (e.g., kb.search)"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "description": "Semantic version of the tool"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable tool description"
+        },
+        "author": {
+          "type": "string",
+          "description": "Tool author or organization"
+        },
+        "docs_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL to tool documentation"
+        }
+      }
+    },
+
+    "toolDefinition": {
+      "type": "object",
+      "required": ["metadata", "input_schema", "output_schema"],
+      "properties": {
+        "metadata": {
+          "$ref": "#/definitions/toolMetadata"
+        },
+        "input_schema": {
+          "type": "object",
+          "description": "JSON Schema for tool input parameters"
+        },
+        "output_schema": {
+          "type": "object",
+          "description": "JSON Schema for tool output format"
+        },
+        "side_effect": {
+          "type": "string",
+          "enum": ["read", "write"],
+          "default": "read",
+          "description": "Whether tool has side effects"
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 30000,
+          "default": 5000,
+          "description": "Tool execution timeout in milliseconds"
+        },
+        "rate_limit": {
+          "type": "object",
+          "properties": {
+            "requests_per_minute": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum requests per minute"
+            },
+            "burst": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum burst size"
+            }
+          }
+        },
+        "cache_ttl": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Cache TTL in seconds, 0 to disable"
+        },
+        "required_permissions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Required permissions to use this tool"
+        }
+      }
+    },
+
+    "toolRequest": {
+      "type": "object",
+      "required": ["tool", "params"],
+      "properties": {
+        "tool": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+          "description": "Tool identifier"
+        },
+        "params": {
+          "type": "object",
+          "description": "Tool parameters matching input_schema"
+        },
+        "request_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Unique request identifier"
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 30000,
+          "description": "Override default timeout"
+        }
+      }
+    },
+
+    "toolResponse": {
+      "type": "object",
+      "required": ["result"],
+      "properties": {
+        "result": {
+          "description": "Tool execution result matching output_schema"
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "details": {
+              "type": "object"
+            }
+          }
+        },
+        "metrics": {
+          "type": "object",
+          "properties": {
+            "duration_ms": {
+              "type": "number",
+              "minimum": 0
+            },
+            "cache_hit": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    }
+  },
+
+  "oneOf": [
+    {
+      "$ref": "#/definitions/toolDefinition"
+    },
+    {
+      "$ref": "#/definitions/toolRequest"
+    },
+    {
+      "$ref": "#/definitions/toolResponse"
+    }
+  ]
+}

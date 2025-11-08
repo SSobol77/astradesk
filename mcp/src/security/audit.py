@@ -1,5 +1,11 @@
 """
 MCP Audit Module
+
+This module implements audit logging functionality with support for multiple sinks:
+- stdout:// - Print to standard output
+- redis:// - Store in Redis with expiration
+- http:// or https:// - Send to HTTP endpoint
+- kafka:// - Kafka support (planned)
 """
 
 from typing import Dict, Any, Optional

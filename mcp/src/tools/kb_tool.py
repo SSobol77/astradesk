@@ -1,5 +1,8 @@
 """
 Knowledge Base Tool Implementation
+
+This module implements the knowledge base search tool.
+It uses the KnowledgeBaseClient to interact with the actual knowledge base service.
 """
 
 from typing import Any, Dict, List

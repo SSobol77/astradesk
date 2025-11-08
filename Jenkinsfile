@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+//SPDX-License-Identifier: Apache-2.0
 // File: Jenkinsfile v2.1 --production-ready--
 // Description:
 //     Full production Jenkins pipeline for AstraDesk.
@@ -8,11 +8,11 @@
 //       • Coverage aggregation & SonarQube scan
 //       • Secrets injection into Admin API (/secrets)
 //       • Terraform (init → validate → plan → apply) with AWS credentials
-//       • Config-management dry-run & full deploy (Ansible / Puppet / Salt)
+//       • Config-management dry-run & full deploy(Ansible / Puppet / Salt)
 //       • Docker multi-arch build + push (with cache, Sigstore signing)
 //       • Istio mTLS STRICT verification + cert-manager secrets sync
 //       • Helm chart lint → test → upgrade (autoscaling, DB endpoints from TF)
-//       • Post-run artifact archiving, JUnit reports, Slack notifications
+//       • Post-runartifactarchiving, JUnit reports, Slack notifications
 //     All stages are idempotent, retry-aware and use explicit credential IDs.
 // Author: Siergej Sobolewski
 // Since: 2025-10-25
@@ -21,7 +21,7 @@ pipeline {
     agent none
 
     // --------------------------------------------------------------------- //
-    // Global environment (change only REGISTRY_URL / credential IDs)
+// Global environment (change only REGISTRY_URL / credential IDs)
     // --------------------------------------------------------------------- //
     environment {
         // Docker
@@ -33,13 +33,13 @@ pipeline {
         HELM_NAMESPACE        = 'astradesk-prod'
 
         // AWS / Terraform
-        AWS_CREDENTIALS_ID    = 'aws-credentials'                       // AWS access/secret keys
+        AWS_CREDENTIALS_ID    = 'aws-credentials'// AWS access/secret keys
         TERRAFORM_DIR         = 'infra'
         TF_VAR_FILE           = "${TERRAFORM_DIR}/terraform.tfvars"
 
         // Admin API (JWT + endpoint)
         ADMIN_API_JWT_ID      = 'admin-api-jwt'                         // plain string JWT
-        ADMIN_API_URL         = 'http://localhost:8080/api/admin/v1'    // reachable from agents
+ADMIN_API_URL         = 'http://localhost:8080/api/admin/v1'    // reachable from agents
 
         // Config-management
         ANSIBLE_INVENTORY     = 'ansible/inventories/prod/hosts.ini'
@@ -56,7 +56,7 @@ pipeline {
     // --------------------------------------------------------------------- //
     stages {
 
-        // ----------------------------------------------------------------- //
+       //----------------------------------------------------------------- //
         // 1. OpenAPI sync
         // ----------------------------------------------------------------- //
         stage('OpenAPI Sync') {
@@ -65,13 +65,13 @@ pipeline {
                 set -e
                 SRC="openapi/astradesk-admin.v1.yaml"
                 DST="services/admin-portal/OpenAPI.yaml"
-                if [ ! -f "$DST" ] || ! diff -q "$SRC" "$DST" >/dev/null; then
+                if [ !-f "$DST" ] || ! diff -q "$SRC" "$DST" >/dev/null; then
                     echo "[SYNC] Copying $SRC -> $DST"
                     cp "$SRC" "$DST"
                 fi
                 diff -u "$SRC" "$DST"
                 '''
-            }
+          }
         }
 
         // ----------------------------------------------------------------- //
@@ -85,7 +85,7 @@ pipeline {
             }
         }
 
-        // ----------------------------------------------------------------- //
+        //----------------------------------------------------------------- //
         // 3. Parallel code analysis & tests (Python / Java / Node)
         // ----------------------------------------------------------------- //
         stage('Code Analysis & Tests') {
@@ -101,7 +101,7 @@ pipeline {
                         unstash 'source'
                         // ---- uv cache mount (Docker BuildKit cache) ---- //
                         cache(path: '.venv', key: "venv-py-${checksum 'uv.lock'}") {
-                            sh 'pip install --no-cache-dir uv==0.4.16'
+                           sh 'pip install --no-cache-dir uv==0.4.16'
                             sh 'uv sync --all-extras --frozen'
                         }
                         sh 'uv run ruff check .'
@@ -113,7 +113,7 @@ pipeline {
 
                 // --------------------- Java --------------------- //
                 stage('Java') {
-                    agent { docker { image 'gradle:jdk25' } }
+                    agent { docker { image 'gradle:9.2.0-jdk25'} }
                     steps {
                         unstash 'source'
                         cache(path: '.gradle/caches', key: "gradle-caches-${checksum '**/*.gradle.kts'}") {
@@ -134,35 +134,48 @@ pipeline {
                             sh 'cd services/admin-portal && npm ci'
                         }
                         sh 'cd services/admin-portal && npm run lint && npm test -- --coverage'
-                        stash name: 'coverage-node',
+stash name: 'coverage-node',
                               includes: 'services/admin-portal/coverage/**'
                     }
                 }
-            }
+                
+// --------------------- MCP --------------------- //
+                stage('MCP Gateway') {
+                    agent { docker { image 'python:3.14-slim' } }
+                    steps {
+                        unstash 'source'
+                        dir('mcp') {
+                            sh 'pip install --no-cache-dir uv==0.4.16'
+                            sh 'uv sync'
+                            sh 'uv run pytest -v'
+                        }
+                    }
+                }
+           }
         }
 
         // ----------------------------------------------------------------- //
         // 4. Aggregate coverage & SonarQube scan
         // ----------------------------------------------------------------- //
         stage('SonarQube Analysis') {
-            agent { docker { image 'sonarsource/sonar-scanner-cli:latest' } }
+            agent{ docker { image 'sonarsource/sonar-scanner-cli:latest' } }
             steps {
                 unstash 'source'
                 unstash 'coverage-py'
-                unstash 'coverage-java'
+               unstash 'coverage-java'
                 unstash 'coverage-node'
 
-                withCredentials([string(credentialsId: env.SONAR_TOKEN_ID, variable: 'SONAR_TOKEN')]) {
+                withCredentials([string(credentialsId: env.SONAR_TOKEN_ID,variable: 'SONAR_TOKEN')]) {
                     sh '''
                         sonar-scanner \
                           -Dsonar.projectKey=astradesk \
                           -Dsonar.host.url=${SONAR_HOST_URL} \
                           -Dsonar.login=${SONAR_TOKEN} \
                           -Dsonar.sources=. \
-                          -Dsonar.python.coverage.reportPaths=coverage.xml \
+                         -Dsonar.python.coverage.reportPaths=coverage.xml \
                           -Dsonar.java.coverage.jacoco.reportPaths=**/build/reports/jacoco/test/jacocoTestReport.xml \
                           -Dsonar.javascript.lcov.reportPaths=services/admin-portal/coverage/lcov.info
-                    '''
+'''
                 }
             }
         }
@@ -170,31 +183,31 @@ pipeline {
         // ----------------------------------------------------------------- //
         // 5. Store AWS credentials into Admin API (/secrets)
         // ----------------------------------------------------------------- //
-        stage('Store AWS Secrets') {
+        stage('Store AWSSecrets') {
             agent { docker { image 'curlimages/curl' } }
             steps {
                 unstash 'source'
-                withCredentials([
+               withCredentials([
                     [$class: 'AmazonWebServicesCredentialsBinding',
                      credentialsId: env.AWS_CREDENTIALS_ID,
                      accessKeyVariable: 'AWS_ACCESS_KEY_ID',
                      secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'],
                     string(credentialsId: env.ADMIN_API_JWT_ID, variable: 'JWT')
-                ]) {
+               ]) {
                     sh '''
                         curl -sSf -X POST "${ADMIN_API_URL}/secrets" \
                           -H "Authorization: Bearer ${JWT}" \
-                          -H "Content-Type: application/json" \
+                          -H"Content-Type: application/json" \
                           -d '{
                             "name": "aws_creds",
                             "type": "aws",
                             "access_key": "'"${AWS_ACCESS_KEY_ID}"'",
                             "secret_key": "'"${AWS_SECRET_ACCESS_KEY}"'"
                           }' > aws-secret-response.json
-                        cat aws-secret-response.json
+                       cat aws-secret-response.json
                     '''
                     archiveArtifacts artifacts: 'aws-secret-response.json', allowEmptyArchive: true
-                }
+               }
             }
         }
 
@@ -202,12 +215,12 @@ pipeline {
         // 6. Terraform – init + validate
         // ----------------------------------------------------------------- //
         stage('Terraform Init & Validate') {
-            agent { docker { image 'hashicorp/terraform:1.9.5' } }   // latest stable 2025
+agent { docker { image 'hashicorp/terraform:1.9.5' } }   // latest stable 2025
             steps {
                 unstash 'source'
                 dir(env.TERRAFORM_DIR) {
                     withCredentials([[$class: 'AmazonWebServicesCredentialsBinding',
-                                      credentialsId: env.AWS_CREDENTIALS_ID]]) {
+                                     credentialsId: env.AWS_CREDENTIALS_ID]]) {
                         sh 'terraform init -backend-config="bucket=astradesk-tfstate" -reconfigure'
                         sh 'terraform validate'
                     }
@@ -216,7 +229,7 @@ pipeline {
         }
 
         // ----------------------------------------------------------------- //
-        // 7. Terraform – plan (manual approval on non-main)
+        // 7. Terraform – plan (manual approval onnon-main)
         // ----------------------------------------------------------------- //
         stage('Terraform Plan') {
             agent { docker { image 'hashicorp/terraform:1.9.5' } }
@@ -225,7 +238,7 @@ pipeline {
                 dir(env.TERRAFORM_DIR) {
                     withCredentials([[$class: 'AmazonWebServicesCredentialsBinding',
                                       credentialsId: env.AWS_CREDENTIALS_ID]]) {
-                        sh 'terraform plan -var-file="${TF_VAR_FILE}" -out=plan.out'
+                        sh 'terraform plan-var-file="${TF_VAR_FILE}" -out=plan.out'
                         archiveArtifacts artifacts: 'plan.out', fingerprint: true
                     }
                 }
@@ -234,7 +247,7 @@ pipeline {
         }
 
         // ----------------------------------------------------------------- //
-        // 8. Manual approval for non-main branches
+        // 8. Manual approvalfor non-main branches
         // ----------------------------------------------------------------- //
         stage('Approve Terraform') {
             when { not { branch 'main' } }
@@ -244,7 +257,7 @@ pipeline {
         }
 
         // ----------------------------------------------------------------- //
-        // 9. Terraform – apply (only main or after approval)
+        // 9. Terraform –apply (only main or after approval)
         // ----------------------------------------------------------------- //
         stage('Terraform Apply') {
             when {
@@ -252,14 +265,14 @@ pipeline {
                     branch 'main'
                     expression { return env.BRANCH_NAME != 'main' && currentBuild.resultIsBetterOrEqualTo('SUCCESS') }
                 }
-            }
-            agent { docker { image 'hashicorp/terraform:1.9.5' } }
+}
+            agent{ docker { image 'hashicorp/terraform:1.9.5' } }
             steps {
                 unstash 'tf-plan'
                 dir(env.TERRAFORM_DIR) {
                     withCredentials([[$class: 'AmazonWebServicesCredentialsBinding',
                                       credentialsId: env.AWS_CREDENTIALS_ID]]) {
-                        sh 'terraform apply -auto-approve plan.out'
+sh'terraform apply-auto-approve plan.out'
                     }
                 }
             }
@@ -272,7 +285,7 @@ pipeline {
             parallel {
 
                 stage('Ansible Dry-Run') {
-                    agent { docker { image 'python:3.14-slim' } }
+agent{ docker { image 'python:3.14-slim' } }
                     steps {
                         unstash 'source'
                         sh 'pip install --no-cache-dir ansible'
@@ -285,13 +298,13 @@ pipeline {
                     agent { docker { image 'ubuntu:24.04' } }
                     steps {
                         unstash 'source'
-                        sh 'apt-get update && apt-get install -y puppet-agent'
+                        sh'apt-get update && apt-get install -y puppet-agent'
                         sh "puppet apply ${PUPPET_MANIFEST} --noop > puppet-dryrun.log 2>&1"
                         archiveArtifacts artifacts: 'puppet-dryrun.log', allowEmptyArchive: true
                     }
                 }
 
-                stage('Salt Dry-Run') {
+                stage('SaltDry-Run') {
                     agent { docker { image 'ubuntu:24.04' } }
                     steps {
                         unstash 'source'
@@ -316,7 +329,7 @@ pipeline {
                         unstash 'source'
                         sh 'pip install --no-cache-dir ansible'
                         sh "ansible-playbook -i ${ANSIBLE_INVENTORY} ansible/playbook.yml"
-                    }
+}
                 }
 
                 stage('Puppet Deploy') {
@@ -325,7 +338,7 @@ pipeline {
                         unstash 'source'
                         sh 'apt-get update && apt-get install -y puppet-agent'
                         sh "puppet apply ${PUPPET_MANIFEST}"
-                    }
+}
                 }
 
                 stage('Salt Deploy') {
@@ -334,7 +347,7 @@ pipeline {
                         unstash 'source'
                         sh 'apt-get update && apt-get install -y salt-minion'
                         sh "salt-call --local state.apply ${SALT_STATE}"
-                    }
+}
                 }
             }
         }
@@ -344,7 +357,7 @@ pipeline {
         // ----------------------------------------------------------------- //
         stage('Docker Build & Push') {
             agent { docker { image 'docker:25-dind' } }
-            environment {
+           environment{
                 DOCKER_BUILDKIT = '1'
             }
             steps {
@@ -352,13 +365,13 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: 'docker-credentials',
                                                 usernameVariable: 'DOCKER_USER',
                                                 passwordVariable: 'DOCKER_PASS')]) {
-                    sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+                    sh 'echo $DOCKER_PASS | docker login -u$DOCKER_USER --password-stdin'
 
                     script {
                         def images = [
                             api    : [path: '.',               tag: 'api'],
                             ticket : [path: 'services/ticket-adapter-java', tag: 'ticket'],
-                            admin  : [path: 'services/admin-portal',       tag: 'admin'],
+                            admin  : [path: 'services/admin-portal',       tag:'admin'],
                             auditor: [path: 'services/auditor',            tag: 'auditor']
                         ]
 
@@ -366,7 +379,7 @@ pipeline {
                             def img = "${REGISTRY_URL}/astradesk-${cfg.tag}:${IMAGE_TAG}"
                             sh """
                                 docker buildx create --use
-                                docker buildx build \
+                                dockerbuildx build \
                                   --platform linux/amd64,linux/arm64 \
                                   --cache-from type=registry,ref=${img} \
                                   --cache-to type=inline \
@@ -385,7 +398,7 @@ pipeline {
         }
 
         // ----------------------------------------------------------------- //
-        // 13. Apply Istio manifests + verify STRICT mTLS
+        //13. Apply Istio manifests + verify STRICT mTLS
         // ----------------------------------------------------------------- //
         stage('Istio Config') {
             agent { docker { image 'bitnami/kubectl:latest' } }
@@ -396,16 +409,16 @@ pipeline {
                         sh 'kubectl apply -f deploy/istio/ --kubeconfig=$KUBECONFIG'
                         sh 'istioctl analyze -n ${HELM_NAMESPACE} --kubeconfig=$KUBECONFIG'
                     }
-                    // Verify PeerAuthentication = STRICT
+                    //Verify PeerAuthentication = STRICT
                     sh '''
                         kubectl get peerauthentication -n ${HELM_NAMESPACE} -o jsonpath='{.items[*].spec.mtls.mode}' \
                           | grep -q STRICT || (echo "mTLS not STRICT!" && exit 1)
                     '''
                 }
             }
-        }
+}
 
-        // ----------------------------------------------------------------- //
+       // ----------------------------------------------------------------- //
         // 14. Sync cert-manager TLS secret → Admin API
         // ----------------------------------------------------------------- //
         stage('Sync TLS Secret') {
@@ -413,7 +426,7 @@ pipeline {
             steps {
                 unstash 'source'
                 withCredentials([
-                    file(credentialsId: env.KUBE_CREDENTIALS_ID, variable: 'KUBECONFIG'),
+file(credentialsId: env.KUBE_CREDENTIALS_ID, variable: 'KUBECONFIG'),
                     string(credentialsId: env.ADMIN_API_JWT_ID, variable: 'JWT')
                 ]) {
                     sh '''
@@ -434,14 +447,14 @@ pipeline {
 
         // ----------------------------------------------------------------- //
         // 15. Helm lint → test → upgrade
-        // ----------------------------------------------------------------- //
-        stage('Helm Deploy') {
+// ----------------------------------------------------------------- //
+stage('Helm Deploy') {
             when { branch 'main' }
             agent { docker { image 'alpine/helm:3.19.0' } }
             steps {
                 unstash 'source'
                 withCredentials([file(credentialsId: env.KUBE_CREDENTIALS_ID, variable: 'KUBECONFIG')]) {
-                    // Lint
+                    //Lint
                     sh 'helm lint deploy/chart'
 
                     // Dry-run test
@@ -452,12 +465,12 @@ pipeline {
                     '''
 
                     // Real upgrade (pull DB endpoints from Terraform output)
-                    sh '''
+sh'''
                         POSTGRES_ENDPOINT=$(terraform -chdir=${TERRAFORM_DIR} output -raw rds_postgres_endpoint)
                         MYSQL_ENDPOINT=$(terraform -chdir=${TERRAFORM_DIR} output -raw rds_mysql_endpoint)
 
                         helm upgrade --install astradesk deploy/chart \
-                          --set api.image.repository=${REGISTRY_URL}/astradesk-api \
+                          --setapi.image.repository=${REGISTRY_URL}/astradesk-api \
                           --set api.image.tag=${IMAGE_TAG} \
                           --set ticketAdapter.image.repository=${REGISTRY_URL}/astradesk-ticket \
                           --set ticketAdapter.image.tag=${IMAGE_TAG} \
@@ -467,7 +480,7 @@ pipeline {
                           --set auditor.image.tag=${IMAGE_TAG} \
                           --set api.autoscaling.enabled=true \
                           --set api.autoscaling.minReplicas=2 \
-                          --set api.autoscaling.maxReplicas=10 \
+--set api.autoscaling.maxReplicas=10 \
                           --set api.autoscaling.targetCPUUtilizationPercentage=60 \
                           --set ticketAdapter.autoscaling.enabled=true \
                           --set ticketAdapter.autoscaling.minReplicas=2 \
@@ -481,7 +494,7 @@ pipeline {
                           --set auditor.autoscaling.minReplicas=2 \
                           --set auditor.autoscaling.maxReplicas=5 \
                           --set auditor.autoscaling.targetCPUUtilizationPercentage=60 \
-                          --set database.postgres.host=${POSTGRES_ENDPOINT} \
+                          --setdatabase.postgres.host=${POSTGRES_ENDPOINT} \
                           --set database.mysql.host=${MYSQL_ENDPOINT} \
                           --namespace ${HELM_NAMESPACE} \
                           --create-namespace \
@@ -492,9 +505,7 @@ pipeline {
             }
         }
 
-    } // end stages
-
-    // --------------------------------------------------------------------- //
+    } //end stages// --------------------------------------------------------------------- //
     // Post actions
     // --------------------------------------------------------------------- //
     post {
@@ -505,7 +516,7 @@ pipeline {
                 pytest-report.xml,
                 **/jacocoTestReport.xml,
                 services/admin-portal/coverage/**,
-                infra/plan.out,
+               infra/plan.out,
                 *.log,
                 aws-secret-response.json
             ''', allowEmptyArchive: true
@@ -521,7 +532,7 @@ pipeline {
 
         cleanup {
             // Clean workspace on agents
-            cleanWs()
+cleanWs()
         }
     }
 }

@@ -465,7 +465,7 @@ class DataStore:
         self.domain_packs: List[DomainPack] = self._load_domain_packs()
 
     def _load_domain_packs(self) -> List[DomainPack]:
-        """Discover local domain packs from the monorepo workspace."""
+        """Discover local domain packs from the AstraDesk Enterprise AI Agents Framework workspace."""
         repo_root = Path(__file__).resolve().parents[2]
 
         packages_dir = repo_root / "packages"

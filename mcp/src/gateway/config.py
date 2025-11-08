@@ -1,5 +1,8 @@
 """
 MCP Gateway Configuration
+
+This module defines the Pydantic models for configuring the MCP Gateway.
+Configuration can be loaded from environment variables or YAML files.
 """
 
 import os

@@ -1,5 +1,8 @@
 """
 MCP Tool Base Classes
+
+This module defines the base classes for MCP tools.
+All tools must inherit from the Tool base class and implement its abstract methods.
 """
 
 from abc import ABC, abstractmethod

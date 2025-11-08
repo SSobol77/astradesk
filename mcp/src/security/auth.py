@@ -1,5 +1,8 @@
 """
 MCP Authentication Module
+
+This module handles JWT verification with JWKS caching using Redis.
+It provides functions to verify tokens and fetch JWKS with caching.
 """
 
 from typing import Dict, Any

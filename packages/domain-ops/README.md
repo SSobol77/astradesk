@@ -26,7 +26,7 @@ This pack follows an **action-oriented** philosophy. Its primary goal is to reli
 
 ## 2. Integration with AstraDesk
 
-This pack is designed to be seamlessly integrated into the AstraDesk monorepo.
+This pack is designed to be seamlessly integrated into the AstraDesk Enterprise AI Agents Framework.
 
 - **Workspace**: It is a member of the `uv` workspace defined in the root `pyproject.toml`, allowing for unified dependency management and testing.
 
@@ -51,7 +51,7 @@ This pack is designed to be seamlessly integrated into the AstraDesk monorepo.
 
 ## 4. Local Development and Testing
 
-All commands should be run from the **root of the monorepo**.
+All commands should be run from the **root of the AstraDesk Enterprise AI Agents Framework**.
 
 ### Running Tests
 

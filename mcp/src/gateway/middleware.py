@@ -1,5 +1,9 @@
 """
 MCP Gateway Middleware
+
+This module contains middleware implementations for the MCP Gateway:
+- MetricsMiddleware: Collects and exposes Prometheus metrics
+- PIIProtectionMiddleware: (Planned) Protection against PII exposure
 """
 
 from typing import Callable, Awaitable
@@ -9,51 +13,94 @@ import time
 from prometheus_client import Counter, Histogram, Gauge
 
 
+"""
+FastAPI Middleware Components for MCP Gateway
+
+Implements middleware for:
+- Metrics collection
+- Request tracing
+- Security headers
+"""
+
+from typing import Callable
+from fastapi import Request, Response
+from fastapi.middleware.base import BaseHTTPMiddleware
+from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
+import time
+
 class MetricsMiddleware(BaseHTTPMiddleware):
-    """Middleware for collecting metrics"""
-    
-    def __init__(self, app):
-        super().__init__(app)
-        
-        # Prometheus metrics
-        self.request_count = Counter('mcp_requests_total', 'Total requests', ['method', 'endpoint', 'status'])
-        self.request_latency = Histogram('mcp_request_duration_seconds', 'Request latency', ['method', 'endpoint'])
-        self.active_requests = Gauge('mcp_active_requests', 'Active requests')
-        
-        # For internal tracking
-        self._internal_request_count = 0
-        self._internal_error_count = 0
-        self._internal_total_latency = 0.0
+    """Collect Prometheus metrics for requests"""
     
     async def dispatch(
-        self, 
-        request: Request, 
-        call_next: Callable[[Request], Awaitable[Response]]
+        self,
+        request: Request,
+        call_next: Callable
     ) -> Response:
         start_time = time.time()
-        self._internal_request_count += 1
-        self.active_requests.inc()
         
-        method = request.method
-        endpoint = request.url.path
+        response = await call_next(request)
         
-        try:
-            response = await call_next(request)
-            status = response.status_code
+        # Record request duration
+        duration = time.time() - start_time
+        
+        # Update metrics (handled in gateway.py)
+        return response
+
+class TracingMiddleware(BaseHTTPMiddleware):
+    """OpenTelemetry request tracing"""
+    
+    def __init__(self, app, tracer: trace.Tracer):
+        super().__init__(app)
+        self.tracer = tracer
+        
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: Callable
+    ) -> Response:
+        with self.tracer.start_as_current_span(
+            f"{request.method} {request.url.path}"
+        ) as span:
+            # Add request attributes to span
+            span.set_attribute("http.method", request.method)
+            span.set_attribute("http.url", str(request.url))
+            span.set_attribute("http.route", request.url.path)
             
-            # Update Prometheus metrics
-            self.request_count.labels(method=method, endpoint=endpoint, status=status).inc()
-            self.request_latency.labels(method=method, endpoint=endpoint).observe(time.time() - start_time)
-            
-            return response
-        except Exception as e:
-            self._internal_error_count += 1
-            self.request_count.labels(method=method, endpoint=endpoint, status=500).inc()
-            raise
-        finally:
-            latency = time.time() - start_time
-            self._internal_total_latency += latency
-            self.active_requests.dec()
+            try:
+                response = await call_next(request)
+                
+                # Add response attributes
+                span.set_attribute("http.status_code", response.status_code)
+                
+                if response.status_code >= 400:
+                    span.set_status(Status(StatusCode.ERROR))
+                    
+                return response
+                
+            except Exception as e:
+                span.set_status(Status(StatusCode.ERROR))
+                span.record_exception(e)
+                raise
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add security headers to all responses"""
+    
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: Callable
+    ) -> Response:
+        response = await call_next(request)
+        
+        # Add security headers
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Content-Security-Policy"] = "default-src 'self'"
+        
+        return response
 
 
 class PIIProtectionMiddleware(BaseHTTPMiddleware):

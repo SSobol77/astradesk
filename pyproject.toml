@@ -11,7 +11,7 @@ requires-python = ">=3.14"
 authors = [{ name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com" }]
 license = { text = "Apache-2.0" }
 
-# Root paczka jest meta-koordynatorem monorepo – tu zwykle nie trzymamy zależności runtime.
+# Root paczka jest meta-koordynatorem AstraDesk Enterprise AI Agents Framework – tu zwykle nie trzymamy zależności runtime.
 dependencies = [
     "astradesk-core",
     "astradesk-api-gateway",

@@ -1,5 +1,8 @@
 """
 Tests for MCP Security
+
+This module contains tests for the MCP security components,
+including authentication, authorization, and RBAC functionality.
 """
 
 import pytest

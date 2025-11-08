@@ -1,5 +1,8 @@
 """
 Jira Client Implementation
+
+This module provides a client for interacting with Jira through its REST API.
+It supports creating and retrieving issues with proper authentication.
 """
 
 from typing import List, Optional

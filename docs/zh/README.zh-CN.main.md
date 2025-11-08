@@ -75,6 +75,7 @@
 - **系统集成 (Integrations)**：
   - Java 工单适配器：采用 Spring Boot WebFlux + MySQL 构建的企业级工单系统集成模块。
   - Next.js 管理门户：用于监控代理、查看审计日志和测试提示 (Prompts)。
+  - **MCP 网关**：标准化的 AI 代理工具交互协议，内置安全、审计和速率限制功能。
 
 - **安全机制 (Security)**：  
   支持 OIDC/JWT 认证、基于工具的细粒度 RBAC 权限控制、Istio 提供的 mTLS 双向认证与操作审计。
@@ -122,6 +123,7 @@
 - **Python/FastAPI**：作为核心网关与业务调度层。  
 - **Java/WebFlux + MySQL**：作为工单适配器 (Ticket Adapter)。  
 - **Next.js Admin Portal**：提供监控与交互式管理界面。  
+- **MCP 网关**：标准化的 AI 代理工具交互协议，内置安全、审计和速率限制功能。
 - **数据平面**：基于 Postgres/pgvector、Redis、NATS 构建的存储与事件系统。
 
 <br>
@@ -153,7 +155,7 @@
 
 ## 🏗️ 架构概览 (Architecture Overview)
 
-**AstraDesk** 框架由三个核心组件组成：
+**AstraDesk** 框架由多个核心组件组成：
 
 <br>
 
@@ -218,6 +220,12 @@ API 网关负责连接所有代理逻辑与工具模块，是系统的“指挥�
     ┌─────────────────────────┐
     │ Java Ticket Adapter     │
     │ (Spring WebFlux + MySQL)│
+    └─────────────────────────┘
+                 │ HTTP (REST)
+                 ▼
+    ┌─────────────────────────┐
+    │    MCP Gateway          │
+    │  (标准化工具协议网关)      │
     └─────────────────────────┘
 
 ```
@@ -558,7 +566,7 @@ Web 管理界面提供对系统状态与代理运行的可视化监控。
 
 ### 🧩 工具与系统集成 (Tools and Integrations)
 
-AstraDesk 的核心设计是“工具注册表 (Tool Registry)”-允许动态注册、扩展和调用外部操作。
+AstraDesk 的核心设计是"工具注册表 (Tool Registry)"-允许动态注册、扩展和调用外部操作。
 
 * 工具注册位置：`registry.py`
   添加新工具时使用：
@@ -572,6 +580,7 @@ AstraDesk 的核心设计是“工具注册表 (Tool Registry)”-允许动态�
   * `create_ticket` — 代理到 Java 工单系统；
   * `get_metrics` — 从 Prometheus 获取性能指标；
   * `restart_service` — 通过 RBAC 控制的安全服务重启。
+  * **MCP 网关** — 标准化的 AI 代理工具交互协议，内置安全、审计和速率限制功能。
 
 每个工具均可附带策略验证、审计记录与错误重试逻辑，确保生产环境的稳定性与可追踪性。
 

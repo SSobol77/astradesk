@@ -73,6 +73,7 @@ The framework supports scalability, enterprise-grade security (OIDC/JWT, RBAC, m
 - **Integrations**:
   - Java Ticket Adapter (Spring Boot WebFlux + MySQL) for enterprise ticketing systems.
   - Next.js Admin Portal for agent monitoring, audit trails, and prompt testing.
+  - **MCP Gateway**: Standardized protocol for AI agent tool interactions with security, audit, and rate limiting.
 - **Security**: OIDC/JWT authentication, per-tool RBAC, mTLS via Istio, and full action audit.
 - **DevOps Ready**: Docker, Kubernetes (Helm), OpenShift, Terraform (AWS), Ansible/Puppet/Salt, CI/CD with Jenkins and GitLab.
 - **Observability**: OpenTelemetry, Prometheus/Grafana/Loki/Tempo stack.
@@ -85,7 +86,7 @@ It provides a modular core (planner, memory, RAG, tool registry) and includes re
 
 - **Support / Helpdesk**: RAG over company documentation (procedures, FAQs, runbooks), ticket creation/update, conversation memory.
 - **SRE/DevOps Automation**: Metric retrieval (Prometheus/Grafana), incident triage, and controlled operational actions (e.g., service restart) protected by **RBAC** and audited.
-- **Enterprise Integrations**: Gateway (Python/FastAPI), Ticket Adapter (Java/WebFlux + MySQL), Admin Portal (Next.js), and data layer (Postgres/pgvector, Redis, NATS).
+- **Enterprise Integrations**: Gateway (Python/FastAPI), Ticket Adapter (Java/WebFlux + MySQL), Admin Portal (Next.js), MCP Gateway, and data layer (Postgres/pgvector, Redis, NATS).
 - **Security and Compliance**: OIDC/JWT, per-tool RBAC, **mTLS** (Istio), and complete audit trails.
 - **Scalable Operations**: Docker/Kubernetes/OpenShift, Terraform (AWS), CI/CD (Jenkins/GitLab), observability (OpenTelemetry, Prometheus/Grafana/Loki/Tempo).
 
@@ -93,10 +94,11 @@ It provides a modular core (planner, memory, RAG, tool registry) and includes re
 
 ## Architecture Overview
 
-AstraDesk consists of three main components:
+AstraDesk consists of several main components:
 - **Python API Gateway**: FastAPI service handling agent requests, RAG, memory, and tools.
 - **Java Ticket Adapter**: Reactive WebFlux service integrating with MySQL for ticketing.
 - **Next.js Admin Portal**: Web interface for monitoring.
+- **MCP Gateway**: Standardized protocol gateway for AI agent tool interactions with security, audit, and rate limiting.
 
 Communication: HTTP (between components), NATS (events/audits), Redis (working memory), Postgres/pgvector (RAG/dialogues/audits), MySQL (tickets).
 
@@ -236,6 +238,7 @@ curl -X POST http://localhost:8080/v1/agents/run \
 
 * Tool registry: `registry.py` — add new ones via `register(name, async_fn)`.
 * Examples: create_ticket (proxy to Java), get_metrics (Prometheus stub), restart_service (RBAC-protected).
+* **MCP Gateway**: Standardized protocol for AI agent tool interactions with built-in security, audit, and rate limiting. See [MCP documentation](mcp/README.md) for implementation details.
 
 ## Deployment
 

@@ -1,5 +1,8 @@
 """
 Tests for MCP Tools
+
+This module contains tests for the MCP tools and their implementations,
+including error handling and validation tests.
 """
 
 import pytest

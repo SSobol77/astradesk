@@ -10,8 +10,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
-COPY pyproject.toml README.md ./
-COPY src/ src/
+COPY mcp/pyproject.toml mcp/README.md ./
+COPY mcp/src/ src/
 
 # Install the package
 RUN pip install .

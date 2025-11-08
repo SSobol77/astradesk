@@ -1,5 +1,7 @@
 """
 MCP Exception Classes
+
+This module defines custom exception classes used throughout the MCP implementation.
 """
 
 class MCPException(Exception):

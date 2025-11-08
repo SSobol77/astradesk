@@ -1,21 +1,45 @@
 """
-MCP Gateway Implementation
+Enhanced MCP Gateway Implementation
+
+This module implements a production-ready Model Control Protocol gateway with:
+- Circuit breaker pattern
+- Response caching
+- Request/response signing
+- Detailed metrics and tracing
+- High availability support
 """
 
 from typing import Any, Dict, List, Optional
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, Request, status, Depends
 from fastapi.responses import JSONResponse, Response
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2AuthorizationCodeBearer
 import httpx
 import json
 import hashlib
 import time
+import asyncio
+from datetime import datetime, timedelta
 import redis.asyncio as redis
-from .middleware import MetricsMiddleware
+from prometheus_client import Counter, Histogram, Gauge
+from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
+from tenacity import retry, stop_after_attempt, wait_exponential
+from .middleware import MetricsMiddleware, TracingMiddleware, SecurityHeadersMiddleware
 from .config import GatewayConfig
-from ..security.auth import verify_token
+from .cache import ResponseCache
+from .circuit_breaker import CircuitBreaker
+from ..security.auth import verify_token, refresh_token
 from ..security.rbac import check_permissions
 from ..security.audit import AuditLogger
-from ..exceptions import PolicyViolationError, RateLimitExceededError
+from ..security.signing import RequestSigner, ResponseSigner
+from ..exceptions import (
+    PolicyViolationError,
+    RateLimitExceededError,
+    CircuitBreakerError,
+    ToolTimeoutError,
+    InvalidSchemaError,
+)
 
 
 class MCPGateway:

@@ -1,5 +1,8 @@
 """
 MCP RBAC (Role-Based Access Control) Module
+
+This module implements role-based access control for MCP tools.
+It checks if a user has permissions to execute a specific tool with a given side effect.
 """
 
 from typing import Dict, Any

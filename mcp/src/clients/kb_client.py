@@ -1,5 +1,8 @@
 """
 Knowledge Base Client Implementation
+
+This module provides a client for interacting with a knowledge base service through HTTP.
+It supports searching for entries and retrieving specific entries by ID.
 """
 
 from typing import List, Dict, Any, Optional
