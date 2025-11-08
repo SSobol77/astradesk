@@ -1,5 +1,5 @@
 /* File: services/ticket-adapter-java/build.gradle.kts
- *  Module: Ticket Adapter (Spring Boot WebFlux + R2DBC MySQL), Gradle 8+, JDK 21.
+ *  Module: Ticket Adapter (Spring Boot WebFlux + R2DBC MySQL), Gradle 9+, JDK 25.
 */
 
 import org.gradle.jvm.toolchain.JavaLanguageVersion
@@ -18,7 +18,7 @@ description = "AstraDesk Ticket Adapter Service"
 
 java {
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(21))
+        languageVersion.set(JavaLanguageVersion.of(25))
     }
     // Lepsze wsparcie dla refleksji (np. Jackson, Spring Validation)
     withJavadocJar()

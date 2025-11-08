@@ -1,0 +1,25 @@
+{
+  "$id": "mcp/schemas/jira.create_issue.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "jira.create_issue",
+  "type": "object",
+  "properties": {
+    "project": {
+      "type": "string",
+      "minLength": 2
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 3
+    },
+    "labels": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    }
+  },
+  "required": ["project", "summary"],
+  "additionalProperties": false
+}

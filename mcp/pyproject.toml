@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "astradesk-mcp"
+version = "0.1.0"
+description = "Model Control Protocol implementation for AstraDesk"
+readme = "README.md"
+authors = [
+    {name = "AstraDesk Team", email = "team@astradesk.com"},
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3 :: Only",
+]
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.68.0",
+    "pydantic>=2.0.0",
+    "httpx>=0.23.0",
+    "prometheus-client>=0.14.0",
+    "python-jose>=3.3.0",
+    "passlib>=1.7.4",
+    "uvicorn>=0.15.0",
+    "redis>=5.0,<5.1",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.20.0",
+    "httpx>=0.23.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "strict"

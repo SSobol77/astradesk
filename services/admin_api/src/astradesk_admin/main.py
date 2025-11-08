@@ -5,6 +5,8 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 from uuid import uuid4
+from pathlib import Path
+import tomllib
 
 from fastapi import FastAPI, HTTPException, Query, Response, status
 from fastapi.responses import PlainTextResponse, StreamingResponse
@@ -460,10 +462,40 @@ class DataStore:
             },
         }
 
-        self.domain_packs: List[DomainPack] = [
-            DomainPack(name="customer-support", version="2.1.0", status="installed"),
-            DomainPack(name="it-operations", version="1.4.3", status="disabled"),
-        ]
+        self.domain_packs: List[DomainPack] = self._load_domain_packs()
+
+    def _load_domain_packs(self) -> List[DomainPack]:
+        """Discover local domain packs from the monorepo workspace."""
+        repo_root = Path(__file__).resolve().parents[2]
+
+        packages_dir = repo_root / "packages"
+        if not packages_dir.is_dir():
+            return []
+
+        domain_packs: List[DomainPack] = []
+        for candidate in sorted(packages_dir.glob("domain-*")):
+            if not candidate.is_dir():
+                continue
+
+            pyproject = candidate / "pyproject.toml"
+            version = "0.0.0"
+            if pyproject.is_file():
+                try:
+                    with pyproject.open("rb") as fh:
+                        data = tomllib.load(fh)
+                    version = data.get("project", {}).get("version", version)
+                except Exception:
+                    pass
+
+            domain_packs.append(
+                DomainPack(
+                    name=candidate.name,
+                    version=version,
+                    status="installed",
+                )
+            )
+
+        return domain_packs
 
 
 store = DataStore()
@@ -475,6 +507,7 @@ app = FastAPI(
     title="AstraDesk Admin API",
     description="API for AstraDesk Admin v1.2 - operational and governance panel for agents, data, policies, and audits.",
     version="0.3.0",
+    root_path="/api/admin/v1",
     openapi_url="/openapi.json",
     docs_url="/docs",
     redoc_url="/redoc",

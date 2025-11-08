@@ -24,16 +24,20 @@ RUN pip install --no-cache-dir uv==0.4.16  # Pin to stable version
 
 # System deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq-dev gcc curl ca-certificates && \
+    libpq-dev build-essential curl ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy dependency files
+# Copy workspace sources and dependency files
 COPY pyproject.toml uv.lock ./
+COPY core ./core
+COPY services/api-gateway ./services/api-gateway
+COPY services/auditor ./services/auditor
+COPY services/admin_api ./services/admin_api
 COPY packages/ ./packages/
 
 # Sync dependencies with cache
 RUN --mount=type=cache,target=/uv-cache \
-    uv sync --all-extras --frozen --no-install-isolated
+    uv sync --all-extras --frozen
 
 # --- Runtime Stage ---
 FROM python:3.14-slim AS runtime
@@ -54,7 +58,11 @@ COPY --from=builder /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Copy source code
-COPY src ./src
+COPY services/api-gateway/src ./src
+COPY services/auditor /app/services/auditor
+COPY services/admin_api /app/services/admin_api
+COPY core /app/core
+COPY packages ./packages
 
 # --- Security & Hardening ---
 # Create non-root user
@@ -85,7 +93,7 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8080/api/admin/v1/health || exit 1
 
 # --- Entrypoint with graceful shutdown ---
-ENTRYPOINT ["/app/.venv/bin/uv", "run", "uvicorn"]
+ENTRYPOINT ["/app/.venv/bin/uvicorn"]
 CMD ["src.gateway.main:app", \
      "--host", "0.0.0.0", \
      "--port", "8080", \

@@ -5,7 +5,7 @@ requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 
 [project]
-name = "astradesk-admin-api"            # Project/distribution name (can have hyphens)
+name = "astradesk-admin_api"            # Project/distribution name (can have hyphens)
 version = "0.3.0"
 description = "AstraDesk Admin API (FastAPI) — Admin UI backend aligned with AstraDesk platform v0.3.0."
 readme = "README.md"

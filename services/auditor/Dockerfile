@@ -1,15 +1,14 @@
-FROM python:3.11-slim
+FROM python:3.14-slim
 
-WORKDIR /app
-
-# Install dependencies
-COPY pyproject.toml .
-RUN pip install --no-cache-dir .
-
-# Copy the application code
-COPY main.py .
-
-# Set environment variables for Python
 ENV PYTHONUNBUFFERED=1
 
+# Install core library first so dependent packages resolve
+COPY core /opt/astradesk/core
+RUN pip install --no-cache-dir /opt/astradesk/core
+
+# Install auditor service (packaged via pyproject)
+COPY services/auditor /opt/astradesk/auditor
+RUN pip install --no-cache-dir /opt/astradesk/auditor
+
+WORKDIR /opt/astradesk/auditor
 CMD ["python", "main.py"]

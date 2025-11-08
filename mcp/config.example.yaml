@@ -1,0 +1,29 @@
+# Example MCP Gateway Configuration
+env: "prod"
+
+oidc:
+  issuer: "https://your-oidc-provider.com"
+  audience: "mcp-gateway"
+  jwks_url: "https://your-oidc-provider.com/.well-known/jwks.json"
+
+rate_limits:
+  default_rpm: 600
+  per_tool:
+    "jira.create_issue": 100
+    "kb.search": 1000
+
+tools:
+  - name: "kb.search"
+    mcp_endpoint: "http://kb-service:8000"
+    side_effect: "read"
+    schema_ref: "sha256:abc123"
+  
+  - name: "jira.create_issue"
+    mcp_endpoint: "http://jira-service:8000"
+    side_effect: "write"
+    schema_ref: "sha256:def456"
+
+audit:
+  sink: "redis://redis:6379/1"
+  hash_algo: "sha256"
+  retention_days: 365

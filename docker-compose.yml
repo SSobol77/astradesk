@@ -1,14 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
-# File: docker-compose.yml v.1.2.0
+# File: docker-compose.yml v.1.3.0
 # Description:
 #     Defines services for AstraDesk local dev environment.
 #     Includes API, Prometheus, ticket-adapter (Java), admin-portal (Node.js), auditor,
 #     MySQL, Postgres, Redis, NATS, and domain packs (Python, Java, gRPC).
 #     Supports polyglot stack (Python 3.14+, Java 25, Node 22+, Postgres 17).
 # Author: Siergej Sobolewski
-# Since: 2025-10-25
-
-version: "3.9"
+# Since: 2025-11-06
 services:
   api:
     build: .
@@ -16,10 +14,11 @@ services:
     environment:
       UV_EXTRA_INDEX_URL: "https://download.pytorch.org/whl/cu121"
       UV_INDEX_STRATEGY: "unsafe-best-match"
+      ADMIN_API_URL: http://admin_api:8001
     ports:
       - "8080:8080"
     depends_on:
-      db:  # Postgres enabled
+      db:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -29,6 +28,18 @@ services:
         condition: service_started
       prometheus:
         condition: service_healthy
+
+  # ----- НОВЫЙ сервис -----
+  admin_api:
+    build:
+      context: .
+      dockerfile: services/admin_api/Dockerfile
+    env_file: .env
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./packages:/app/src/packages:ro
+    restart: unless-stopped
 
   prometheus:
     image: prom/prometheus:v3.7.1
@@ -64,15 +75,15 @@ services:
         condition: service_started
 
   auditor:
-      build: ./services/auditor
-      env_file: .env
-      depends_on:
-        nats:
-          condition: service_healthy
-      restart: unless-stopped
+    build: ./services/auditor
+    env_file: .env
+    depends_on:
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
 
   db:
-    image: pgvector/pgvector:pg18  # Updated to PostgreSQL 18 with pgvector
+    image: pgvector/pgvector:pg18
     environment:
       POSTGRES_DB: astradesk
       POSTGRES_USER: astradesk
@@ -103,7 +114,7 @@ services:
       retries: 5
 
   redis:
-    image: redis:8.2.2  # Latest stable
+    image: redis:8.2.2
     ports:
       - "6379:6379"
     volumes:
@@ -115,7 +126,7 @@ services:
       retries: 5
 
   nats:
-    image: nats:2.12.1-alpine  # Latest stable
+    image: nats:2.12.1-alpine
     command:
       - "--jetstream"
       - "--store_dir=/datastore"
@@ -143,12 +154,12 @@ services:
       API_TOKEN: "${API_TOKEN}"
 
   domain-finance:
-      build: packages/domain-finance
-      depends_on:
-        - api
-      environment:
-        API_URL: http://api:8000/api/admin/v1
-        API_TOKEN: "${API_TOKEN}"
+    build: packages/domain-finance
+    depends_on:
+      - api
+    environment:
+      API_URL: http://api:8000/api/admin/v1
+      API_TOKEN: "${API_TOKEN}"
 
   domain-finance-java:
     build: packages/domain-finance

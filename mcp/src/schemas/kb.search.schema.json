@@ -1,0 +1,20 @@
+{
+  "$id": "mcp/schemas/kb.search.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "kb.search",
+  "type": "object",
+  "properties": {
+    "q": {
+      "type": "string",
+      "minLength": 2
+    },
+    "top_k": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20,
+      "default": 5
+    }
+  },
+  "required": ["q"],
+  "additionalProperties": false
+}
