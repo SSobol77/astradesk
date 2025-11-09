@@ -135,7 +135,7 @@ audit:
 
 ### 9.5.1 Support Pack
 
-**Purpose**: Tier-1 support automation.
+**Purpose**: Tier-1 support automation with Asana and Slack integrations.
 
 **Included MCP tools**
 
@@ -144,6 +144,14 @@ audit:
 - `jira.create_issue (write)` - create ticket with labels/priority (approval).
 
 - `slack.post_message (write)` - post to channel with templates (approval).
+
+- `asana.create_task (write)` - create Asana tasks for ticket follow-up.
+
+**Implementation Status**: ✅ **Fully Implemented**
+- MCP server running on port 8001
+- Functional tools with error handling and retries
+- OAuth integration for external services
+- Comprehensive test coverage
 
 <br>
 
@@ -195,13 +203,24 @@ policies:
 
 ### 9.5.2 Ops Pack
 
-**Purpose**: Ops triage with guarded remediations.
+**Purpose**: SRE/DevOps automation with operational monitoring and service management.
 
 **Included MCP tools**
 
-- `metrics.query (read)` - query Prometheus for SLOs.
+- `metrics.query (read)` - query Prometheus for SLOs and performance metrics.
 
 - `remediation.seq (execute)` - approved, idempotent runbooks (e.g., scale deployment).
+
+- `service.restart (execute)` - restart Kubernetes deployments with RBAC controls.
+
+- `alerts.query (read)` - retrieve active alerts and incidents.
+
+**Implementation Status**: ✅ **Fully Implemented**
+- MCP server running on port 8002
+- Kubernetes integration with proper RBAC
+- Prometheus metrics collection
+- Alert management and incident response
+- Comprehensive operational tooling
 
 <br>
 
@@ -230,7 +249,33 @@ approvals:
 
 ---
 
-## 9.6 OpenAPI Shim (optional)
+## 9.6 Implementation Status
+
+**Phase 1 (Foundation) - COMPLETED ✅**
+
+All core components have been successfully implemented:
+
+- ✅ **API Gateway**: FastAPI service with three agents (support, ops, billing)
+- ✅ **MCP Servers**: 4 domain packs with functional tools and proper error handling
+- ✅ **Testing Infrastructure**: Comprehensive test harness, integration tests, red team security validation
+- ✅ **Developer Experience**: Automated setup, Docker containers, hot reload, Makefile automation
+- ✅ **Security**: OIDC/JWT auth, RBAC, audit trails, input validation
+- ✅ **Observability**: OpenTelemetry tracing, Prometheus metrics, health checks
+
+**Current Architecture**:
+- API Gateway on port 8000 with `/v1/run` endpoint
+- MCP Support Server on port 8001
+- MCP Ops Server on port 8002
+- MCP Finance Server on port 8003
+- MCP Supply Server on port 8004
+
+**Next Steps (Phase 2)**:
+- CI/CD automation with GitHub Actions/Jenkins
+- Production deployment with Kubernetes manifests
+- Advanced monitoring and alerting
+- Multi-tenant architecture
+
+## 9.7 OpenAPI Shim (optional)
 
 Expose a small REST surface **for non-MCP clients**; internally still call MCP.
 

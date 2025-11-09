@@ -66,14 +66,16 @@ The framework supports scalability, enterprise-grade security (OIDC/JWT, RBAC, m
 
 ## Features
 
-- **AI Agents**: Two ready-to-use agents:
+- **AI Agents**: Three ready-to-use agents:
   - **SupportAgent**: User support with RAG over corporate documents (PDF, HTML, Markdown), dialogue memory, and ticketing tools.
   - **OpsAgent**: SRE/DevOps automation — fetches metrics (Prometheus/Grafana), performs operational actions (e.g., restart service) with policies and auditing.
+  - **BillingAgent**: Financial operations and billing management with secure integrations.
 - **Modular Core**: Python-based framework with tool registry, planner, memory (Redis/Postgres), RAG (pgvector), and event handling (NATS).
 - **Integrations**:
   - Java Ticket Adapter (Spring Boot WebFlux + MySQL) for enterprise ticketing systems.
   - Next.js Admin Portal for agent monitoring, audit trails, and prompt testing.
   - **MCP Gateway**: Standardized protocol for AI agent tool interactions with security, audit, and rate limiting.
+  - **Domain Packs**: Modular MCP servers for Support, Ops, Finance, and Supply Chain domains with ready-to-use tools.
 - **Security**: OIDC/JWT authentication, per-tool RBAC, mTLS via Istio, and full action audit.
 - **DevOps Ready**: Docker, Kubernetes (Helm), OpenShift, Terraform (AWS), Ansible/Puppet/Salt, CI/CD with Jenkins and GitLab.
 - **Observability**: OpenTelemetry, Prometheus/Grafana/Loki/Tempo stack.
@@ -118,7 +120,7 @@ Communication: HTTP (between components), NATS (events/audits), Redis (working m
 1. Clone the repository:
 
 ```
-git clone [https://github.com/your-org/astradesk.git](https://github.com/your-org/astradesk.git)
+git clone https://github.com/your-org/astradesk.git
 cd astradesk
 ```
 
@@ -126,7 +128,6 @@ cd astradesk
 
 ```
 cp .env.example .env
-
 ```
 
 - Edit `.env` (e.g. DATABASE_URL, OIDC_ISSUER).
@@ -135,32 +136,30 @@ cp .env.example .env
 
 ```
 make up
-
 ```
 
-- This starts: API (8080), Ticket Adapter (8081), Admin Portal (3000), databases and supporting services.
+- This starts: API Gateway (8000), MCP Servers (8001-8004), Admin Portal (3000), databases and supporting services.
 
 4. Initialize Postgres (pgvector):
 
 ```
 make migrate
-
 ```
 
 5. Upload documents to `./docs` (e.g. .md, .txt) and initialize RAG:
 
 ```
 make ingest
-
 ```
 
 6. Check health:
 
 ```
-curl [http://localhost:8080/healthz](http://localhost:8080/healthz)
+curl http://localhost:8000/healthz
 ```
 
 - Admin Portal: http://localhost:3000
+- MCP Servers: http://localhost:8001 (support), 8002 (ops), 8003 (finance), 8004 (supply)
 
 
 ### Build from Source
@@ -168,16 +167,25 @@ curl [http://localhost:8080/healthz](http://localhost:8080/healthz)
 1. Install dependencies:
 
 ```
-make sync  # Python
-make build-java  # Java
-make build-admin  # Next.js
-
+make install-deps  # Python dependencies
+make build-java    # Java components
+make build-admin   # Next.js Admin Portal
 ```
 
 2. Run locally (without Docker):
-- Python API: `uv run uvicorn gateway.main:app --host 0.0.0.0 --port 8080 --reload`
-- Java Adapter: `cd services/ticket-adapter-java && ./gradlew bootRun`
+- API Gateway: `make dev-server` (with hot reload)
+- MCP Servers: `make mcp-all` (starts all domain pack servers)
 - Admin Portal: `cd services/admin-portal && npm run dev`
+
+3. Alternative development setup:
+
+```
+# Automated setup (recommended)
+./scripts/setup-dev-environment.sh
+
+# Or manual setup
+make setup
+```
 
 ## Configuration
 
@@ -220,7 +228,8 @@ curl -X POST http://localhost:8080/v1/agents/run \
 -d '{"agent": "support", "input": "Create a ticket for a network incident", "meta": {"user": "alice"}}'
 ````
 
-* Response: JSON with output, trace_id, used_tools.
+* Response: JSON with output, reasoning_trace_id, invoked_tools.
+* Available agents: `support`, `ops`, `billing`
 * Demo queries: `./scripts/demo_queries.sh`.
 
 ### Loading Documents into RAG

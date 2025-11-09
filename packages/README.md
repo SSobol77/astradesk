@@ -24,14 +24,22 @@ This directory integrates with the core system (`src/`) and Admin API (`src/admi
 
 ## Directory Structure
 
-The `packages/` directory contains subdirectories for each domain pack, each following a standardized structure:
+The `packages/` directory contains subdirectories for each domain pack, each following a standardized structure. Currently implemented domain packs include:
+
+- **domain-support**: Support ticket triage with Asana and Slack integrations
+- **domain-ops**: Operational monitoring and service management
+- **domain-finance**: Financial forecasting and ERP integrations
+- **domain-supply**: Supply chain management and SAP integrations
+
+Each pack provides:
 
 ```plaintext
 packages/
-├── domain-support/                # Support domain pack (e.g., ticket triage)
+├── domain-support/                # Support domain pack - MCP server on port 8001
 │   ├── agents/                   # Python agent logic
 │   │   └── triage.py             # Support ticket triage agent
 │   ├── tools/                    # Tool adapters (e.g., JIRA, Slack)
+│   │   ├── mcp_server.py        # MCP server implementation
 │   │   └── jira_adapter.py       # JIRA API client
 │   ├── flows/                    # AstraDSL flows (YAML)
 │   │   └── autoresolve.yaml      # Auto-resolve ticket flow
@@ -40,10 +48,28 @@ packages/
 │   ├── tests/                    # Unit and integration tests
 │   │   └── test_triage.py        # Tests for triage agent
 │   ├── pyproject.toml            # Dependencies and metadata (UV-managed)
+│   ├── Dockerfile                # Container build for MCP server
 │   └── README.md                 # Pack-specific documentation
-├── domain-finance/               # Finance domain pack (e.g., forecasting)
+├── domain-ops/                   # Ops domain pack - MCP server on port 8002
+│   ├── agents/
+│   │   └── ops.py                # Operational monitoring agent
+│   ├── tools/
+│   │   ├── mcp_server.py        # MCP server implementation
+│   │   └── metrics.py            # Prometheus metrics adapter
+│   ├── flows/
+│   │   └── incident_response.yaml # Incident response flow
+│   ├── policies/
+│   │   └── ops.rego              # Policy rules for operations
+│   ├── tests/
+│   │   └── test_ops.py           # Tests for ops agent
+│   ├── pyproject.toml
+│   ├── Dockerfile
+│   └── README.md
+├── domain-finance/               # Finance domain pack - MCP server on port 8003
 │   ├── agents/
 │   │   └── forecast.py           # Financial forecasting agent
+│   ├── tools/
+│   │   ├── mcp_server.py        # MCP server implementation
 │   │   └── erp_oracle.py         # Oracle ERP adapter
 │   ├── flows/
 │   │   └── forecast_mtd.yaml     # Month-to-date forecast flow
@@ -52,11 +78,13 @@ packages/
 │   ├── tests/
 │   │   └── test_forecast.py      # Tests for forecast agent
 │   ├── pyproject.toml
+│   ├── Dockerfile
 │   └── README.md
-├── domain-supply/                # Supply chain domain pack (e.g., replenishment)
+├── domain-supply/                # Supply chain domain pack - MCP server on port 8004
 │   ├── agents/
 │   │   └── replenish.py          # Inventory replenishment agent
 │   ├── tools/
+│   │   ├── mcp_server.py        # MCP server implementation
 │   │   └── sap_mm.py             # SAP MM adapter
 │   ├── flows/
 │   │   └── exception_routing.yaml  # Exception routing flow
@@ -65,6 +93,7 @@ packages/
 │   ├── tests/
 │   │   └── test_replenish.py     # Tests for replenish agent
 │   ├── pyproject.toml
+│   ├── Dockerfile
 │   └── README.md
 ```
 
