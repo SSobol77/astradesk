@@ -3,6 +3,7 @@ Oczywiście. Oto w pełni profesjonalny plik `README.md` dla Twojego nowego paki
 
 [![Python Version](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](../../LICENSE)
+[![MCP Server](https://img.shields.io/badge/MCP-Port%208002-green.svg)](http://localhost:8002)
 
 <br>
 
@@ -16,7 +17,11 @@ This pack follows an **action-oriented** philosophy. Its primary goal is to reli
 
 - **`OpsAgent`**: An agent optimized for operational workflows. It prioritizes tool execution and provides clear, deterministic error reporting without falling back to RAG.
 
+- **MCP Server**: Runs on port 8002 providing standardized tool interfaces for operational automation.
+
 - **Kubernetes Integration**: Includes a production-ready `restart_service` tool that interacts directly with the Kubernetes API to perform controlled rollout restarts of deployments.
+
+- **Metrics & Monitoring**: Prometheus integration for retrieving service metrics and performance data.
 
 - **RBAC Enforcement**: All sensitive actions are protected by Role-Based Access Control, leveraging policies defined in the core `runtime` module.
 
@@ -44,14 +49,36 @@ This pack is designed to be seamlessly integrated into the AstraDesk Enterprise 
 
 ### Tools
 
+- **`tools/mcp_server.py`**: MCP server implementation providing standardized tool interfaces.
+
 - **`tools/actions.py`**:
   - `restart_service(service: str)`: A tool that connects to the Kubernetes API to trigger a rollout restart for a specified deployment. It is protected by RBAC (requires the `sre` role) and validates the target service against a configurable allowlist.
+
+- **`tools/metrics.py`**:
+  - `get_metrics(service: str, window: str)`: Retrieves performance metrics from Prometheus for monitoring and alerting.
 
 <br>
 
 ## 4. Local Development and Testing
 
 All commands should be run from the **root of the AstraDesk Enterprise AI Agents Framework**.
+
+### Running the MCP Server
+
+Start the Operations MCP server independently:
+
+```bash
+# From project root
+python packages/domain-ops/tools/mcp_server.py
+```
+
+Or use the Makefile:
+
+```bash
+make mcp-ops
+```
+
+The server will be available at `http://localhost:8002` with health endpoint at `/health`.
 
 ### Running Tests
 
@@ -70,9 +97,9 @@ make test
 
 ### Dependencies
 
-- **Production dependencies** are defined in `pyproject.toml` and include `kubernetes-asyncio`.
+- **Production dependencies** are defined in `pyproject.toml` and include `kubernetes-asyncio`, `httpx`, `prometheus-client`.
 
-- **Development dependencies** are also in `pyproject.toml` and include `pytest` and `pytest-asyncio`.
+- **Development dependencies** are also in `pyproject.toml` and include `pytest`, `pytest-asyncio`, `respx`.
 
 To install all dependencies for the entire workspace, run `uv sync` from the root directory.
 
@@ -85,8 +112,32 @@ The tools within this pack rely on environment variables for configuration:
 - `KUBERNETES_NAMESPACE`: The Kubernetes namespace where the target services are deployed (defaults to `default`).
 - `ALLOWED_SERVICES`: A comma-separated string of deployment names that are permitted to be restarted (defined within `tools/actions.py`).
 - `REQUIRED_ROLE_RESTART`: The role claim required in the JWT to execute the `restart_service` tool (defaults to `sre`).
+- `MONITORING_API_URL`: URL for Prometheus/Grafana API endpoint for metrics collection.
+- `LOG_LEVEL`: Logging level (defaults to `INFO`).
 
 These variables should be set in the `.env` file at the root of the project.
+
+### Docker Configuration
+
+The pack includes a `Dockerfile` for containerized deployment. Build and run with:
+
+```bash
+# Build
+docker build -t astradesk/ops-mcp packages/domain-ops/
+
+# Run
+docker run -p 8002:8000 -e KUBERNETES_NAMESPACE=default astradesk/ops-mcp
+```
+
+### Integration with API Gateway
+
+The OpsAgent is automatically registered with the API Gateway. Use the following to invoke operations:
+
+```bash
+curl -X POST http://localhost:8000/v1/run \
+  -H "Authorization: Bearer <jwt-token>" \
+  -d '{"agent": "ops", "input": "Check metrics for webapp service"}'
+```
 
 ---
 

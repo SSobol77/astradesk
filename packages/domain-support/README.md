@@ -2,9 +2,15 @@ SPDX-License-Identifier: Apache-2.0
 
 # Support Domain Pack
 
+[![Python Version](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](../../LICENSE)
+[![MCP Server](https://img.shields.io/badge/MCP-Port%208001-green.svg)](http://localhost:8001)
+
 ## Overview
 
 This pack provides modular support logic for AstraDesk, including ticket triage with Asana (tasks/projects) and Slack (messaging/notifications) integration. All interactions are exclusively via Admin API v1.2.0 (no direct imports from core modules). Designed for production: async, retry-enabled, error handling with ProblemDetail, and full test coverage.
+
+The Support Domain Pack includes an MCP server running on port 8001 that provides standardized interfaces for support operations and external integrations.
 
 ### Purpose
 - Agents: Ticket triage with Asana task creation and Slack notifications.
@@ -21,9 +27,132 @@ This pack provides modular support logic for AstraDesk, including ticket triage 
 - Slack OAuth token in config
 
 ### Setup
+
 ```bash
 cd packages/domain-support
 uv sync --frozen
+```
+
+## Usage
+
+### Running the MCP Server
+
+Start the Support MCP server independently:
+
+```bash
+# From project root
+python packages/domain-support/tools/mcp_server.py
+```
+
+Or use the Makefile:
+
+```bash
+make mcp-support
+```
+
+The server will be available at `http://localhost:8001` with health endpoint at `/health`.
+
+### API Integration
+
+#### Upload Flow:
+```python
+from clients.api import AdminApiClient
+client = AdminApiClient(token="your-jwt")
+flow_data = {"name": "autoresolve", "content": open("flows/autoresolve.yaml").read()}
+await client.upload_flow(flow_data)
+```
+
+#### Upload Policy:
+```python
+policy_data = {"name": "support_policy", "rego_text": open("policies/support.rego").read()}
+await client.upload_policy(policy_data)
+```
+
+#### Run Triage:
+```python
+tickets = [{"id": "T1", "summary": "Urgent issue"}]
+async for result in triage_tickets(tickets, token="your-jwt"):
+    print(result.asana_task_id, result.slack_message_id)
+```
+
+#### Create Asana Task:
+```python
+adapter = AsanaAdapter(token="your-jwt")
+task = await adapter.create_task({"name": "New Task", "project_gid": "your_project_gid"})
+print(task)
+```
+
+#### Post Slack Message:
+```python
+adapter = SlackAdapter(token="your-jwt")
+msg = await adapter.post_message({"channel": "#support", "text": "Test message"})
+print(msg)
+```
+
+### Integration with API Gateway
+
+The SupportAgent is automatically registered with the API Gateway. Use the following to invoke support operations:
+
+```bash
+curl -X POST http://localhost:8000/v1/run \
+  -H "Authorization: Bearer <jwt-token>" \
+  -d '{"agent": "support", "input": "Create a ticket for VPN connectivity issue"}'
+```
+
+## Tests
+
+```bash
+uv run pytest tests -v --cov=.
+```
+
+## Deployment
+
+### Docker
+
+The pack includes a `Dockerfile` for containerized deployment. Build and run with:
+
+```bash
+# Build
+docker build -t astradesk/support-mcp packages/domain-support/
+
+# Run
+docker run -p 8001:8000 astradesk/support-mcp
+```
+
+### Docker Compose
+
+Add to docker-compose.yml as service:
+
+```yaml
+support-mcp:
+  build: ./packages/domain-support
+  ports:
+    - "8001:8000"
+  environment:
+    - LOG_LEVEL=INFO
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+```
+
+### Kubernetes
+
+Use in K8s via Helm (deploy/chart/): Mount volume for flows/policies.
+
+```bash
+helm upgrade --install astradesk ./deploy/chart \
+  --set support.enabled=true
+```
+
+### CI/CD
+
+Integrate with Jenkinsfile for uv sync and pytest:
+
+```bash
+make build-support
+make test-support
 ```
 
 ### Usage
