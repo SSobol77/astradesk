@@ -56,6 +56,7 @@ from runtime.registry import ToolRegistry, load_domain_packs
 from agents.base import BaseAgent
 from agents.support import SupportAgent
 from agents.billing import BillingAgent
+from agents.ops import OpsAgent
 from tools import metrics, ops_actions, tickets_proxy
 
 # --- Configuration ---
@@ -148,6 +149,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     agents: Dict[str, BaseAgent] = {
         "support": SupportAgent(tool_registry, memory, keyword_planner, rag, llm_planner),
         "billing": BillingAgent(tool_registry, memory, keyword_planner, rag, llm_planner),
+        "ops": OpsAgent(tool_registry, memory, keyword_planner, rag, llm_planner),
     }
 
     # --- Create and store the main orchestrator ---
