@@ -1,12 +1,13 @@
 #SPDX-License-Identifier: Apache-2.0
 # File: docker-compose.yml v.1.3.0
+# Project: AstraDesk Enterprise AI Agents Framework
 # Description:
 #     Defines services for AstraDesk local dev environment.
 #     Includes API, Prometheus, ticket-adapter (Java), admin-portal (Node.js), auditor,
 #     MySQL,Postgres, Redis, NATS, and domain packs (Python, Java, gRPC).
 #     Supports polyglot stack (Python 3.14+, Java 25, Node 22+, Postgres 18).
 # Author: Siergej Sobolewski
-# Since: 2025-11-06
+# Since: 2025-11-09
 services:
   api:
     build: .
@@ -24,11 +25,11 @@ services:
         condition: service_healthy
       nats:
         condition: service_healthy
-     ticket-adapter:
+      ticket-adapter:
         condition: service_started
       prometheus:
         condition: service_healthy
-mcp:
+      mcp:
         condition: service_started
 
   # ----- НОВЫЙ сервис -----
@@ -39,7 +40,7 @@ mcp:
     env_file: .env
     ports:
       - "8001:8001"
-volumes:
+    volumes:
       - ./packages:/app/src/packages:ro
     restart: unless-stopped
 
@@ -64,7 +65,7 @@ volumes:
     ports:
       - "8082:8081"
     depends_on:
-mysql:
+      mysql:
         condition: service_healthy
 
   admin:
@@ -95,22 +96,22 @@ mysql:
       kb-service:
         condition: service_started
       jira-service:
-        condition: service_startedenvironment:
+        condition: service_started
+    environment:
       - REDIS_URL=redis://redis:6379/0
       - KB_SERVICE_URL=http://kb-service:8000
       - JIRA_SERVICE_URL=http://jira-service:8000
 
   kb-service:
     image: alpine:latest
-command: ["sleep", "3600"]
+    command: ["sleep", "3600"]
     profiles: ["no-start"]
 
   jira-service:
     image: alpine:latest
     command: ["sleep", "3600"]
     profiles: ["no-start"]
-
- db:
+  db:
     image: pgvector/pgvector:pg18
     environment:
       POSTGRES_DB: astradesk
@@ -127,7 +128,8 @@ command: ["sleep", "3600"]
   mysql:
     image: mysql:8
     environment:
-      MYSQL_DATABASE: ticketsMYSQL_USER: tickets
+      MYSQL_DATABASE: tickets
+      MYSQL_USER: tickets
       MYSQL_PASSWORD: tickets
       MYSQL_ROOT_PASSWORD: root
     ports:
@@ -163,13 +165,13 @@ command: ["sleep", "3600"]
       - "4222:4222"
       - "8222:8222"
     volumes:
-- nats_data:/datastore
+      - nats_data:/datastore
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8222/healthz"]
       interval: 10s
       timeout: 5s
-     retries: 5
-     start_period: 10s
+      retries: 5
+      start_period: 10s
 
   domain-support:
     build: packages/domain-support
@@ -181,7 +183,7 @@ command: ["sleep", "3600"]
       API_TOKEN: "${API_TOKEN}"
 
   domain-finance:
-build: packages/domain-finance
+    build: packages/domain-finance
     depends_on:
       - api
     environment:
@@ -210,7 +212,7 @@ build: packages/domain-finance
   domain-supply:
     build: packages/domain-supply
     depends_on:
-      -api
+      - api
     environment:
       API_URL: http://api:8000/api/admin/v1
       API_TOKEN: "${API_TOKEN}"
@@ -220,7 +222,7 @@ build: packages/domain-finance
     command: java -jar build/libs/domain-supply.jar
     depends_on:
       - api
-environment:
+    environment:
       API_URL: http://api:8000/api/admin/v1
       API_TOKEN: "${API_TOKEN}"
 
@@ -229,7 +231,7 @@ environment:
     ports:
       - "50052:50051"
     depends_on:
-- api
+      - api
     environment:
       API_URL: http://api:8000/api/admin/v1
       API_TOKEN: "${API_TOKEN}"

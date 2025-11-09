@@ -1,12 +1,13 @@
-#SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0
 # File: Dockerfile v.2.1 --production-ready--
+# Project: AstraDesk Enterprise AI Agents Framework
 # Description:
 #     Production Dockerfile for AstraDesk API service.
 #     Multi-stage build with uv, non-root user, mTLS, Istio, OTel, and Sigstore.
-#Supports AstraFlow 2.0, Domain Packs, Admin API v1.2.0, and RAG agents.
+#     Supports AstraFlow 2.0, Domain Packs, Admin API v1.2.0, and RAG agents.
 #     Optimized for Kubernetes + Istio + Helm + Terraform.
 # Author: Siergej Sobolewski
-# Since: 2025-10-25
+# Since: 2025-11-09
 
 # --- Builder Stage ---
 FROM python:3.14-slim AS builder
@@ -20,11 +21,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Install uv + build tools
-RUN pip install --no-cache-dir uv==0.4.16  # Pin to stable version
+RUN pip install --no-cache-dir uv==0.4.16
 
 # System deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq-dev build-essential curl ca-certificates && \
+    build-essential ca-certificates curl libpq-dev && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy workspace sources and dependency files
@@ -36,7 +37,7 @@ COPY services/admin_api ./services/admin_api
 COPY services/mcp ./services/mcp
 COPY packages/ ./packages/
 
-# Syncdependencies with cache
+# Sync dependencies with cache
 RUN --mount=type=cache,target=/uv-cache \
     uv sync --all-extras --frozen
 
@@ -54,14 +55,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Copy virtual env from builderCOPY --from=builder /app/.venv /app/.venv
+# Copy virtual env from builder 
+COPY --from=builder /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Copy source code
 COPY services/api-gateway/src ./src
 COPY services/auditor /app/services/auditor
 COPY services/admin_api /app/services/admin_api
-COPYservices/mcp /app/services/mcp
+COPY services/mcp /app/services/mcp
 COPY core /app/core
 COPY packages ./packages
 
@@ -70,7 +72,7 @@ COPY packages ./packages
 RUN useradd -m -s /bin/bash astradesk && \
     chown -R astradesk:astradesk /app && \
     # Make root filesystem read-only (except /tmp, /app)
-    chmod 755/app
+    chmod 755 /app
 
 USER astradesk
 
@@ -82,7 +84,7 @@ LABEL org.opencontainers.image.title="AstraDesk API" \
       org.opencontainers.image.authors="ops@astradesk.com" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.url="https://astradesk.com" \
-     org.opencontainers.image.source="https://github.com/astradesk/framework" \
+      org.opencontainers.image.source="https://github.com/astradesk/framework" \
       org.opencontainers.image.documentation="https://docs.astradesk.com/api/admin/v1" \
       org.opencontainers.image.base.name="python:3.14-slim"
 

@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # File: .gitlab-ci.yml v2.1 --production-ready--
+# Project: AstraDesk Enterprise AI Agents Framework
 # Description:
 #     Full production GitLab CI/CD pipeline for AstraDesk monorepo (2025 best-practices).
 #     Covers:
@@ -14,18 +15,18 @@
 #     All jobs are idempotent, retry-aware, use explicit variables.
 # Author: Siergej Sobolewski
 # Since: 2025-10-25
-
+#
 ## UWAGA!!!
 # Wymagane zmienne CI/CD w GitLabie:
 # CI_REGISTRY_IMAGE    - registry.gitlab.com/yourgroup/astradesk
-# TF_STATE_BUCKET      - S3 bucket dla terraform state,Protected
-# KUBE_CONFIG          - Base64-encoded kubeconfig,"File, Protected"
-# ADMIN_API_JWT        - JWT do Admin API,"Masked, Protected"
-# COSIGN_PRIVATE_KEY   - (opcjonalnie) klucz Sigstore,"File, Protected"
-# SLACK_WEBHOOK_URL     - Webhook do Slacka
+# TF_STATE_BUCKET      - S3 bucket dla terraform state, Protected
+# KUBE_CONFIG          - Base64-encoded kubeconfig, "File, Protected"
+# ADMIN_API_JWT        - JWT do Admin API, "Masked, Protected"
+# COSIGN_PRIVATE_KEY   - (option) key Sigstore, "File, Protected"
+# SLACK_WEBHOOK_URL    - Webhook do Slacka
 #  --- do SONAR QUBE --
-# SONAR_HOST_URL       - URL do SonarQube (np. https://sonar.astradesk.com),Protected
-# SONAR_TOKEN          - Token do autoryzacji (Project Analysis Token),"Masked, Protected"
+# SONAR_HOST_URL       - URL do SonarQube (np. https://sonar.astradesk.com), Protected
+# SONAR_TOKEN          - Token do autoryzacji (Project Analysis Token), "Masked, Protected"
 
 
 # ==============================================================================

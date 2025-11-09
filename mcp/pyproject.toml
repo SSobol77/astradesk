@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# File: mcp/pyproject.toml v2.0.0
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
