@@ -23,6 +23,8 @@ is an internal framework for building AI agents designed for Support and SRE/Dev
 It provides a modular architecture with ready-to-use demo agents, integrations with databases, messaging systems, and DevOps tools.  
 The framework supports scalability, enterprise-grade security (OIDC/JWT, RBAC, mTLS via Istio), and full CI/CD automation.
 
+---
+
 ## Table of Contents
 
 - [Features](#features)
@@ -64,6 +66,8 @@ The framework supports scalability, enterprise-grade security (OIDC/JWT, RBAC, m
 - [License](#license)
 - [Contact](#contact)
 
+---
+
 ## Features
 
 - **AI Agents**: Three ready-to-use agents:
@@ -81,6 +85,8 @@ The framework supports scalability, enterprise-grade security (OIDC/JWT, RBAC, m
 - **Observability**: OpenTelemetry, Prometheus/Grafana/Loki/Tempo stack.
 - **Scalability**: HPA in Helm, retries/timeouts in integrations, autoscaling in EKS.
 
+---
+
 ## Purpose and Use Cases
 
 **AstraDesk** is a **framework for building AI agents** for **Support** and **SRE/DevOps** teams.  
@@ -94,6 +100,8 @@ It provides a modular core (planner, memory, RAG, tool registry) and includes re
 
 > **Not just a chatbot**, but a **framework** for composing your own agents, tools, and policies with full control (no SaaS lock-in).
 
+---
+
 ## Architecture Overview
 
 AstraDesk consists of several main components:
@@ -104,6 +112,153 @@ AstraDesk consists of several main components:
 
 Communication: HTTP (between components), NATS (events/audits), Redis (working memory), Postgres/pgvector (RAG/dialogues/audits), MySQL (tickets).
 
+---
+
+## 🖥️ Admin Portal
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  AstraDesk Admin Portal - Enterprise Dashboard & Governance     │
+├─────────────────────────────────────────────────────────────────┤
+│  Live Demo: https://astradesk-admin.vercel.app                  │
+│  Repository: https://github.com/SSobol77/astradesk-admin-panel  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Overview
+
+**AstraDesk Admin Portal** to enterprise-grade panel administracyjny do zarządzania agentami AI, datasetami, flow, politykami RBAC i governance operacyjnym.
+
+<p align="center">
+  <img src="docs/assets/Astradesk_admin.png" alt="AstraDesk Admin Portal Dashboard" width="800"/>
+</p>
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| **🔌 OpenAPI-First** | Strictly typed from OpenAPI 3.1 spec |
+| **⚡ Next.js 16 + React 19** | Modern App Router architecture |
+| **🔒 Type-Safe** | Generated TypeScript types from OpenAPI |
+| **📡 Real-Time SSE** | Live streaming for run updates |
+| **🧪 Mock API Mode** | Test UI without backend (dev/demo) |
+| **👥 Full RBAC + Audit** | Role-based access control with audit trails |
+| **📊 Intent Graph** | Visual representation of agent intents |
+| **🔄 Runs & Jobs** | Live streaming, filters, export |
+
+### Quick Start
+
+#### Development Mode
+
+```bash
+# Clone the admin panel repository
+git clone https://github.com/SSobol77/astradesk-admin-panel.git
+cd astradesk-admin-panel
+
+# Install dependencies
+npm install
+
+# Copy environment file
+cp .env.example .env.local
+
+# Run development server
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000)
+
+#### Environment Variables
+
+```bash
+# Backend API URL (required if not using mock mode)
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8080/api/admin/v1
+
+# Set to "true" to use realistic mock data instead of real API
+NEXT_PUBLIC_MOCK_API=false
+```
+
+#### Mock API Mode (Testing Without Backend)
+
+For development, testing, or demos without a running backend:
+
+1. Set `NEXT_PUBLIC_MOCK_API=true` in your `.env.local`
+2. The app will use realistic mock data for all endpoints
+3. All pages will work with simulated data and network delays
+4. Perfect for UI development, testing, and demonstrations
+
+> **Note:** Mock mode returns predefined data from `lib/mock-data.ts`. No actual API calls are made.
+
+### Available Pages
+
+| Page | Route | Description |
+|------|-------|-------------|
+| **Dashboard** | `/` | Health, usage, recent errors |
+| **Agents** | `/agents` | CRUD, test, promote, metrics |
+| **Intent Graph** | `/intent-graph` | Read-only graph visualization |
+| **Flows** | `/flows` | Validate, dry run, logs |
+| **Datasets** | `/datasets` | Schema, embeddings, reindex |
+| **Tools** | `/tools` | Connector management |
+| **Secrets** | `/secrets` | Key rotation, disable |
+| **Runs & Logs** | `/runs` | Live streaming, filters, export |
+| **Jobs** | `/jobs` | Schedules, triggers, DLQ |
+| **RBAC** | `/rbac` | Users, roles, invites |
+| **Policies** | `/policies` | OPA policy management |
+| **Audit** | `/audit` | Immutable audit trail |
+| **Settings** | `/settings` | Platform configuration |
+
+### Authentication
+
+The app uses **Bearer JWT** authentication:
+
+1. Obtain a JWT token from your auth system
+2. The app stores it in `localStorage` as `astradesk_token`
+3. All API requests include `Authorization: Bearer <token>`
+
+> **In Mock Mode:** Authentication is bypassed - no token required.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Admin Portal (Next.js)                  │
+│   ┌─────────────┐  ┌─────────────┐  ┌────────────────────┐  │
+│   │   Sidebar   │  │   Topbar    │  │   Main Content     │  │
+│   │  Navigation │  │  User/Auth  │  │   Dynamic Pages    │  │
+│   └─────────────┘  └─────────────┘  └────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              │ HTTP + SSE
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   API Gateway (FastAPI)                     │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+│  │   Agents    │  │    Audit    │  │    RBAC/Policies    │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| **Framework** | Next.js 16 App Router |
+| **UI Library** | React 19.2, shadcn/ui |
+| **Language** | TypeScript (generated from OpenAPI) |
+| **State** | React Query, Zustand |
+| **Real-time** | Server-Sent Events (SSE) |
+| **Styling** | Tailwind CSS |
+| **Testing** | Vitest, Playwright |
+
+### Links
+
+| Resource | URL |
+|----------|-----|
+| 🌐 **Live Demo** | [https://astradesk-admin.vercel.app](https://astradesk-admin.vercel.app) |
+| 🐙 **Repository** | [https://github.com/SSobol77/astradesk-admin-panel](https://github.com/SSobol77/astradesk-admin-panel) |
+| 📖 **Documentation** | [https://github.com/SSobol77/astradesk-admin-panel#readme](https://github.com/SSobol77/astradesk-admin-panel#readme) |
+
+---
+
 ## Prerequisites
 
 - **Docker** and **Docker Compose** (for local dev).
@@ -112,6 +267,8 @@ Communication: HTTP (between components), NATS (events/audits), Redis (working m
 - **Node.js 22**, **JDK 25**, **Python 3.14** (for builds).
 - **Postgres 17**, **MySQL 8**, **Redis 7**, **NATS 2** (core services).
 - **Optional:** Istio, cert-manager (for mTLS/TLS).
+
+---
 
 ## Installation
 
@@ -187,6 +344,8 @@ make build-admin   # Next.js Admin Portal
 make setup
 ```
 
+---
+
 ## Configuration
 
 ### Environment Variables
@@ -215,6 +374,8 @@ Full list in `.env.example`.
 - Tools (e.g. restart_service) validate via `require_role(claims, "sre")`.
 - Customize in `runtime/policy.py` and tool definitions (e.g. `REQUIRED_ROLE_RESTART`).
 
+---
+
 ## Usage
 
 ### Running Agents
@@ -237,17 +398,13 @@ curl -X POST http://localhost:8080/v1/agents/run \
 * Supported formats: .md, .txt (extendable to PDF/HTML).
 * Run: `make ingest` (source: `./docs`).
 
-### Admin Portal
-
-* Accessible at `http://localhost:3000`.
-* Features: API health check, sample curl commands for agents.
-* Extend with audit fetch: add `/v1/audits` endpoint in API.
-
 ### Tools and Integrations
 
 * Tool registry: `registry.py` — add new ones via `register(name, async_fn)`.
 * Examples: create_ticket (proxy to Java), get_metrics (Prometheus stub), restart_service (RBAC-protected).
 * **MCP Gateway**: Standardized protocol for AI agent tool interactions with built-in security, audit, and rate limiting. See [MCP documentation](mcp/README.md) for implementation details.
+
+---
 
 ## Deployment
 
@@ -858,11 +1015,11 @@ Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 ✨ Demo: [AstraDesk Admin panel](https://astradesk-admin.vercel.app/)
 
-📧 Author: Siergej Sobolewski ([s.sobolewski@hotmail.com](mailto:s.sobolewski@hotmail.com)).
+📧 Author: Siergej Sobolewski [s.sobolewski@hotmail.com](mailto:s.sobolewski@hotmail.com)
 
 💬 Support channel: [Support Slack](https://astradesk.slack.com)
 
-🐙 Issues: [GitHub Issues](https://github.com/SSobol77/astradesk/issues).
+🐙 Issues: [GitHub Issues](https://github.com/SSobol77/astradesk/issues)
 
 <br>
 
