@@ -30,7 +30,7 @@ The framework supports scalability, enterprise-grade security (OIDC/JWT, RBAC, m
 - [Features](#features)
 - [Purpose and Use Cases](#purpose-and-use-cases)
 - [Architecture Overview](#architecture-overview)
-- [Admin Portal](#admin-portal)
+- [🖥️ Admin Portal](#-admin-portal)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
   - [Local Environment (Docker Compose)](#local-environment-docker-compose)
@@ -115,7 +115,7 @@ Communication: HTTP (between components), NATS (events/audits), Redis (working m
 
 ---
 
-## Admin Portal
+## 🖥️ Admin Portal
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
