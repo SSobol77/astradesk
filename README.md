@@ -854,7 +854,9 @@ Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 ## Contact
 
-🌐 Website: [AstraDesk](https://astradesk.vercel.app/)
+🌐 Website: [AstraDesk](https://astradesk.dev/)
+
+✨ Demo: [AstraDesk Admin panel](https://astradesk-admin.vercel.app/)
 
 📧 Author: Siergej Sobolewski ([s.sobolewski@hotmail.com](mailto:s.sobolewski@hotmail.com)).
 
