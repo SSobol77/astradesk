@@ -1014,7 +1014,7 @@ Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 🌐 Website: [AstraDesk](https://astradesk.dev/)
 
-✨ Demo: [AstraDesk Admin Portal](https://astradesk-admin.vercel.app/)
+✨ Demo: [AstraDesk Admin Portal](https://astradesk-admin-portal.vercel.app/)
 
 📧 Author: Siergej Sobolewski [s.sobolewski@hotmail.com](mailto:s.sobolewski@hotmail.com)
 
