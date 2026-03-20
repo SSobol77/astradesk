@@ -121,8 +121,8 @@ Communication: HTTP (between components), NATS (events/audits), Redis (working m
 ┌─────────────────────────────────────────────────────────────────┐
 │  AstraDesk Admin Portal - Enterprise Dashboard & Governance     │
 ├─────────────────────────────────────────────────────────────────┤
-│  Live Demo: https://astradesk-admin.vercel.app                  │
-│  Repository: https://github.com/SSobol77/astradesk-admin-panel  │
+│  Live Demo: https://astradesk-admin-portal.vercel.app/          │
+│  Repository: https://github.com/SSobol77/astradesk-admin-portal │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -153,8 +153,8 @@ Communication: HTTP (between components), NATS (events/audits), Redis (working m
 
 ```bash
 # Clone the admin panel repository
-git clone https://github.com/SSobol77/astradesk-admin-panel.git
-cd astradesk-admin-panel
+git clone https://github.com/SSobol77/astradesk-admin-portal.git
+cd astradesk-admin-portal
 
 # Install dependencies
 npm install
@@ -254,9 +254,9 @@ The app uses **Bearer JWT** authentication:
 
 | Resource | URL |
 |----------|-----|
-| 🌐 **Live Demo** | [https://astradesk-admin.vercel.app](https://astradesk-admin.vercel.app) |
-| 🐙 **Repository** | [https://github.com/SSobol77/astradesk-admin-panel](https://github.com/SSobol77/astradesk-admin-panel) |
-| 📖 **Documentation** | [https://github.com/SSobol77/astradesk-admin-panel#readme](https://github.com/SSobol77/astradesk-admin-panel#readme) |
+| 🌐 **Live Demo** | [https://astradesk-admin.vercel.app](https://astradesk-admin-portal.vercel.app/) |
+| 🐙 **Repository** | [https://github.com/SSobol77/astradesk-admin-portal](https://github.com/SSobol77/astradesk-admin-portal) |
+| 📖 **Documentation** | [https://github.com/SSobol77/astradesk-admin-portal#readme](https://github.com/SSobol77/astradesk-admin-portal#readme) |
 
 ---
 
