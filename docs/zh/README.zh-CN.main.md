@@ -1,838 +1,429 @@
+
+<br>
 <p align="center">
-  <img src="docs/assets/AstraDesktop.png" alt="AstraDesk - AI 框架" width="560"/>
+  <img src="https://astradesk.dev/_next/image?url=%2FAstraDesk_wlogo.png&w=640&q=75" alt="AstraDesk - AI 框架" width="560"/>
 </p>
 
 <br>
 
-# AstraDesk Duo - 内部 AI 代理框架
+# AstraDesk - 企业级 AI 框架
 
-[![许可证](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+[![许可证](https://img.shields.io/badge/许可证-Apache%202.0-yellow.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Python 版本](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
 [![JDK 版本](https://img.shields.io/badge/JDK-21-green.svg)](https://openjdk.org/projects/jdk/21/)
 [![Node.js 版本](https://img.shields.io/badge/Node.js-22-brightgreen.svg)](https://nodejs.org/en)
-[![构建状态](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](https://github.com/your-org/astradesk/actions)
+[![构建状态](https://img.shields.io/badge/构建-通过-brightgreen.svg)](https://github.com/your-org/astradesk/actions)
 
-🌍 **语言版本:** [英文](astradesk/README.md) | [波兰文](astradesk/docs/pl/README.pl.main.md) | 🇨🇳 [中文 (当前文件)](docs/zh/README.zh.main.md)
+🌍 **语言:** [English](README.md) | 🇵🇱 [Polski](docs/pl/README.pl.main.md) | [🇨🇳 中文（当前文件）](docs/zh/README.zh.main.md)
 
 <br>
 
-[AstraDesk](https://astradesk.vercel.app/)
-是-个用于构建 AI 代理的内部框架，专为 **技术支持团队 (Support)** 和 **SRE/DevOps 团队** 设计。  
-它采用模块化架构，内置可直接使用的演示代理，支持数据库、消息系统和 DevOps 工具集成。  
-该框架具备可扩展性、企业级安全 (OIDC/JWT、RBAC、mTLS via Istio) 以及端到端的 CI/CD 支持。
+[AstraDesk](https://www.astradesk.dev) 是一个专为支持团队（Support）和运维团队（SRE/DevOps）设计的内部 AI 智能体构建框架。它提供模块化架构，包含预置的演示智能体、数据库集成、消息系统以及 DevOps 工具。该框架支持可扩展性、企业级安全（OIDC/JWT、RBAC、通过 Istio 实现 mTLS）以及完整的 CI/CD 流程。
 
 <br>
 
 ---
 
-## 📘 目录 (Table of Contents)
+## 目录
 
-- [主要特性](#主要特性)
-- [目标与使用场景](#目标与使用场景)
+- [功能特性](#功能特性)
+- [适用场景与用途](#适用场景与用途)
 - [架构概览](#架构概览)
-- [前置条件](#前置条件)
-- [安装说明](#安装说明)
-  - [使用 Docker Compose 本地开发](#使用-docker-compose-本地开发)
-  - [从源码构建](#从源码构建)
+- [前置要求](#前置要求)
+- [快速入门与开发者指南](#快速入门与开发者指南)
 - [配置](#配置)
   - [环境变量](#环境变量)
   - [OIDC/JWT 认证](#oidcjwt-认证)
   - [RBAC 策略](#rbac-策略)
 - [使用方法](#使用方法)
-  - [运行代理](#运行代理)
-  - [导入文档以供 RAG 使用](#导入文档以供-rag-使用)
+  - [运行智能体](#运行智能体)
   - [管理门户](#管理门户)
-  - [工具与集成](#工具与集成)
 - [部署](#部署)
-  - [Kubernetes + Helm](#kubernetes--helm)
+  - [Kubernetes (Helm)](#kubernetes-helm)
   - [OpenShift](#openshift)
-  - [AWS + Terraform](#aws--terraform)
+  - [AWS (Terraform)](#aws-terraform)
   - [配置管理工具](#配置管理工具)
   - [mTLS 与 Istio 服务网格](#mtls-与-istio-服务网格)
 - [CI/CD](#cicd)
   - [Jenkins](#jenkins)
   - [GitLab CI](#gitlab-ci)
 - [监控与可观测性](#监控与可观测性)
-- [开发者指南](#开发者指南)
+  - [快速启动 (Docker Compose)](#快速启动-docker-compose)
+  - [Prometheus 配置](#prometheus-配置)
+  - [指标端点 - 集成](#指标端点-集成)
+  - [Grafana（快速配置）](#grafana快速配置)
+  - [实用命令 (Makefile)](#实用命令-makefile)
 - [测试](#测试)
-- [安全](#安全)
+- [安全性](#安全性)
 - [路线图](#路线图)
-- [贡献指南](#贡献指南)
+- [贡献](#贡献)
 - [许可证](#许可证)
-- [联系信息](#联系信息)
-
-<br>
-
-## 🌟 主要特性 (Features)
-
-- **AI 智能代理 (AI Agents)**：提供两个即开即用的智能代理：
-  - **SupportAgent**：基于公司文档 (PDF、HTML、Markdown) 的 RAG 用户支持系统，具备对话记忆与工单管理功能。
-  - **OpsAgent**：面向 SRE/DevOps 的自动化代理 - 支持从 Prometheus/Grafana 获取指标、执行运维操作（例如重启服务），并具备策略与审计跟踪功能。
-
-- **模块化核心 (Modular Core)**：  
-  基于 Python 的核心框架，内置工具注册中心、任务规划器、记忆管理 (Redis/Postgres)、RAG（通过 pgvector）以及事件总线 (NATS)。
-
-- **系统集成 (Integrations)**：
-  - Java 工单适配器：采用 Spring Boot WebFlux + MySQL 构建的企业级工单系统集成模块。
-  - Next.js 管理门户：用于监控代理、查看审计日志和测试提示 (Prompts)。
-  - **MCP 网关**：标准化的 AI 代理工具交互协议，内置安全、审计和速率限制功能。
-
-- **安全机制 (Security)**：  
-  支持 OIDC/JWT 认证、基于工具的细粒度 RBAC 权限控制、Istio 提供的 mTLS 双向认证与操作审计。
-
-- **DevOps 准备就绪 (DevOps Ready)**：  
-  提供全面的运维与交付工具链 - Docker、Kubernetes (Helm)、OpenShift、Terraform (AWS)、Ansible、Puppet、Salt，以及 Jenkins/GitLab CI/CD 管道。
-
-- **可观测性 (Observability)**：  
-  集成 OpenTelemetry、Prometheus、Grafana、Loki、Tempo，用于监控与日志追踪。
-
-- **高可扩展性 (Scalability)**：  
-  支持 Helm 中的自动水平扩展 (HPA)，集成超时与重试机制，可在 AWS EKS 上实现自动扩缩容。
-
-<br>
-
-## 🎯 目标与使用场景 (Purpose & Use Cases)
-
-**AstraDesk** 是一个面向 **技术支持团队 (Support)** 与 **SRE/DevOps 团队** 的内部 **AI 智能代理框架**。  
-它提供模块化核心（任务规划器、记忆模块、RAG、工具注册中心），以及可直接运行的演示代理。
-
-典型应用场景包括：
-
-<br>
-
-### 🧭 客服与帮助台 (Support / Helpdesk)
-通过 RAG 技术在公司文档（流程文档、FAQ、运行手册等）上进行知识检索，  
-自动创建与更新工单，并保持会话上下文记忆。  
-支持在聊天式界面中快速响应常见问题。
-
-<br>
-
-### ⚙️ SRE / DevOps 自动化
-用于监控指标 (Prometheus/Grafana)、事件分级、自动化修复与服务重启操作。  
-所有操作均受 **RBAC 权限控制** 并自动记录到审计日志中。  
-可执行受控任务，如：
-- 重启服务（受角色策略限制）  
-- 触发 Jenkins pipeline  
-- 查询性能指标  
-- 生成告警报告  
-
-<br>
-
-### 🧩 企业系统集成 (Enterprise Integrations)
-框架支持多语言与多组件架构：
-- **Python/FastAPI**：作为核心网关与业务调度层。  
-- **Java/WebFlux + MySQL**：作为工单适配器 (Ticket Adapter)。  
-- **Next.js Admin Portal**：提供监控与交互式管理界面。  
-- **MCP 网关**：标准化的 AI 代理工具交互协议，内置安全、审计和速率限制功能。
-- **数据平面**：基于 Postgres/pgvector、Redis、NATS 构建的存储与事件系统。
-
-<br>
-
-### 🔐 安全与合规 (Security & Compliance)
-- 支持 **OIDC/JWT 单点认证**。  
-- **RBAC** 精细化授权。  
-- 通过 **Istio** 启用双向 **mTLS 加密**。  
-- 全量 **审计追踪 (Audit Trail)**。
-
-<br>
-
-### ☁️ 大规模运维与部署 (Operations at Scale)
-框架已适配现代云原生环境：
-- **容器化部署**：Docker / Kubernetes / OpenShift  
-- **基础设施即代码**：Terraform (AWS)  
-- **自动化 CI/CD**：Jenkins、GitLab CI  
-- **可观测性体系**：OpenTelemetry + Prometheus + Grafana + Loki + Tempo
-
-<br>
-
-> ⚡ **注意**：  
-> AstraDesk 并不是一个单纯的「聊天机器人」(chatbot)，  
-> 而是一个 **可组合的 AI 代理框架**，  
-> 让你能够完全自定义代理、工具和策略，  
-> 无需依赖任何 SaaS 平台或供应商锁定。
-
-<br>
-
-## 🏗️ 架构概览 (Architecture Overview)
-
-**AstraDesk** 框架由多个核心组件组成：
-
-<br>
-
-### 🐍 1. Python API 网关 (Python API Gateway)
-基于 **FastAPI** 构建的主控制层，用于：
-- 接收代理请求 (agent requests)；
-- 执行 RAG（基于知识库的检索增强生成）；
-- 管理对话记忆与工具调用；
-- 进行身份验证与授权。
-
-API 网关负责连接所有代理逻辑与工具模块，是系统的“指挥中心”。
-
-<br>
-
-### ☕ 2. Java 工单适配器 (Java Ticket Adapter)
-基于 **Spring Boot WebFlux** 的响应式微服务，  
-主要用于与 **MySQL 工单数据库** 集成。  
-它实现了企业工单系统（如 Jira、ServiceNow、Zendesk）的接口，  
-支持异步、非阻塞的数据传输与事务处理。
-
-<br>
-
-### 💻 3. Next.js 管理门户 (Next.js Admin Portal)
-基于 **Next.js + TypeScript** 的 Web 管理前端，  
-用于监控 AI 代理的运行状态、查看审计日志、测试 Prompt 及调用 API。  
-管理员可以：
-- 执行健康检查；
-- 查看代理日志与追踪；
-- 管理角色与策略。
-
-<br>
-
-### 🔗 组件间通信 (Inter-Component Communication)
-各组件之间通过多种协议协作：
-
-| 通信方向 | 协议 | 用途 |
-|-----------|-------|------|
-| 组件之间 | **HTTP/REST** | 组件间的主要通信接口 |
-| 异步事件流 | **NATS** | 事件与审计日志的传输 |
-| 快速缓存 | **Redis** | 工作记忆与上下文存储 |
-| 长期数据 | **Postgres/pgvector** | 对话、RAG 知识库与审计数据 |
-| 工单数据 | **MySQL** | 工单记录与企业集成模块 |
-
-<br>
-
-🧩 总体架构示意图：
-
-```sh
-    ┌────────────────────────┐
-    │  Next.js Admin Portal  │
-    │       (前端控制台)       │
-    └────────────┬───────────┘
-                 │ HTTP (REST)
-                 ▼
-    ┌──────────────────────────┐
-    │ FastAPI Gateway (Python) │
-    │  - RAG / Planner / Tools │
-    │  - OIDC / JWT / RBAC     │
-    └────────────┬─────────────┘
-                 │ NATS / Redis / Postgres
-                 ▼
-    ┌─────────────────────────┐
-    │ Java Ticket Adapter     │
-    │ (Spring WebFlux + MySQL)│
-    └─────────────────────────┘
-                 │ HTTP (REST)
-                 ▼
-    ┌─────────────────────────┐
-    │    MCP Gateway          │
-    │  (标准化工具协议网关)      │
-    └─────────────────────────┘
-
-```
-
-
-该架构具备高扩展性与模块解耦性，  
-支持微服务部署、可插拔代理逻辑以及云原生环境中的弹性伸缩。
+- [联系方式](#联系方式)
 
 <br>
 
 ---
 
-## ⚙️ 前置条件 (Prerequisites)
+## 功能特性
 
-在开始使用 **AstraDesk** 之前，请确保你的开发或部署环境满足以下要求：
-
-<br>
-
-### 🐳 本地开发环境 (Local Development)
-
-- **Docker** 与 **Docker Compose**  
-  用于在本地快速启动所有微服务组件（API 网关、工单服务、数据库等）。
-
-<br>
-
-### ☸️ 集群与云部署 (Cluster / Cloud Deployment)
-
-- **Kubernetes** 与 **Helm**  
-  用于生产级部署与管理应用的生命周期。  
-  AstraDesk 提供官方 Helm Chart，支持自动扩缩容 (HPA)。
-
-- **AWS CLI** 与 **Terraform**  
-  用于在 AWS 云上自动创建基础设施（VPC、EKS、RDS、S3 等）。  
-  所有资源可通过 IaC（基础设施即代码）定义与重复部署。
-
-<br>
-
-### 🧰 构建工具 (Build Toolchain)
-
-| 工具 | 最低版本 | 用途 |
-|------|------------|------|
-| **Node.js** | 22.x | 构建 Next.js 管理门户 |
-| **JDK** | 21 | 编译 Java 工单适配器 |
-| **Python** | 3.11 | 运行核心 API 网关与代理逻辑 |
-| **make** | 任意 | 自动化构建脚本 |
-
-<br>
-
-### 🗄️ 基础服务 (Base Services)
-
-为保证系统正常运行，需要以下服务：
-
-- **PostgreSQL 17**：主数据仓库，存储代理对话、RAG 知识库与审计记录。  
-- **MySQL 8**：工单系统数据源（Java Ticket Adapter）。  
-- **Redis 7**：缓存与短期记忆 (working memory)。  
-- **NATS 2**：事件与审计日志传输总线。
-
-<br>
-
-### 🔒 可选组件 (Optional)
-
-为增强安全性与可观测性，推荐启用以下组件：
-
-- **Istio**：服务网格，提供 mTLS 双向加密与零信任通信。  
-- **cert-manager**：自动化 TLS/SSL 证书管理。  
-
-<br>
-
-💡 **提示**：  
-如仅在本地开发环境中运行，可通过 `make up` 使用 Docker Compose 自动启动所有依赖。
+- **AI 智能体**：两个预置智能体：
+  - **SupportAgent**：基于企业文档（PDF、HTML、Markdown）的 RAG 用户支持，具备对话记忆和工单管理工具。
+  - **OpsAgent**：SRE/DevOps 自动化 – 从 Prometheus/Grafana 获取指标、执行运维操作（如服务重启），并附带策略控制和审计。
+- **模块化核心**：基于 Python 的框架，包含工具注册表、规划器、内存（Redis/Postgres）、RAG（pgvector）和事件系统（NATS）。
+- **集成能力**：
+  - Java 工单适配器（Spring Boot WebFlux + MySQL）用于企业工单系统。
+  - Next.js 管理门户，用于智能体监控、审计和提示词测试。
+  - **MCP Gateway**：标准化的网关协议，用于 AI 智能体工具交互，支持安全控制、审计和调用限流。
+- **安全性**：OIDC/JWT 认证、基于工具的 RBAC、通过 Istio 实现 mTLS、操作审计。
+- **DevOps 就绪**：Docker、Kubernetes (Helm)、OpenShift、Terraform (AWS)、Ansible/Puppet/Salt、CI/CD (Jenkins/GitLab)。
+- **可观测性**：OpenTelemetry、Prometheus/Grafana/Loki/Tempo。
+- **可扩展性**：Helm 中的 HPA、集成中的重试/超时机制、EKS 中的自动扩缩容。
 
 <br>
 
 ---
 
-## 🚀 安装说明 (Installation)
+## 适用场景与用途
 
-AstraDesk 支持两种安装与运行模式：
+**AstraDesk** 是一个面向 **支持团队** 和 **SRE/DevOps 团队** 的 **AI 智能体构建框架**。它提供模块化核心（规划器、内存、RAG、工具注册表）和预置的智能体示例。
 
-1. **使用 Docker Compose 进行本地开发与测试**  
-2. **从源码构建并本地运行**
+- **支持/帮助台**：基于企业文档（流程、FAQ、运维手册）的 RAG、工单创建/更新、对话记忆。
+- **SRE/DevOps 自动化**：读取指标（Prometheus/Grafana）、事件分类、受控操作（如服务重启），通过 **RBAC** 保护并纳入审计。
+- **企业级集成**：网关（Python/FastAPI）、工单适配器（Java/WebFlux + MySQL）、管理门户（Next.js）、MCP Gateway 以及数据层（Postgres/pgvector、Redis、NATS）。
+- **安全与合规**：OIDC/JWT、基于工具的 RBAC、**mTLS**（Istio）、完整审计追踪。
+- **规模化运营**：Docker/Kubernetes/OpenShift、Terraform (AWS)、CI/CD (Jenkins/GitLab)、可观测性（OpenTelemetry、Prometheus/Grafana/Loki/Tempo）。
+
+> **这不是单个聊天机器人**，而是一个**框架**，用于组合您自己的智能体、工具和策略，实现完全控制（避免被 SaaS 锁定）。
 
 <br>
 
-### 🐳 使用 Docker Compose 进行本地开发 (Local Development with Docker Compose)
+---
 
-1. **克隆仓库：**
+## 架构概览
+
+AstraDesk 由以下几个核心组件组成：
+- **Python API 网关**：FastAPI 处理智能体请求，集成 RAG、内存和工具。
+- **Java 工单适配器**：响应式服务（WebFlux）与 MySQL 集成，用于工单管理。
+- **Next.js 管理门户**：用于监控的 Web 界面。
+- **MCP Gateway**：标准化的网关协议，用于 AI 智能体工具交互，支持安全控制、审计和调用限流。
+
+通信方式：组件间使用 HTTP，事件/审计使用 NATS，工作内存使用 Redis，RAG/对话/审计使用 Postgres/pgvector，工单数据使用 MySQL。
+
+<br>
+
+---
+
+## 前置要求
+
+- **Docker** 和 **Docker Compose**（用于本地开发）。
+- **Kubernetes** 搭配 Helm（用于部署）。
+- **AWS CLI** 和 **Terraform**（用于云环境）。
+- **Node.js 22**、**JDK 21**、**Python 3.11**（用于构建）。
+- **Postgres 17**、**MySQL 8**、**Redis 8**、**NATS 2**（基础服务）。
+- **可选**：Istio、cert-manager（用于 mTLS/TLS）。
+
+<br>
+
+---
+
+## 快速入门与开发者指南
+
+本节提供完整的指南，帮助您在本地设置、运行和开发 AstraDesk 平台。
+
+<br>
+
+### 前置要求
+
+- **Docker 和 Docker Compose**：运行所有服务的必备条件。推荐使用 Docker Desktop。
+- **Git**：用于版本控制。
+- **Node.js v22+**：构建管理门户和生成 `package-lock.json` 所需。
+- **JDK 21+**：构建和运行 Java 工单适配器所需。
+- **Python 3.11+ 和 `uv`**：用于管理 Python 环境。
+- **make**：推荐用于便捷访问常用命令。
+
+<br>
+
+### 1. 项目初始设置（仅需运行一次）
+
+1. **克隆仓库**：
+
    ```bash
    git clone https://github.com/your-org/astradesk.git
    cd astradesk
    ```
 
-2. **复制示例配置文件：**
+2. **复制环境变量文件**：
 
    ```bash
    cp .env.example .env
    ```
 
-   编辑 `.env` 文件，根据实际环境修改变量，例如：
+   *注意：`.env` 中的默认值已为混合开发模式配置。对于完整 Docker 模式，您可能需要将 URL 调整为使用服务名称（例如 `http://api:8080`）。*
 
-   * `DATABASE_URL` — 数据库连接字符串
-   * `OIDC_ISSUER` — 身份提供方 (OIDC Provider)
-
-3. **构建并启动服务：**
+3. **生成 `package-lock.json`**：
 
    ```bash
-   make up
+   make bootstrap-frontend
    ```
 
-   该命令会自动启动以下容器：
-
-   * API 网关 (端口 8080)
-   * 工单适配器 (端口 8081)
-   * 管理门户 (端口 3000)
-   * 数据库与依赖服务（Postgres、Redis、MySQL、NATS）
-
-4. **初始化 Postgres（启用 pgvector 扩展）：**
-
-   ```bash
-   make migrate
-   ```
-
-5. **导入文档以初始化 RAG 知识库：**
-   将 `.md` 或 `.txt` 文件放入 `./docs` 目录中，然后执行：
-
-   ```bash
-   make ingest
-   ```
-
-6. **健康检查：**
-
-   ```bash
-   curl http://localhost:8080/healthz
-   ```
-
-   管理门户访问地址为：
-   👉 [http://localhost:3000](http://localhost:3000)
+   *（这将在 `admin-portal` 目录中运行 `npm install`）。*
 
 <br>
 
-### ⚙️ 从源码构建 (Building from Source)
+### 2. 运行应用程序
 
-如果你希望直接在本地运行源码而非使用 Docker，可按以下步骤操作：
+选择以下模式之一进行本地开发。
 
-1. **安装依赖：**
+#### 模式 A：完整 Docker 环境（类生产环境）
+
+在 Docker 中运行整个应用栈。最适合集成测试。
+
+* **启动所有服务**：
+
+  ```bash
+  make up
+  ```
+* **停止并清理**：
+
+  ```bash
+  make down
+  ```
+
+#### 模式 B：混合开发（推荐用于 Python/前端）
+
+在 Docker 中运行外部依赖（数据库、NATS），而您在本地运行 Python API 或 Next.js 门户，以实现快速、热重载的开发体验。
+
+1. **在 Docker 中启动依赖**（在一个终端中）：
 
    ```bash
-   make sync          # 安装 Python 依赖
-   make build-java    # 构建 Java 工单服务
-   make build-admin   # 构建 Next.js 管理门户
+   make up-deps
    ```
+2. **在本地运行 Python API**（在第二个终端中）：
 
-2. **在本地启动各个模块（无需容器）：**
+   ```bash
+   make run-local-api
+   ```
+3. **在本地运行管理门户**（在第三个终端中）：
 
-   * 启动 Python API 网关：
-
-     ```bash
-     uv run uvicorn gateway.main:app --host 0.0.0.0 --port 8080 --reload
-     ```
-   * 启动 Java 工单适配器：
-
-     ```bash
-     cd services/ticket-adapter-java && ./gradlew bootRun
-     ```
-   * 启动 Next.js 管理门户：
-
-     ```bash
-     cd services/admin-portal && npm run dev
-     ```
+   ```bash
+   make run-local-admin
+   ```
 
 <br>
 
-💡 **提示 (Tips)**
+### 3. 常用开发任务 (Makefile)
 
-* 使用 `make down` 可停止所有容器并清理卷。
-* 修改 `.env` 后，请重新运行 `make up` 以加载最新环境变量。
-* 首次构建 Admin Portal 时，系统将自动生成 `package-lock.json`。
-* 若 Postgres 或 Redis 启动失败，可使用 `docker ps` 检查容器状态是否为 `(healthy)`。
+`Makefile` 是您的中央命令中心。使用 `make help` 查看所有可用命令。
+
+* **运行所有测试**：`make test-all`
+* **检查代码质量**：`make lint` 和 `make type`
+* **初始化数据库**：`make migrate`
+* **导入 RAG 文档**：`make ingest`
+
+<br>
+
+### 4. 测试智能体
+
+应用程序运行后，您可以向 API 发送 `curl` 请求。
+
+*注意：以下示例假设 `main.py` 中的 `auth_guard` 已临时禁用，以便进行本地测试。*
+
+* **测试 `create_ticket` 工具**：
+
+  ```bash
+  curl -X POST http://localhost:8080/v1/agents/run \
+    -H "Content-Type: application/json" \
+    -d '{"agent": "support", "input": "我的网络无法连接，请创建工单。"}'
+  ```
+* **测试 RAG（知识库）**：
+
+  ```bash
+  curl -X POST http://localhost:8080/v1/agents/run \
+    -H "Content-Type: application/json" \
+    -d '{"agent": "support", "input": "如何重置我的密码？"}'
+  ```
+
+### 5. 常见问题解答 (FAQ)
+
+* **Q: 启动时出现 `Connection refused` 错误。**
+  **A:** 确保依赖容器已完全运行并处于 `(healthy)` 状态，然后再启动本地 Python 服务器。使用 `docker ps` 检查。
+
+* **Q: 出现 `401 Unauthorized` 或 `Missing Bearer` 错误。**
+  **A:** 对于本地测试，您可以临时禁用 `src/gateway/main.py` 中 `run_agent` 端点的 `auth_guard` 依赖。
+
+* **Q: 如何查看特定服务的日志？**
+  **A:** 使用 `make logs-api`、`make logs-auditor` 或 `docker logs -f <容器名称>`。
 
 <br>
 
 ---
 
-## ⚙️ 配置 (Configuration)
+## 配置
 
-AstraDesk 的配置完全通过环境变量 (.env) 管理，支持灵活部署与安全控制。  
-以下部分介绍了核心环境变量、OIDC/JWT 认证机制以及 RBAC 策略配置。
+### 环境变量
 
-<br>
+* **DATABASE_URL**：PostgreSQL 连接字符串（例如 `postgresql://user:pass@host:5432/db`）。
+* **REDIS_URL**：Redis URI（例如 `redis://host:6379/0`）。
+* **NATS_URL**：NATS 服务器（例如 `nats://host:4222`）。
+* **TICKETS_BASE_URL**：Java 适配器的 URL（例如 `http://ticket-adapter:8081`）。
+* **MYSQL_URL**：MySQL JDBC（例如 `jdbc:mysql://host:3306/db?useSSL=false`）。
+* **OIDC_ISSUER**：OIDC 颁发者（例如 `https://your-issuer.com/`）。
+* **OIDC_AUDIENCE**：JWT 受众。
+* **OIDC_JWKS_URL**：JWKS URL（例如 `https://your-issuer.com/.well-known/jwks.json`）。
 
-### 🌍 环境变量 (Environment Variables)
-
-| 变量名 | 示例值 | 说明 |
-|--------|---------|------|
-| **DATABASE_URL** | `postgresql://user:pass@host:5432/db` | PostgreSQL 数据库连接字符串 |
-| **REDIS_URL** | `redis://host:6379/0` | Redis 缓存服务地址 |
-| **NATS_URL** | `nats://host:4222` | NATS 事件与消息总线地址 |
-| **TICKETS_BASE_URL** | `http://ticket-adapter:8081` | Java 工单服务的基础 URL |
-| **MYSQL_URL** | `jdbc:mysql://host:3306/db?useSSL=false` | MySQL JDBC 连接字符串 |
-| **OIDC_ISSUER** | `https://your-issuer.com/` | OIDC 授权服务提供者地址 |
-| **OIDC_AUDIENCE** | `astradesk-client` | JWT 令牌受众 (Audience) |
-| **OIDC_JWKS_URL** | `https://your-issuer.com/.well-known/jwks.json` | 公钥 JWKS 端点，用于验证签名 |
-
-📘 **提示**：  
-完整的变量列表可参考项目根目录下的 `.env.example` 文件。
+完整列表请参见 `.env.example`。
 
 <br>
 
-### 🔐 OIDC/JWT 认证 (OIDC/JWT Authentication)
+### OIDC/JWT 认证
 
-AstraDesk 的 API 网关与 Java 工单服务均支持 **OpenID Connect (OIDC)** 与 **JWT 令牌认证**。
-
-- **启用方式：**  
-  默认启用。请求需携带有效的 Bearer 令牌：
-  ```http
-  Authorization: Bearer <token>
-  ```
-
-* **验证内容：**
-
-  * 签发方 (issuer)
-  * 受众 (audience)
-  * 签名有效性（通过 JWKS URL 自动校验）
-
-* **前端认证流程：**
-  管理门户 (Admin Portal) 可集成 Auth0 或任意兼容 OIDC 的身份提供方。
-  登录成功后，前端会获取 JWT 并附加到所有 API 请求头中。
+* 在 API 网关和 Java 适配器中启用。
+* 在请求中使用 Bearer 令牌：`Authorization: Bearer <token>`。
+* 验证：颁发者、受众、通过 JWKS 验证签名。
+* 在管理门户中：使用 Auth0 或类似服务实现前端通道流程（浏览器重定向认证流程）。
 
 <br>
 
-### 🧩 RBAC 策略 (RBAC Policies)
+### RBAC 策略
 
-AstraDesk 使用基于角色的访问控制 (**Role-Based Access Control**) 来定义每个用户能执行的操作。
-
-* **角色信息**
-  由 JWT 中的 `roles` 声明传递，例如：
-
-  ```json
-  {
-    "sub": "alice",
-    "roles": ["sre"]
-  }
-  ```
-
-* **工具权限验证**
-  每个工具 (tool) 在执行前会检查调用者是否具备所需角色：
-
-  ```python
-  require_role(claims, "sre")
-  ```
-
-  示例：
-
-  * `restart_service` 工具要求角色 `"sre"`
-  * `create_ticket` 工具要求角色 `"support"`
-
-* **策略配置文件位置：**
-
-  * Python 网关：`runtime/policy.py`
-  * 工具定义：各模块内部常量，如 `REQUIRED_ROLE_RESTART`
+* 角色来自 JWT claims（例如 `"roles": ["sre"]`）。
+* 工具（例如 `restart_service`）通过 `require_role(claims, "sre")` 检查角色。
+* 在 `runtime/policy.py` 和工具中调整（例如 `REQUIRED_ROLE_RESTART`）。
 
 <br>
 
-🧠 **安全建议 (Best Practices)**
+## 使用方法
 
-* 不要在 `.env` 文件中保存明文密钥或私钥。
-* 使用云端机密管理系统（如 AWS Secrets Manager、Vault）。
-* 生产环境中启用 **mTLS** 与 **JWT 过期检查**。
-* 定期轮换 OIDC 公钥 (JWKS)。
+与 AstraDesk 交互的主要方式是通过其 REST API。
 
 <br>
 
----
+### 运行智能体
 
-## 🚀 使用方法 (Usage)
+要执行智能体，向 `/v1/agents/run` 端点发送 `POST` 请求：
 
-本节介绍如何运行 AstraDesk 的 AI 代理、加载知识文档 (RAG)、访问管理门户以及添加自定义工具与集成模块。
-
-<br>
-
-### 🤖 运行代理 (Running Agents)
-
-通过 REST API 调用代理服务：
-
-```bash
+```sh
 curl -X POST http://localhost:8080/v1/agents/run \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <your-jwt-token>" \
-  -d '{
-    "agent": "support",
-    "input": "Create a ticket for a network incident",
-    "meta": {"user": "alice"}
-  }'
+  -H "Authorization: Bearer <您的-jwt-令牌>" \
+  -d '{"agent": "support", "input": "为网络事件创建工单", "meta": {"user": "alice"}}'
 ```
 
-* 返回结果为 JSON 格式，包含：
-
-  * 代理输出 (`output`)
-  * 跟踪 ID (`trace_id`)
-  * 所用工具 (`used_tools`)
-* 示例脚本位于 `./scripts/demo_queries.sh`。
+响应将是一个 JSON 对象，包含智能体的输出和 `reasoning_trace_id`。
 
 <br>
 
-### 📚 导入文档以供 RAG 使用 (Ingesting Documents for RAG)
+### 管理门户
 
-RAG (Retrieval-Augmented Generation) 模块支持将公司内部文档作为知识来源。
-
-* 支持格式：`.md`、`.txt`（可扩展为 PDF/HTML）
-
-* 执行以下命令以导入文档：
-
-  ```bash
-  make ingest
-  ```
-
-* 默认文档目录为：`./docs`
-
-导入完成后，文档内容将被索引并存储于 PostgreSQL + pgvector 数据库中，以便代理在回答时进行语义检索。
+基于网页的管理门户，可通过 `http://localhost:3000` 访问，提供用于监控系统健康状况和管理平台组件的 UI，详见 [OpenAPI 规范](openapi/astradesk-admin.v1.yaml)。
 
 <br>
 
-### 🧭 管理门户 (Admin Portal)
+---
 
-Web 管理界面提供对系统状态与代理运行的可视化监控。
+## 部署
 
-* 访问地址: [http://localhost:3000](http://localhost:3000)
-* 功能包括：
+### Kubernetes (Helm)
 
-  * 查看 API 健康状态；
-  * 执行示例调用；
-  * 调试代理行为；
-  * 查看系统版本、日志与统计。
+1. 构建并推送镜像（使用 CI）。
 
-要扩展管理门户的功能，例如显示审计日志，可在 API 层添加新端点 `/v1/audits` 并在前端调用。
+2. 安装 Chart：
 
-<br>
-
-### 🧩 工具与系统集成 (Tools and Integrations)
-
-AstraDesk 的核心设计是"工具注册表 (Tool Registry)"-允许动态注册、扩展和调用外部操作。
-
-* 工具注册位置：`registry.py`
-  添加新工具时使用：
-
-  ```python
-  register(name, async_fn)
-  ```
-
-* 示例工具：
-
-  * `create_ticket` — 代理到 Java 工单系统；
-  * `get_metrics` — 从 Prometheus 获取性能指标；
-  * `restart_service` — 通过 RBAC 控制的安全服务重启。
-  * **MCP 网关** — 标准化的 AI 代理工具交互协议，内置安全、审计和速率限制功能。
-
-每个工具均可附带策略验证、审计记录与错误重试逻辑，确保生产环境的稳定性与可追踪性。
-
-<br>
-
-## ☁️ 部署 (Deployment)
-
-AstraDesk 可部署在多种环境中，包括 Kubernetes、OpenShift、AWS 云，以及使用多种配置管理工具。  
-以下为推荐的生产环境部署方式。
-
-<br>
-
-### ☸️ 使用 Helm 在 Kubernetes 上部署 (Kubernetes with Helm)
-
-1. **构建并推送容器镜像**  
-   （可在 CI/CD 流程中自动完成）
-
-2. **安装或升级 Helm Chart：**
-   ```bash
-   helm upgrade --install astradesk deploy/chart \
-       -f deploy/chart/values.yaml \
-  --set image.tag=0.3.0 \
-       --set autoscaling.enabled=true
+   ```sh
+   helm upgrade --install astradesk deploy/chart -f deploy/chart/values.yaml \
+     --set image.tag=0.3.0 \
+     --set autoscaling.enabled=true
    ```
 
-3. **自动伸缩 (HPA)**
-   Helm Chart 已配置 **Horizontal Pod Autoscaler**，默认当 CPU 使用率超过 60% 时自动扩容。
+   - **HPA**：当 CPU >60% 时自动扩缩容。
 
 <br>
 
-### 🏗️ 在 OpenShift 上部署 (OpenShift)
+### OpenShift
 
-1. **通过模板部署：**
+**处理模板**：
 
-  ```bash
-  oc process -f deploy/openshift/astradesk-template.yaml -p TAG=0.3.0 | oc apply -f -
-  ```
-
-2. **OpenShift 优势：**
-
-   * 内置 RBAC 与服务账户控制；
-   * 集成 OpenShift Route，支持 HTTPS；
-   * 支持自动构建与滚动升级。
+   ```sh
+   oc process -f deploy/openshift/astradesk-template.yaml -p TAG=0.3.0 | oc apply -f -
+   ```
 
 <br>
 
-### ☁️ 使用 Terraform 在 AWS 上部署 (AWS with Terraform)
+### AWS (Terraform)
 
-1. **初始化 Terraform：**
+**初始化**：
 
-   ```bash
+   ```sh
    cd infra
    terraform init
    terraform apply -var="region=us-east-1" -var="project=astradesk"
    ```
 
-2. **自动创建以下资源：**
-
-   * **VPC** — 虚拟私有云网络
-   * **EKS** — 托管 Kubernetes 集群
-   * **RDS** — 托管数据库（Postgres + MySQL）
-   * **S3** — 存储审计与模型文件
-
-3. **Terraform 优势：**
-
-   * 完全 IaC 化（基础设施即代码）；
-   * 可重复、可回滚部署；
-   * 与 Jenkins/GitLab CI 集成实现自动化云端部署。
+   * 创建：VPC、EKS、RDS (Postgres/MySQL)、S3。
 
 <br>
 
-### 🧰 配置管理工具 (Configuration Management Tools)
+### 配置管理工具
 
-AstraDesk 兼容多种基础设施自动化工具：
-
-| 工具            | 命令示例                                                                                            | 用途                   |
-| ------------- | ----------------------------------------------------------------------------------------------- | -------------------- |
-| **Ansible**   | `ansible-playbook -i ansible/inventories/dev/hosts.ini ansible/roles/astradesk_docker/main.yml` | 在远程主机上批量部署 Docker 环境 |
-| **Puppet**    | `puppet apply puppet/manifests/astradesk.pp`                                                    | 配置并维护持久化系统状态         |
-| **SaltStack** | `salt '*' state.apply astradesk`                                                                | 在大规模节点环境中推送配置与更新     |
-
-这些工具可与 CI/CD 管道结合，实现完全自动化的多环境配置同步与滚动更新。
+* **Ansible**：`ansible-playbook -i ansible/inventories/dev/hosts.ini ansible/roles/astradesk_docker/main.yml`。
+* **Puppet**：`puppet apply puppet/manifests/astradesk.pp`。
+* **Salt**：`salt '*' state.apply astradesk`。
 
 <br>
 
-### 🔒 mTLS 与 Istio 服务网格 (mTLS and Istio Service Mesh)
+### mTLS 与 Istio 服务网格
 
-1. **创建命名空间：**
-
-   ```bash
-   kubectl apply -f deploy/istio/00-namespace.yaml
-   ```
-
-2. **启用双向 TLS 验证：**
-
-   ```bash
-   kubectl apply -f deploy/istio/10-peer-authentication.yaml
-   ```
-
-   （以及目录 `deploy/istio/` 中的其他 YAML 配置）
-
-3. **配置 Gateway：**
-
-   * 使用 HTTPS 443 端口；
-   * 通过 **cert-manager** 自动签发与更新证书；
-   * 在 Gateway 层启用安全入口流量控制。
-
-<br>
-
-🧠 **最佳实践 (Best Practices)**
-
-* 在生产环境启用 **mTLS + RBAC + NetworkPolicy** 三重安全机制；
-* 使用 **Helm values.yaml** 参数化部署配置；
-* 建议使用 **Terraform + Helm Provider** 进行全自动部署；
-* 所有 Secrets 应存储在安全系统（Vault / AWS Secrets Manager）中。
-
-<br>
-
-## 🔄 持续集成与交付 (CI/CD)
-
-AstraDesk 支持多种 CI/CD 流水线，能够在构建、测试、镜像推送和部署阶段实现全自动化。  
-推荐使用 **Jenkins** 或 **GitLab CI** 来执行持续集成与交付任务。
-
-<br>
-
-### 🧱 Jenkins 集成 (Jenkins)
-
-AstraDesk 内置了一个示例 **Jenkinsfile**，用于自动化构建、测试与部署流程。
-
-主要阶段包括：
-
-1. **Build 阶段**
-   - 构建 Python、Java 和 Next.js 模块；
-   - 执行 `make build-java` 与 `make build-admin`；
-   - 构建 Docker 镜像并打标签。
-
-2. **Test 阶段**
-   - 运行单元测试与集成测试：
-     ```bash
-     make test-all
-     ```
-   - 检查类型与代码规范（使用 Ruff / Pyright / ESLint）。
-
-3. **Push 阶段**
-   - 推送镜像到私有仓库（如 AWS ECR / GitHub Packages）。
-
-4. **Deploy 阶段**
-   - 调用 Helm 自动部署到 Kubernetes 集群：
-     ```bash
-     helm upgrade --install astradesk deploy/chart
-     ```
-
-🧩 **优点：**
-- 可与 SonarQube、Prometheus、Slack 等集成；
-- 支持并行 Pipeline；
-- 支持构建缓存与蓝绿部署。
-
-<br>
-
-### 🦊 GitLab CI 集成 (GitLab CI)
-
-在 `.gitlab-ci.yml` 中定义了完整的构建与部署阶段：
-
-| 阶段 | 说明 |
-|------|------|
-| **build** | 构建 Python、Java、Admin 三个模块并生成镜像 |
-| **test** | 执行 pytest、JUnit 与 Vitest 测试 |
-| **docker** | 构建并推送 Docker 镜像 |
-| **deploy** | 手动或自动化部署至 Kubernetes 或 AWS 环境 |
-
-示例配置片段：
-
-```yaml
-stages:
-  - build
-  - test
-  - docker
-  - deploy
-
-build:
-  stage: build
-  script:
-    - make sync
-    - make build-java
-    - make build-admin
-
-test:
-  stage: test
-  script:
-    - make test-all
-
-docker:
-  stage: docker
-  script:
-    - docker build -t registry.example.com/astradesk:$CI_COMMIT_SHA .
-    - docker push registry.example.com/astradesk:$CI_COMMIT_SHA
-
-deploy:
-  stage: deploy
-  when: manual
-  script:
-    - helm upgrade --install astradesk deploy/chart -f deploy/chart/values.yaml
-```
-
-🚀 **建议：**
-
-* 在 GitLab Runner 上启用 Docker-in-Docker 支持；
-* 使用缓存加速 `npm install` 与 Gradle 构建；
-* 结合 GitLab Environments 实现多环境（dev/stage/prod）部署；
-* 可添加安全扫描 (SAST/DAST) 阶段以增强合规性。
-
-<br>
-
-🧠 **最佳实践 (Best Practices)**
-
-* 统一版本号与构建标签（Git 标签 + Docker tag）；
-* 在 CI 流程中执行 Lint、Type Check 与单元测试；
-* 所有部署操作应基于 Infrastructure as Code；
-* 建议使用 OIDC 认证从 CI/CD 平台安全访问云资源。
+1. 创建命名空间：`kubectl apply -f deploy/istio/00-namespace.yaml`。
+2. 启用 mTLS：`kubectl apply -f deploy/istio/10-peer-authentication.yaml`（以及 `deploy/istio/` 中的其余文件）。
+3. Gateway：通过 cert-manager 在 443 端口启用 HTTPS。
 
 <br>
 
 ---
 
-## 📊 监控与可观测性 (Monitoring and Observability)
+## CI/CD
 
-**（Prometheus、Grafana、OpenTelemetry）**
+### Jenkins
 
-本节说明如何为 AstraDesk 启用完整的可观测性：使用 **Prometheus**（指标）、**Grafana**（仪表盘）与 **OpenTelemetry**（代码埋点/自动化检测）。
+* 运行 Pipeline：`Jenkinsfile` 构建/测试/推送镜像，通过 Helm 部署。
 
-### 目标
-- 从 **Python API 网关**（`/metrics`）与 **Java 工单适配器**（`/actuator/prometheus`）采集指标。
-- 在 **Grafana** 中快速查看系统健康状况。
-- 在 Prometheus 中配置告警（例如 5xx 错误率过高）。
+### GitLab CI
+
+* `.gitlab-ci.yml`：阶段包括 build/test/docker/deploy（手动触发）。
 
 <br>
 
-### 快速开始（Docker Compose）
+---
 
-下面是添加 Prometheus 与 Grafana 的最小 `docker-compose.yml` 片段。
-> **注意：** 假设 `api` 与 `ticket-adapter` 服务分别运行在 `api:8080`、`ticket-adapter:8081`。
+## 监控与可观测性 
+
+**(Prometheus, Grafana, OpenTelemetry)**
+
+本节介绍如何使用 **Prometheus**（指标）、**Grafana**（仪表板）和 **OpenTelemetry**（埋点）启用 AstraDesk 平台的完整可观测性。
+
+### 目标
+
+- 从 **Python API 网关**（`/metrics`）和 **Java 工单适配器**（`/actuator/prometheus`）收集指标。
+- 在 **Grafana** 中快速查看系统健康状况。
+- 在 Prometheus 中设置告警（例如高 5xx 错误率）。
+
+<br>
+
+### 快速启动 (Docker Compose)
+
+以下是添加到 `docker-compose.yml` 的最小片段（Prometheus + Grafana 服务）。
+> **注意**：我们假设 `api` 和 `ticket-adapter` 服务按项目配置运行：`api:8080`、`ticket-adapter:8081`。
 
 ```yaml
 services:
-  # --- Observability stack ---
+  # --- 可观测性栈 ---
   prometheus:
     image: prom/prometheus:latest
     container_name: astradesk-prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
-      - "--web.enable-lifecycle"        # 允许热加载配置
+      - "--web.enable-lifecycle"        # 允许配置热重载
     volumes:
       - ./dev/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
@@ -852,7 +443,7 @@ services:
       - GF_USERS_DEFAULT_THEME=dark
     volumes:
       - grafana-data:/var/lib/grafana
-      # （可选）自动配置数据源/仪表盘：
+      # （可选）自动配置数据源/仪表板：
       # - ./dev/grafana/provisioning:/etc/grafana/provisioning:ro
     ports:
       - "3000:3000"
@@ -863,13 +454,15 @@ services:
 volumes:
   prometheus-data:
   grafana-data:
-````
+```
 
 <br>
 
-### Prometheus 配置（`dev/prometheus/prometheus.yml`）
+### Prometheus 配置 
 
-创建 `dev/prometheus/prometheus.yml`，内容如下：
+`dev/prometheus/prometheus.yml`
+
+创建文件 `dev/prometheus/prometheus.yml`，内容如下：
 
 ```yaml
 global:
@@ -879,13 +472,13 @@ global:
   # 可选: external_labels: { env: "dev" }
 
 scrape_configs:
-  # FastAPI 网关（Python）
+  # FastAPI 网关 (Python)
   - job_name: "api"
     metrics_path: /metrics
     static_configs:
       - targets: ["api:8080"]
 
-  # Java 工单适配器（Spring Boot + Micrometer）
+  # Java 工单适配器 (Spring Boot + Micrometer)
   - job_name: "ticket-adapter"
     metrics_path: /actuator/prometheus
     static_configs:
@@ -900,7 +493,7 @@ rule_files:
   - /etc/prometheus/alerts.yml
 ```
 
-*（可选）新建 `dev/prometheus/alerts.yml`，并以类似方式挂载到容器；也可直接把规则合并进 `prometheus.yml`。*
+*（可选）添加文件 `dev/prometheus/alerts.yml` 并以类似方式挂载到容器（例如通过额外 volume 或扩展 `prometheus.yml` 而无需单独文件）。*
 
 示例告警规则：
 
@@ -917,8 +510,8 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "API 5xx 错误率过高（10 分钟内 > 5%）"
-          description: "请检查 FastAPI 网关日志与上游依赖。"
+          summary: "API 高 5xx 错误率（10 分钟内 >5%）"
+          description: "请检查 FastAPI 网关日志和上游依赖。"
 
       - alert: TicketAdapterDown
         expr: up{job="ticket-adapter"} == 0
@@ -930,20 +523,23 @@ groups:
           description: "Spring 服务未在 /actuator/prometheus 响应。"
 ```
 
-> **无重启热加载配置：**
+> **重载配置** 无需重启：
 > `curl -X POST http://localhost:9090/-/reload`
 
 <br>
 
-### 指标端点集成
+### 指标端点 - 集成
 
-#### 1）Python FastAPI（网关）
+<br>
 
-使用 `prometheus_client` 暴露 `/metrics` 最为简单：
+#### 1) Python FastAPI (网关)
+
+最简单的方式是通过 `prometheus_client` 暴露 `/metrics`：
 
 ```python
 # src/gateway/observability.py
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import Summary
 from starlette.responses import Response
 from fastapi import APIRouter, Request
 import time
@@ -952,21 +548,21 @@ router = APIRouter()
 
 REQUEST_COUNT = Counter(
     "http_requests_total",
-    "Total HTTP requests",
+    "HTTP 请求总数",
     ["method", "path", "status"]
 )
 REQUEST_LATENCY = Histogram(
     "http_request_duration_seconds",
-    "HTTP request latency",
+    "HTTP 请求延迟",
     ["method", "path"]
 )
 
 @router.get("/metrics")
 def metrics():
-    # 以 Prometheus 纯文本格式导出指标
+    # 以纯文本格式暴露 Prometheus 指标
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
-# （可选）简单中间件：记录延迟与请求计数
+# （可选）简单的中间件用于延迟和计数
 async def metrics_middleware(request: Request, call_next):
     start = time.perf_counter()
     response = await call_next(request)
@@ -986,14 +582,14 @@ from src.gateway.observability import router as metrics_router, metrics_middlewa
 
 app = FastAPI()
 app.middleware("http")(metrics_middleware)
-app.include_router(metrics_router, tags=["observability"])
+app.include_router(metrics_router, tags=["可观测性"])
 ```
 
-> **（推荐）替代方案：** 使用 **OpenTelemetry** + `otlp` 导出器，然后通过 **otel-collector** → Prometheus 采集。这样可以统一指标、链路追踪与日志。
+> **替代方案（推荐）**：使用 **OpenTelemetry** + `otlp` 导出器，然后通过 **otel-collector** → Prometheus 抓取指标。此选项可提供一致的指标、追踪和日志。
 
-#### 2）Java 工单适配器（Spring Boot）
+#### 2) Java 工单适配器 (Spring Boot)
 
-在 `application.yml` 中启用：
+在 `application.yml` 中：
 
 ```yaml
 management:
@@ -1012,7 +608,7 @@ management:
       env: dev
 ```
 
-引入 Micrometer Prometheus 依赖：
+添加 Micrometer Prometheus 依赖：
 
 ```xml
 <!-- pom.xml -->
@@ -1022,19 +618,19 @@ management:
 </dependency>
 ```
 
-启动后指标端点为：
-`http://localhost:8081/actuator/prometheus`（Docker 网络中为 `ticket-adapter:8081`）。
+启动后端点可通过以下地址访问：
+`http://localhost:8081/actuator/prometheus`（或在 Docker 中使用 `ticket-adapter:8081`）。
 
 <br>
 
-### Grafana —— 快速配置
+### Grafana（快速配置）
 
-Grafana 启动后（[http://localhost:3000，默认账号](http://localhost:3000，默认账号) `admin`/`admin`）：
+启动 Grafana 后（[http://localhost:3000](http://localhost:3000)，默认 `admin`/`admin`）：
 
 1. **添加数据源 → Prometheus**
-   URL：`http://prometheus:9090`（在 Docker Compose 网络内）或 `http://localhost:9090`（从宿主浏览器连接）。
-2. **导入仪表盘**（如官方「Prometheus / Overview」或自定义仪表盘）。
-   也可将仪表盘描述文件放入仓库并启用 provisioning：
+   URL: `http://prometheus:9090`（从 Docker Compose 网络视角）或 `http://localhost:9090`（如果从主机手动添加）。
+2. **导入仪表板**（例如"Prometheus / Overview"或自定义）。
+   您也可以在仓库中维护描述符（`grafana/dashboard-astradesk.json`）并启用预配：
 
    ```
    dev/grafana/provisioning/datasources/prometheus.yaml
@@ -1042,7 +638,7 @@ Grafana 启动后（[http://localhost:3000，默认账号](http://localhost:3000
    grafana/dashboard-astradesk.json
    ```
 
-示例数据源（provisioning）：
+数据源示例（预配）：
 
 ```yaml
 # dev/grafana/provisioning/datasources/prometheus.yaml
@@ -1055,7 +651,7 @@ datasources:
     isDefault: true
 ```
 
-示例仪表盘提供者：
+仪表板声明示例：
 
 ```yaml
 # dev/grafana/provisioning/dashboards/dashboards.yaml
@@ -1071,406 +667,122 @@ providers:
 
 <br>
 
-### 常用命令（Makefile）
+### 实用命令 (Makefile)
 
-建议在 `Makefile` 中加入以下快捷命令：
+在 `Makefile` 中添加快捷方式以简化工作：
 
 ```Makefile
 .PHONY: up-observability down-observability logs-prometheus logs-grafana
 
 up-observability:
-\tdocker compose up -d prometheus grafana
+	docker compose up -d prometheus grafana
 
 down-observability:
-\tdocker compose rm -sfv prometheus grafana
+	docker compose rm -sfv prometheus grafana
 
 logs-prometheus:
-\tdocker logs -f astradesk-prometheus
+	docker logs -f astradesk-prometheus
 
 logs-grafana:
-\tdocker logs -f astradesk-grafana
+	docker logs -f astradesk-grafana
 ```
 
 <br>
 
-### 验证清单
+### 验证运行状态
 
-* Prometheus UI：**[http://localhost:9090](http://localhost:9090)**
+* Prometheus UI: **[http://localhost:9090](http://localhost:9090)**
 
-  * 在「Status → Targets」确认 `api`、`ticket-adapter` 的 job 状态为 **UP**。
-* Grafana UI：**[http://localhost:3000](http://localhost:3000)**
+  * 检查 `api` 和 `ticket-adapter` 任务是否处于 **UP** 状态（Status → Targets）。
 
-  * 连接 Prometheus 数据源，导入仪表盘，观察关键指标（延迟、请求数、5xx 错误等）。
+* Grafana UI: **[http://localhost:3000](http://localhost:3000)**
+
+  * 连接数据源（Prometheus），导入仪表板并观察指标（延迟、请求数、5xx 错误）。
+
 * 快速测试：
 
   ```bash
   curl -s http://localhost:8080/metrics | head
+
   curl -s http://localhost:8081/actuator/prometheus | head
   ```
 
-> 若端点未返回指标，请检查：
-> (1) 路径（`/metrics`、`/actuator/prometheus`）是否启用；
-> (2) 在 Compose 网络内，`api`/`ticket-adapter` 服务名是否可达；
-> (3) `prometheus.yml` 的 `targets` 是否填写正确。
+<br>
 
+> 如果端点未返回指标，请确保：
+>
+> 1) 路径（`/metrics`、`/actuator/prometheus`）已启用，
+>
+> 2) 服务在 Compose 网络中可通过名称 `api` / `ticket-adapter` 访问，
+>
+> 3) `prometheus.yml` 指向正确的 `targets`。
 
 <br>
 
 ---
 
-## 🧑‍💻 开发者指南 (Developer’s Guide)
+## 测试
 
-本节提供 AstraDesk 开发环境的快速上手指南，包括环境准备、运行方式、测试、数据库操作与常见问题排查。
-
-<br>
-
-### 🧩 1. 基础环境设置 (Basic Environment Setup)
-
-在开始开发前，请确保你已安装以下工具：
-
-- **Docker / Docker Compose**（推荐使用 Docker Desktop）  
-- **Git**  
-- **make**  
-- **Node.js (v22+)**
-
-**初始准备步骤：**
-
-1. 克隆仓库：
-   ```bash
-   git clone https://github.com/your-org/astradesk.git
-   cd astradesk
-   ```
-
-2. 复制配置文件：
-
-   ```bash
-   cp .env.example .env
-   ```
-
-3. 生成 `package-lock.json` 文件（构建 Admin Portal 所需）：
-
-   ```bash
-   cd services/admin-portal && npm install && cd ../..
-   ```
-
-<br>
-
-### 🚀 2. 如何运行应用 (How to Run the Application)
-
-AstraDesk 支持两种运行模式：
-
-<br>
-
-#### 🐳 模式 A：完整 Docker 环境 (Full Docker Environment) — 推荐
-
-运行整个系统（所有微服务）于 Docker 容器中。
-适用于集成测试或生产环境模拟。
-
-* **启动命令：**
-
-  ```bash
-  make up
-  ```
-
-  *(或使用 `docker compose up --build -d`)*
-
-* **停止并清理环境：**
-
-  ```bash
-  make down
-  ```
-
-  *(或使用 `docker compose down -v`)*
-
-* **可用服务：**
-
-  | 服务     | 地址                                             |
-  | ------ | ---------------------------------------------- |
-  | API 网关 | [http://localhost:8080](http://localhost:8080) |
-  | 管理门户   | [http://localhost:3000](http://localhost:3000) |
-  | 工单适配器  | [http://localhost:8081](http://localhost:8081) |
-
-<br>
-
-#### ⚙️ 模式 B：混合开发模式 (Hybrid Development) — 适用于 Python 调试
-
-仅在 Docker 中运行依赖服务（数据库、消息系统等），
-而 Python API 服务器在本地直接运行，以实现热重载与快速调试。
-
-1. **终端 1：启动依赖服务**
-
-   ```bash
-   make up-deps
-   ```
-
-   *(或 `docker compose up -d db mysql redis nats ticket-adapter`)*
-
-2. **终端 2：本地运行 API 服务器**
-
-   ```bash
-   make run-local
-   ```
-
-   *(或 `python -m uvicorn src.gateway.main:app --host 0.0.0.0 --port 8080 --reload --app-dir src`)*
-
-<br>
-
-### 🧪 3. 测试 (How to Test)
-
-`Makefile` 提供统一的测试命令：
-
-| 命令                | 功能                        |
-| ----------------- | ------------------------- |
-| `make test-all`   | 运行全部测试（Python、Java、Admin） |
-| `make test`       | 仅运行 Python 测试             |
-| `make test-java`  | 仅运行 Java 测试               |
-| `make test-admin` | 仅运行前端 (Next.js) 测试        |
-
-> 💡 测试框架：pytest、JUnit、Vitest
-
-<br>
-
-### 🗄️ 4. 数据库与 RAG 操作 (Working with the Database and RAG)
-
-**初始化数据库（启用 pgvector 扩展）**
-
-```bash
-make migrate
-```
-
-*(若使用 `docker-compose.deps.yml` 启动依赖，则无需此步骤)*
-
-**填充 RAG 知识库**
-
-1. 将 `.md` 或 `.txt` 文件放入 `docs/` 目录；
-2. 执行：
-
-   ```bash
-   make ingest
-   ```
-
-系统会自动解析文档并将嵌入向量存储至 PostgreSQL + pgvector。
-
-<br>
-
-### 🤖 5. 验证代理功能 (How to Verify Agents Work)
-
-启动应用后，可使用 `curl` 命令测试代理接口。
-
-> ⚠️ 测试前可暂时禁用 `auth_guard`（在 `main.py` 中），以简化本地验证。
-
-* **测试创建工单 (create_ticket)**：
-
-  ```bash
-  curl -X POST http://localhost:8080/v1/agents/run \
-    -H "Content-Type: application/json" \
-    -d '{"agent": "support", "input": "My internet is down, please create a ticket."}'
-  ```
-
-* **测试获取监控指标 (get_metrics)**：
-
-  ```bash
-  curl -X POST http://localhost:8080/v1/agents/run \
-    -H "Content-Type: application/json" \
-    -d '{"agent": "ops", "input": "Show me metrics for the webapp service"}'
-  ```
-
-* **测试知识问答 (RAG)**：
-
-  ```bash
-  curl -X POST http://localhost:8080/v1/agents/run \
-    -H "Content-Type: application/json" \
-    -d '{"agent": "support", "input": "How can I reset my password?"}'
-  ```
-
-<br>
-
-### ❓ 6. 常见问题 (FAQ — Common Issues and Questions)
-
-**Q1: 启动应用时报 “Connection refused”？**
-A：可能是依赖容器未完全启动。
-请确保 `docker ps` 中 `db`、`mysql`、`redis` 状态为 `(healthy)` 后再运行 Python 服务。
-
-<br>
-
-**Q2: 出现 `{"detail":"Missing Authorization Bearer header."}`？**
-A：这是认证守卫 (auth_guard) 启用导致。
-本地测试时可暂时注释掉：
-
-```python
-claims: dict[str, Any] = Depends(auth_guard),
-```
-
-并将 `claims` 参数传入空字典 `{}`。
-
-<br>
-
-**Q3: 如何查看特定服务日志？**
-A：使用 `docker logs` 命令，例如：
-
-```bash
-docker logs -f astradesk-auditor-1
-```
-
-*(容器名可通过 `docker ps` 查看)*
-
-<br>
-
-**Q4: 如何仅重建一个镜像？**
-A：
-
-```bash
-docker compose up -d --build api
-```
-
-<br>
-
-**Q5: 如何修改关键词规划器 (KeywordPlanner)？**
-A：编辑 `src/runtime/planner.py` 中的 `KeywordPlanner` 构造函数 (`__init__`)。
-
-<br>
-
-🧠 **提示 (Tips)**
-
-* 使用 `.env` 管理本地配置；
-* 每次修改依赖或配置后执行 `make sync`；
-* 推荐在 VSCode 或 PyCharm 中启用自动格式化与类型检查。
+* 运行：`make test`（Python）、`make test-java`、`make test-admin`。
+* 覆盖率：单元测试（pytest、JUnit、Vitest）、集成测试（API 流程）。
 
 <br>
 
 ---
 
-## 🧪 测试 (Testing)
+## 安全性
 
-AstraDesk 提供统-的测试与覆盖率体系，包括单元测试、集成测试和端到端验证。
-
-### 运行命令
-
-```bash
-make test          # 运行 Python 测试
-make test-java     # 运行 Java 测试
-make test-admin    # 运行前端测试
-make test-all      # 全部测试
-````
-
-### 覆盖范围
-
-* **单元测试**：pytest (Python)、JUnit (Java)、Vitest (Next.js)
-* **集成测试**：验证 API 工作流、RAG 查询与工具交互
-* **回归测试**：确保升级或修改后系统功能稳定
-
-🧠 **建议**
-在 CI/CD 流水线中集成测试阶段 (`test`) 以防止破坏性变更。
-
-<br>
-
-## 🔒 安全 (Security)
-
-AstraDesk 在设计时遵循零信任与最小权限原则。
-
-### 认证 (Auth)
-
-* 基于 **OIDC / JWT** 的统一身份认证；
-* 通过 JWKS 自动校验签名；
-* 支持 Auth0、Keycloak、AWS Cognito 等提供方。
-
-### 授权 (RBAC)
-
-* 每个工具定义所需角色；
-* 由 JWT 中的 `roles` 字段决定权限；
-* 无角色或权限不足时将返回 HTTP 403。
-
-### 传输安全 (mTLS)
-
-* 在 Istio 服务网格中启用 **双向 TLS (STRICT 模式)**；
-* 所有内部通信均加密；
-* 外部流量通过 Gateway 控制。
-
-### 审计与策略 (Audit & Policies)
-
-* 所有代理操作均被记录至 Postgres 与 NATS；
-* 工具层内置白名单、重试与熔断机制；
-* 提供 `runtime/policy.py` 用于自定义安全规则。
-
-<br>
-
-## 🗺️ 路线图 (Roadmap)
-
-AstraDesk 的未来版本将持续扩展企业级智能代理生态。
-
-**计划特性：**
-
-* 🤖 集成多种 LLM（Bedrock / OpenAI / vLLM）并支持 Guardrails；
-* ⏱️ 使用 Temporal 实现长任务工作流；
-* 🧠 引入 RAG 评估工具（Ragas）；
-* 🏢 支持多租户架构与高级 RBAC (OPA)；
-* 📈 完善 Grafana 仪表盘与告警模板；
-* 🔄 支持向量数据库 (pgvector / Weaviate / Milvus)。
-
-<br>
-
-## 🤝 贡献指南 (Contributing)
-
-欢迎开发者参与 AstraDesk 的持续改进。
-
-### 步骤
-
-1. Fork 本仓库；
-2. 创建功能分支；
-3. 提交变更并编写测试；
-4. 发起 Pull Request。
-
-### 提交前检查
-
-* 执行以下命令确保代码规范：
-
-  ```bash
-  make lint/type
-  ```
-
-* 所有提交需通过 Lint 与类型检查；
-
-* PR 中应附带测试用例与文档更新。
-
-
-📜 **开发规范**
-
-* Python 遵循 PEP8；
-
-* Java 遵循 Google Java Style；
-
-* 前端遵循 ESLint + Prettier 标准。
+* **认证**：带 JWKS 的 OIDC/JWT。
+* **RBAC**：基于 claim 的每工具权限控制。
+* **mTLS**：通过 Istio 启用 STRICT 模式。
+* **审计**：写入 Postgres + 通过 NATS 发布。
+* **策略**：工具中的允许列表、代理中的重试机制。
 
 <br>
 
 ---
 
-## 📄 许可证 (License)
+## 路线图
 
-本项目基于 **Apache License 2.0** 开源。
-
-详细内容请参阅 [LICENSE](LICENSE)。
-
-<br>
-
----
-
-## 📬 联系方式 (Contact)
-
-🌐 官网: [AstraDesk](https://astradesk.vercel.app/)
-
-👨‍💻 作者: **Siergej Sobolewski**
-
-📧 邮箱: `s.sobolewski@hotmail.com`
-
-💬 支持频道: [Support Slack](https://astradesk.slack.com)  
-
-🐙 问题与反馈: [GitHub Issues](https://github.com/SSobol77/astradesk/issues)
+* 集成 LLM（Bedrock/OpenAI/vLLM）并配备安全防护机制。
+* 使用 Temporal 处理长时工作流。
+* RAG 评估（Ragas）。
+* 多租户和高级 RBAC（OPA）。
+* 带告警的完整 Grafana 仪表板。
 
 <br>
 
 ---
 
-📅 **文档日期：2025 年 10 月 10 日**
+## 贡献
+
+* Fork 仓库，创建分支，提交带测试的 PR。
+* 提交前使用 `make lint/type` 检查。
 
 <br>
+
+---
+
+## 许可证
+
+Apache License 2.0。详情请参见 [LICENSE](LICENSE)。
+
+---
+
+<br>
+
+## 联系方式
+
+🌐 网站: [AstraDesk](https://www.astradesk.dev)
+
+📧 作者: Siergej Sobolewski ([s.sobolewski@hotmail.com](mailto:s.sobolewski@hotmail.com))。
+
+💬 支持渠道: [Support Slack](https://astradesk.slack.com)
+
+🐙 Issues: [GitHub Issues](https://github.com/SSobol77/astradesk/issues)。
+
+<br>
+
+---
+
+*最后更新: 2026-04-09*
