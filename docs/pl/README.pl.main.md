@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/AstraDesktop.png" alt="AstraDesk - Enterprise AI Framework" width="560"/>
+  <img src="https://astradesk.dev/_next/image?url=%2FAstraDesk_wlogo.png&w=640&q=75" alt="AstraDesk - Enterprise AI Framework" width="560"/>
 </p>
 
 <br>
@@ -12,7 +12,7 @@
 [![Node.js Version](https://img.shields.io/badge/Node.js-22-brightgreen.svg)](https://nodejs.org/en)
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](https://github.com/your-org/astradesk/actions)
 
-🌍 **Języki:** [English](README.md) | 🇵🇱 [Polski](docs/pl/README.pl.main.md) | [中文 (bieżąca wersja)](docs/zh/README.zh.main.md)
+🌍 **Języki:** [English](README.md) | 🇵🇱 [Polski](docs/pl/README.pl.main.md) | [中文 (bieżąca wersja)](https://github.com/SSobol77/astradesk/blob/main/docs/zh/README.zh-CN.main.md)
 
 <br>
 
