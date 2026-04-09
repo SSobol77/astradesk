@@ -7,7 +7,7 @@
 name = "astradesk"
 version = "0.3.0"
 description = "AstraDesk – Enterprise AI Framework"
-requires-python = ">=3.14"
+requires-python = ">=3.11"
 authors = [{ name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com" }]
 license = { text = "Apache-2.0" }
 
