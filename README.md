@@ -18,7 +18,7 @@
 
 <br>
 
-[AstraDesk](https://astradesk.vercel.app/)
+[AstraDesk](https://astradesk.dev)
 is an internal framework for building AI agents designed for Support and SRE/DevOps departments.  
 It provides a modular architecture with ready-to-use demo agents, integrations with databases, messaging systems, and DevOps tools.  
 The framework supports scalability, enterprise-grade security (OIDC/JWT, RBAC, mTLS via Istio), and full CI/CD automation.
@@ -254,7 +254,7 @@ The app uses **Bearer JWT** authentication:
 
 | Resource | URL |
 |----------|-----|
-| 🌐 **Live Demo** | [https://astradesk-admin.vercel.app](https://astradesk-admin-portal.vercel.app/) |
+| 🌐 **Live Demo** | [https://astradesk-admin](https://astradesk-admin-portal.vercel.app/) |
 | 🐙 **Repository** | [https://github.com/SSobol77/astradesk-admin-portal](https://github.com/SSobol77/astradesk-admin-portal) |
 | 📖 **Documentation** | [https://github.com/SSobol77/astradesk-admin-portal#readme](https://github.com/SSobol77/astradesk-admin-portal#readme) |
 
