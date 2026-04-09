@@ -7,7 +7,7 @@
 # AstraDesk - Enterprise AI Agents Framework
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Python Version](https://img.shields.io/badge/Python-3.14-blue.svg)](https://www.python.org/downloads/release/python-3140/)
+[![Python Version](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
 [![JDK Version](https://img.shields.io/badge/JDK-21-orange.svg)](https://openjdk.org/projects/jdk/21/)
 [![PyTorch Version](https://img.shields.io/badge/PyTorch-2.9-magenta.svg)](https://pytorch.org/projects/pytorch/)
 [![Node.js Version](https://img.shields.io/badge/Node.js-22-brightgreen.svg)](https://nodejs.org/en)
@@ -265,7 +265,7 @@ The app uses **Bearer JWT** authentication:
 - **Docker** and **Docker Compose** (for local dev).
 - **Kubernetes** with Helm (for deployment).
 - **AWS CLI** and **Terraform** (for cloud setup).
-- **Node.js 22**, **JDK 21**, **Python 3.14** (for builds).
+- **Node.js 22**, **JDK 21**, **Python 3.11** (for builds).
 - **Postgres 17**, **MySQL 8**, **Redis 7**, **NATS 2** (core services).
 - **Optional:** Istio, cert-manager (for mTLS/TLS).
 
@@ -1026,5 +1026,5 @@ Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 ---
 
-*Last updated: 2026-03-20*
+*Last updated: 2026-04-09*
 
