@@ -14,7 +14,7 @@
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](https://github.com/your-org/astradesk/actions)
 
 
-🌍 **Languages:** 🇺🇸 [English](README.md) | [Polski](docs/pl/README.pl.main.md) | [中文](docs/zh/README.zh-CN.main.md)
+🌍 **Languages:** 🇺🇸 [English](https://github.com/SSobol77/astradesk/edit/main/README.md) | [Polski](https://github.com/SSobol77/astradesk/edit/main/docs/pl/README.pl.main.md) | [中文](https://github.com/SSobol77/astradesk/blob/main/docs/zh/README.zh-CN.main.md)
 
 <br>
 
