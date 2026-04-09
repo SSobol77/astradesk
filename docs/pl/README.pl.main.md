@@ -12,7 +12,7 @@
 [![Node.js Version](https://img.shields.io/badge/Node.js-22-brightgreen.svg)](https://nodejs.org/en)
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](https://github.com/your-org/astradesk/actions)
 
-🌍 **Języki:** [English](README.md) | 🇵🇱 [Polski](docs/pl/README.pl.main.md) | [中文 (bieżąca wersja)](https://github.com/SSobol77/astradesk/blob/main/docs/zh/README.zh-CN.main.md)
+🌍 **Języki:** [English](https://github.com/SSobol77/astradesk/edit/main/README.md) | 🇵🇱 [Polski](https://github.com/SSobol77/astradesk/edit/main/docs/pl/README.pl.main.md) | [中文](https://github.com/SSobol77/astradesk/blob/main/docs/zh/README.zh-CN.main.md)
 
 <br>
 
