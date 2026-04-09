@@ -12,13 +12,11 @@
 [![Node.js Version](https://img.shields.io/badge/Node.js-22-brightgreen.svg)](https://nodejs.org/en)
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](https://github.com/your-org/astradesk/actions)
 
-🌍 **Języki:** [English](README.md) | 🇵🇱 [Polski](docs/pl/README.pl.main.md)) | [中文 (当前文件)](docs/zh/README.zh.main.md)
-
+🌍 **Języki:** [English](README.md) | 🇵🇱 [Polski](docs/pl/README.pl.main.md) | [中文 (bieżąca wersja)](docs/zh/README.zh.main.md)
 
 <br>
 
-[AstraDesk](https://astradesk.vercel.app/)
- to wewnętrzny framework do budowy agentów AI, zaprojektowany dla działów wsparcia (Support) i operacji (SRE/DevOps). Oferuje modularną architekturę z gotowymi agentami demonstracyjnymi, integracjami z bazami danych, systemami messagingu i narzędziami DevOps. Framework wspiera skalowalność, bezpieczeństwo enterprise (OIDC/JWT, RBAC, mTLS via Istio) oraz pełne CI/CD.
+[AstraDesk](https://www.astradesk.dev) to wewnętrzny framework do budowy agentów AI, zaprojektowany dla działów wsparcia (Support) i operacji (SRE/DevOps). Oferuje modularną architekturę z gotowymi agentami demonstracyjnymi, integracjami z bazami danych, systemami komunikatów i narzędziami DevOps. Framework wspiera skalowalność, bezpieczeństwo enterprise (OIDC/JWT, RBAC, mTLS via Istio) oraz pełne CI/CD.
 
 <br>
 
@@ -27,17 +25,17 @@
 ## Spis treści
 
 - [Funkcje](#funkcje)
-- [Przeznaczenie i Zastosowania](#przeznaczenie-i-zastosowania)
+- [Przeznaczenie i zastosowania](#przeznaczenie-i-zastosowania)
 - [Przegląd architektury](#przegląd-architektury)
 - [Wymagania wstępne](#wymagania-wstępne)
-- [Getting Started & Developer Guide](#getting-started--developer-guide)
+- [Pierwsze kroki i przewodnik dla programisty](#pierwsze-kroki-i-przewodnik-dla-programisty)
 - [Konfiguracja](#konfiguracja)
   - [Zmienne środowiskowe](#zmienne-środowiskowe)
   - [Uwierzytelnianie OIDC/JWT](#uwierzytelnianie-oidcjwt)
   - [Polityki RBAC](#polityki-rbac)
-- [Usage](#usage)
-  - [Running Agents](#running-agents)
-  - [Admin Portal](#admin-portal)
+- [Użycie](#użycie)
+  - [Uruchamianie agentów](#uruchamianie-agentów)
+  - [Portal administracyjny](#portal-administracyjny)
 - [Wdrożenie](#wdrożenie)
   - [Kubernetes (Helm)](#kubernetes-helm)
   - [OpenShift](#openshift)
@@ -49,8 +47,8 @@
   - [GitLab CI](#gitlab-ci)
 - [Monitorowanie i obserwowalność](#monitorowanie-i-obserwowalność)
   - [Szybki start (Docker Compose)](#szybki-start-docker-compose)
-  - [Konfiguracja Prometheus](konfiguracja-prometheus)
-  - [Endpointy metryk - integracje](#endpointy-metryk-integracje)
+  - [Konfiguracja Prometheus](#konfiguracja-prometheus)
+  - [Endpointy metryk – integracje](#endpointy-metryk-integracje)
   - [Grafana (szybka konfiguracja)](#grafana-szybka-konfiguracja)
   - [Przydatne komendy (Makefile)](#przydatne-komendy-makefile)
 - [Testowanie](#testowanie)
@@ -66,35 +64,34 @@
 
 ## Funkcje
 
-- **AI Agents**: Dwa gotowe agenty:
-  - **SupportAgent**: Wsparcie użytkownika z RAG na dokumentach firmowych (PDF, HTML, Markdown), pamięcią dialogową i narzędziami ticketingu.
+- **Agenci AI**: Dwa gotowe agenty:
+  - **SupportAgent**: Wsparcie użytkownika z RAG na dokumentach firmowych (PDF, HTML, Markdown), pamięcią dialogową i narzędziami do zarządzania ticketami.
   - **OpsAgent**: Automatyzacje SRE/DevOps – pobieranie metryk (z Prometheus/Grafana), akcje operacyjne (np. restart usługi) z politykami i audytem.
-- **Modular Core**: Python-based framework z registry tooli, plannerem, pamięcią (Redis/Postgres), RAG (pgvector) i eventami (NATS).
-- **Integrations**:
-  - Java Ticket Adapter (Spring Boot WebFlux + MySQL) dla korporacyjnych systemów ticketingu.
+- **Modularny rdzeń**: Framework oparty na Pythonie z rejestrem narzędzi, planerem, pamięcią (Redis/Postgres), RAG (pgvector) i zdarzeniami (NATS).
+- **Integracje**:
+  - Java Ticket Adapter (Spring Boot WebFlux + MySQL) dla korporacyjnych systemów ticketów.
   - Next.js Admin Portal do monitoringu agentów, audytów i testów promptów.
-  - **MCP Gateway**: Standardyzowany protokół dla interakcji narzędzi agentów AI z bezpieczeństwem, audytem i limitem wywołań.
-- **Security**: OIDC/JWT auth, RBAC per tool, mTLS via Istio, audyt działań.
-- **DevOps Ready**: Docker, Kubernetes (Helm), OpenShift, Terraform (AWS), Ansible/Puppet/Salt, CI/CD (Jenkins/GitLab).
-- **Observability**: OpenTelemetry, Prometheus/Grafana/Loki/Tempo.
-- **Scalability**: HPA w Helm, retries/timeouty w integracjach, autoscaling w EKS.
+  - **MCP Gateway**: Standaryzowany protokół bramy dla interakcji narzędzi agentów AI z bezpieczeństwem, audytem i limitem wywołań.
+- **Bezpieczeństwo**: Uwierzytelnianie OIDC/JWT, RBAC per narzędzie, mTLS via Istio, audyt działań.
+- **Gotowość DevOps**: Docker, Kubernetes (Helm), OpenShift, Terraform (AWS), Ansible/Puppet/Salt, CI/CD (Jenkins/GitLab).
+- **Obserwowalność**: OpenTelemetry, Prometheus/Grafana/Loki/Tempo.
+- **Skalowalność**: HPA w Helm, mechanizmy ponawiania i timeoutów w integracjach, autoscaling w EKS.
 
 <br>
 
 ---
 
-## Przeznaczenie i Zastosowania
+## Przeznaczenie i zastosowania
 
-**AstraDesk** to **framework do budowy agentów AI** dla zespołów **Support** oraz **SRE/DevOps**.
-Zapewnia modułowy rdzeń (planer, pamięć, RAG, rejestr narzędzi) i gotowe agentowe przykłady.
+**AstraDesk** to **framework do budowy agentów AI** dla zespołów **Support** oraz **SRE/DevOps**. Zapewnia modułowy rdzeń (planer, pamięć, RAG, rejestr narzędzi) i gotowe przykłady agentów.
 
-- **Support / Helpdesk**: RAG na dokumentach firmy (procedury, FAQ, runbooki), tworzenie/aktualizacja zgłoszeń (tickety), pamięć konwersacji.
+- **Support / Helpdesk**: RAG na dokumentach firmy (procedury, FAQ, runbooki), tworzenie/aktualizacja zgłoszeń (ticketów), pamięć konwersacji.
 - **Automatyzacje SRE/DevOps**: odczyt metryk (Prometheus/Grafana), triage incydentów, kontrolowane akcje (np. restart usługi) zabezpieczone **RBAC** i objęte audytem.
 - **Integracje enterprise**: Gateway (Python/FastAPI), Adapter Ticketów (Java/WebFlux + MySQL), Portal Admin (Next.js), MCP Gateway oraz warstwa danych (Postgres/pgvector, Redis, NATS).
 - **Bezpieczeństwo i compliance**: OIDC/JWT, RBAC per-narzędzie, **mTLS** (Istio), pełen ślad audytowy.
 - **Operacje na skalę**: Docker/Kubernetes/OpenShift, Terraform (AWS), CI/CD (Jenkins/GitLab), obserwowalność (OpenTelemetry, Prometheus/Grafana/Loki/Tempo).
 
-> **To nie pojedynczy chatbot**, lecz **framework** do komponowania własnych agentów, narzędzi i polityk z pełną kontrolą (bez lock-in do SaaS). :contentReference[oaicite:1]{index=1}
+> **To nie pojedynczy chatbot**, lecz **framework** do komponowania własnych agentów, narzędzi i polityk z pełną kontrolą (bez lock-in do SaaS).
 
 <br>
 
@@ -103,12 +100,12 @@ Zapewnia modułowy rdzeń (planer, pamięć, RAG, rejestr narzędzi) i gotowe ag
 ## Przegląd architektury
 
 AstraDesk składa się z kilku głównych komponentów:
-- **Python API Gateway**: FastAPI obsługujący żądania do agentów, z RAG, pamięcią i toolami.
-- **Java Ticket Adapter**: Reaktywny serwis (WebFlux) integrujący z MySQL dla ticketingu.
+- **Python API Gateway**: FastAPI obsługujący żądania do agentów, z RAG, pamięcią i narzędziami.
+- **Java Ticket Adapter**: Reaktywny serwis (WebFlux) integrujący z MySQL dla obsługi ticketów.
 - **Next.js Admin Portal**: Interfejs webowy do monitoringu.
-- **MCP Gateway**: Standardyzowany protokół bramy dla interakcji narzędzi agentów AI z bezpieczeństwem, audytem i limitem wywołań.
+- **MCP Gateway**: Standaryzowany protokół bramy dla interakcji narzędzi agentów AI z bezpieczeństwem, audytem i limitem wywołań.
 
-Komunikacja: HTTP (między komponentami), NATS (eventy/audyty), Redis (pamięć robocza), Postgres/pgvector (RAG/dialogi/audyty), MySQL (tickety). :contentReference[oaicite:2]{index=2}
+Komunikacja: HTTP (między komponentami), NATS (zdarzenia/audyty), Redis (pamięć robocza), Postgres/pgvector (RAG/dialogi/audyty), MySQL (tickety).
 
 <br>
 
@@ -116,10 +113,10 @@ Komunikacja: HTTP (między komponentami), NATS (eventy/audyty), Redis (pamięć 
 
 ## Wymagania wstępne
 
-- **Docker** i **Docker Compose** (do lokalnego dev).
-- **Kubernetes** z Helm (do deploymentu).
+- **Docker** i **Docker Compose** (do lokalnego developmentu).
+- **Kubernetes** z Helm (do wdrożenia).
 - **AWS CLI** i **Terraform** (do chmury).
-- **Node.js 22**, **JDK 21**, **Python 3.11** (do buildów).
+- **Node.js 22**, **JDK 21**, **Python 3.11** (do budowania).
 - **Postgres 17**, **MySQL 8**, **Redis 8**, **NATS 2** (serwisy bazowe).
 - **Opcjonalnie:** Istio, cert-manager (do mTLS/TLS).
 
@@ -127,85 +124,84 @@ Komunikacja: HTTP (między komponentami), NATS (eventy/audyty), Redis (pamięć 
 
 ---
 
-## Getting Started & Developer Guide
+## Pierwsze kroki i przewodnik dla programisty
 
-This section provides a complete guide to setting up, running, and developing the AstraDesk platform locally.
-
-<br>
-
-### Prerequisites
-
-- **Docker & Docker Compose**: Essential for running all services. Docker Desktop is recommended.
-- **Git**: For version control.
-- **Node.js v22+**: Required for building the Admin Portal and generating `package-lock.json`.
-- **JDK 21+**: Required for building and running the Java Ticket Adapter.
-- **Python 3.11+ & `uv`**: For managing the Python environment.
-- **make**: Recommended for easy access to common commands.
+Ta sekcja zawiera kompletny przewodnik konfiguracji, uruchamiania i developmentu platformy AstraDesk lokalnie.
 
 <br>
 
-### 1. Initial Project Setup (Run Once)
+### Wymagania wstępne
 
-1. **Clone the repository**:
+- **Docker i Docker Compose**: Niezbędne do uruchomienia wszystkich usług. Zalecany Docker Desktop.
+- **Git**: Do kontroli wersji.
+- **Node.js v22+**: Wymagany do budowania Portalu Administracyjnego i generowania `package-lock.json`.
+- **JDK 21+**: Wymagany do budowania i uruchamiania Java Ticket Adapter.
+- **Python 3.11+ i `uv`**: Do zarządzania środowiskiem Python.
+- **make**: Zalecany dla łatwego dostępu do typowych komend.
+
+<br>
+
+### 1. Wstępna konfiguracja projektu (uruchom raz)
+
+1. **Sklonuj repozytorium**:
 
    ```bash
    git clone https://github.com/your-org/astradesk.git
    cd astradesk
    ```
 
-2. **Copy the environment file**:
+2. **Skopiuj plik zmiennych środowiskowych**:
 
    ```bash
    cp .env.example .env
    ```
 
-   *Note: The default values in `.env` are configured for the hybrid development mode. For the full Docker mode, you may need to adjust URLs to use service names (e.g., `http://api:8080`).*
+   *Uwaga: Domyślne wartości w `.env` są skonfigurowane dla hybrydowego trybu developmentu. Dla pełnego trybu Docker może być konieczna adaptacja URL-i do użycia nazw usług (np. `http://api:8080`).*
 
-3. **Generate `package-lock.json`**:
+3. **Wygeneruj `package-lock.json`**:
 
    ```bash
    make bootstrap-frontend
    ```
 
-   *(This runs `npm install` in the `admin-portal` directory).*
+   *(To uruchamia `npm install` w katalogu `admin-portal`).*
 
 <br>
 
-### 2. Running the Application
+### 2. Uruchamianie aplikacji
 
-Choose one of the following modes for local development.
+Wybierz jeden z poniższych trybów do developmentu lokalnego.
 
-#### Mode A: Full Docker Environment (Production-like)
+#### Tryb A: Pełne środowisko Docker (zbliżone do produkcyjnego)
 
-Runs the entire application stack in Docker. Best for integration testing.
+Uruchamia cały stos aplikacji w Dockerze. Najlepsze do testów integracyjnych.
 
-* **Start all services**:
+* **Uruchom wszystkie usługi**:
 
   ```bash
   make up
   ```
-* **Stop and clean up**:
+* **Zatrzymaj i wyczyść**:
 
   ```bash
   make down
- 
   ```
 
-#### Mode B: Hybrid Development (Recommended for Python/Frontend)
+#### Tryb B: Hybrydowy development (zalecany dla Python/Frontend)
 
-Runs external dependencies (databases, NATS) in Docker, while you run the Python API or Next.js portal locally for fast, hot-reloaded development.
+Uruchamia zależności zewnętrzne (bazy danych, NATS) w Dockerze, podczas gdy Python API lub portal Next.js uruchamiasz lokalnie dla szybkiego developmentu z hot-reload.
 
-1. **Start dependencies in Docker** (in one terminal):
+1. **Uruchom zależności w Dockerze** (w jednym terminalu):
 
    ```bash
    make up-deps
    ```
-2. **Run the Python API locally** (in a second terminal):
+2. **Uruchom Python API lokalnie** (w drugim terminalu):
 
    ```bash
    make run-local-api
    ```
-3. **Run the Admin Portal locally** (in a third terminal):
+3. **Uruchom Portal Administracyjny lokalnie** (w trzecim terminalu):
 
    ```bash
    make run-local-admin
@@ -213,48 +209,48 @@ Runs external dependencies (databases, NATS) in Docker, while you run the Python
 
 <br>
 
-### 3. Common Development Tasks (Makefile)
+### 3. Typowe zadania programistyczne (Makefile)
 
-The `Makefile` is your central command hub. Use `make help` to see all available commands.
+`Makefile` jest centralnym hubem komend. Użyj `make help`, aby zobaczyć wszystkie dostępne komendy.
 
-* **Run all tests**: `make test-all`
-* **Check code quality**: `make lint` and `make type`
-* **Initialize the database**: `make migrate`
-* **Ingest RAG documents**: `make ingest`
+* **Uruchom wszystkie testy**: `make test-all`
+* **Sprawdź jakość kodu**: `make lint` i `make type`
+* **Zainicjuj bazę danych**: `make migrate`
+* **Załaduj dokumenty RAG**: `make ingest`
 
 <br>
 
-### 4. Testing the Agents
+### 4. Testowanie agentów
 
-Once the application is running, you can send `curl` requests to the API.
+Gdy aplikacja jest uruchomiona, możesz wysyłać żądania `curl` do API.
 
-*Note: The examples below assume the `auth_guard` in `main.py` is temporarily disabled for local testing.*
+*Uwaga: Poniższe przykłady zakładają, że `auth_guard` w `main.py` jest tymczasowo wyłączony do testów lokalnych.*
 
-* **Test `create_ticket` tool**:
-
-  ```bash
-  curl -X POST http://localhost:8080/v1/agents/run \
-    -H "Content-Type: application/json" \
-    -d '{"agent": "support", "input": "My internet is down, please create a ticket."}'
-  ```
-* **Test RAG (knowledge base)**:
+* **Przetestuj narzędzie `create_ticket`**:
 
   ```bash
   curl -X POST http://localhost:8080/v1/agents/run \
     -H "Content-Type: application/json" \
-    -d '{"agent": "support", "input": "How can I reset my password?"}'
+    -d '{"agent": "support", "input": "Mój internet nie działa, proszę utworzyć ticket."}'
+  ```
+* **Przetestuj RAG (bazę wiedzy)**:
+
+  ```bash
+  curl -X POST http://localhost:8080/v1/agents/run \
+    -H "Content-Type: application/json" \
+    -d '{"agent": "support", "input": "Jak mogę zresetować moje hasło?"}'
   ```
 
-### 5. FAQ - Common Issues
+### 5. FAQ – typowe problemy
 
-* **Q: I get `Connection refused` on startup.**
-  **A:** Ensure the dependency containers are fully running and `(healthy)` before starting the local Python server. Check with `docker ps`.
+* **P: Otrzymuję `Connection refused` przy starcie.**
+  **O:** Upewnij się, że kontenery zależności są w pełni uruchomione i w stanie `(healthy)` przed startem lokalnego serwera Python. Sprawdź przez `docker ps`.
 
-* **Q: I get a `401 Unauthorized` or `Missing Bearer` error.**
-  **A:** For local testing, you can temporarily disable the `auth_guard` dependency in the `run_agent` endpoint in `src/gateway/main.py`.
+* **P: Otrzymuję błąd `401 Unauthorized` lub `Missing Bearer`.**
+  **O:** Do testów lokalnych możesz tymczasowo wyłączyć zależność `auth_guard` w endpointcie `run_agent` w pliku `src/gateway/main.py`.
 
-* **Q: How do I view logs for a specific service?**
-  **A:** Use `make logs-api`, `make logs-auditor`, or `docker logs -f <container_name>`.
+* **P: Jak wyświetlić logi dla konkretnej usługi?**
+  **O:** Użyj `make logs-api`, `make logs-auditor` lub `docker logs -f <nazwa_kontenera>`.
 
 <br>
 
@@ -264,13 +260,13 @@ Once the application is running, you can send `curl` requests to the API.
 
 ### Zmienne środowiskowe
 
-* **DATABASE_URL**: PostgreSQL connection string (np. `postgresql://user:pass@host:5432/db`).
-* **REDIS_URL**: Redis URI (np. `redis://host:6379/0`).
-* **NATS_URL**: NATS server (np. `nats://host:4222`).
+* **DATABASE_URL**: String połączenia PostgreSQL (np. `postgresql://user:pass@host:5432/db`).
+* **REDIS_URL**: URI Redis (np. `redis://host:6379/0`).
+* **NATS_URL**: Serwer NATS (np. `nats://host:4222`).
 * **TICKETS_BASE_URL**: URL do Java adaptera (np. `http://ticket-adapter:8081`).
 * **MYSQL_URL**: MySQL JDBC (np. `jdbc:mysql://host:3306/db?useSSL=false`).
 * **OIDC_ISSUER**: Issuer OIDC (np. `https://your-issuer.com/`).
-* **OIDC_AUDIENCE**: Audience JWT.
+* **OIDC_AUDIENCE**: Odbiorca JWT.
 * **OIDC_JWKS_URL**: URL do JWKS (np. `https://your-issuer.com/.well-known/jwks.json`).
 
 Pełna lista w `.env.example`.
@@ -280,44 +276,44 @@ Pełna lista w `.env.example`.
 ### Uwierzytelnianie OIDC/JWT
 
 * Włączone w API Gateway i Java Adapter.
-* Użyj Bearer token w requestach: `Authorization: Bearer <token>`.
-* Walidacja: Issuer, audience, signature via JWKS.
-* W Admin Portal: Użyj Auth0 lub podobnego do front-channel flow.
+* Użyj tokenu Bearer w żądaniach: `Authorization: Bearer <token>`.
+* Walidacja: Issuer, audience, sygnatura via JWKS.
+* W Admin Portal: Użyj Auth0 lub podobnego dostawcy tożsamości dla front-channel flow (przepływu uwierzytelniania przez przeglądarkę).
 
 <br>
 
 ### Polityki RBAC
 
-* Role z JWT claims (np. `"roles": ["sre"]`).
+* Role z claims JWT (np. `"roles": ["sre"]`).
 * Narzędzia (np. `restart_service`) sprawdzają role via `require_role(claims, "sre")`.
-* Dostosuj w `runtime/policy.py` i toolach (np. `REQUIRED_ROLE_RESTART`).
+* Dostosuj w `runtime/policy.py` i narzędziach (np. `REQUIRED_ROLE_RESTART`).
 
 <br>
 
-## Usage
+## Użycie
 
-The primary way to interact with AstraDesk is through its REST API.
+Podstawowym sposobem interakcji z AstraDesk jest jego REST API.
 
 <br>
 
-### Running Agents
+### Uruchamianie agentów
 
-To execute an agent, send a `POST` request to the `/v1/agents/run` endpoint:
+Aby wykonać agenta, wyślij żądanie `POST` do endpointu `/v1/agents/run`:
 
 ```sh
 curl -X POST http://localhost:8080/v1/agents/run \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <your-jwt-token>" \
-  -d '{"agent": "support", "input": "Create a ticket for a network incident", "meta": {"user": "alice"}}'
+  -H "Authorization: Bearer <twój-token-jwt>" \
+  -d '{"agent": "support", "input": "Utwórz ticket dla incydentu sieciowego", "meta": {"user": "alice"}}'
 ```
 
-The response will be a JSON object containing the agent's output and a `reasoning_trace_id`.
+Odpowiedź będzie obiektem JSON zawierającym wyjście agenta i `reasoning_trace_id`.
 
 <br>
 
-### Admin Portal
+### Portal administracyjny
 
-The web-based Admin Portal, available at `http://localhost:3000`, provides a UI for monitoring system health and managing platform components as defined in the [OpenAPI specification](openapi/astradesk-admin.v1.yaml).
+Webowy Portal Administracyjny, dostępny pod adresem `http://localhost:3000`, zapewnia interfejs UI do monitorowania kondycji systemu i zarządzania komponentami platformy zgodnie z [specyfikacją OpenAPI](openapi/astradesk-admin.v1.yaml).
 
 <br>
 
@@ -327,33 +323,33 @@ The web-based Admin Portal, available at `http://localhost:3000`, provides a UI 
 
 ### Kubernetes (Helm)
 
-1. Zbuduj i push obrazy (użyj CI).
+1. Zbuduj i wypchnij obrazy (użyj CI).
 
 2. Zainstaluj chart:
 
    ```sh
    helm upgrade --install astradesk deploy/chart -f deploy/chart/values.yaml \
-  --set image.tag=0.3.0 \
+     --set image.tag=0.3.0 \
      --set autoscaling.enabled=true
    ```
 
-   - **HPA:** Skaluje na CPU >60%.
+   - **HPA:** Skaluje przy CPU >60%.
 
 <br>
 
 ### OpenShift
 
-**Procesuj template:**
+**Przetwórz szablon:**
 
    ```sh
-  oc process -f deploy/openshift/astradesk-template.yaml -p TAG=0.3.0 | oc apply -f -
+   oc process -f deploy/openshift/astradesk-template.yaml -p TAG=0.3.0 | oc apply -f -
    ```
 
 <br>
 
 ### AWS (Terraform)
 
-**Inicjuj:**
+**Zainicjuj:**
 
    ```sh
    cd infra
@@ -387,7 +383,7 @@ The web-based Admin Portal, available at `http://localhost:3000`, provides a UI 
 
 ### Jenkins
 
-* Uruchom pipeline: `Jenkinsfile` buduje/testuje/pushuje obrazy, deployuje Helm.
+* Uruchom pipeline: `Jenkinsfile` buduje/testuje/wypycha obrazy, wdraża przez Helm.
 
 ### GitLab CI
 
@@ -401,7 +397,7 @@ The web-based Admin Portal, available at `http://localhost:3000`, provides a UI 
 
 **(Prometheus, Grafana, OpenTelemetry)**
 
-Ta sekcja opisuje, jak włączyć pełną obserwowalność platformy AstraDesk z użyciem **Prometheus** (metyki), **Grafana** (dashboardy) i **OpenTelemetry** (instrumentacja).
+Ta sekcja opisuje, jak włączyć pełną obserwowalność platformy AstraDesk z użyciem **Prometheus** (metryki), **Grafana** (dashboardy) i **OpenTelemetry** (instrumentacja).
 
 ### Cele
 
@@ -456,7 +452,7 @@ services:
 volumes:
   prometheus-data:
   grafana-data:
-````
+```
 
 <br>
 
@@ -512,8 +508,8 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "API high 5xx error rate (>5% for 10m)"
-          description: "Investigate FastAPI gateway logs and upstream dependencies."
+          summary: "API – wysoki wskaźnik błędów 5xx (>5% przez 10 min)"
+          description: "Zbadaj logi FastAPI gateway i zależności upstream."
 
       - alert: TicketAdapterDown
         expr: up{job="ticket-adapter"} == 0
@@ -521,16 +517,16 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "Ticket Adapter is down"
-          description: "Spring service not responding on /actuator/prometheus."
+          summary: "Ticket Adapter jest niedostępny"
+          description: "Serwis Spring nie odpowiada na /actuator/prometheus."
 ```
 
-> **Reload konfiguracji** bez restartu:
+> **Przeładuj konfigurację** bez restartu:
 > `curl -X POST http://localhost:9090/-/reload`
 
 <br>
 
-### Endpointy metryk integracje
+### Endpointy metryk – integracje
 
 <br>
 
@@ -550,18 +546,18 @@ router = APIRouter()
 
 REQUEST_COUNT = Counter(
     "http_requests_total",
-    "Total HTTP requests",
+    "Łączna liczba żądań HTTP",
     ["method", "path", "status"]
 )
 REQUEST_LATENCY = Histogram(
     "http_request_duration_seconds",
-    "HTTP request latency",
+    "Czas trwania żądania HTTP",
     ["method", "path"]
 )
 
 @router.get("/metrics")
 def metrics():
-    # Expose Prometheus metrics in plaintext format
+    # Wystaw metryki Prometheus w formacie tekstowym
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 # (opcjonalnie) prosty middleware do latencji i zliczeń
@@ -584,10 +580,10 @@ from src.gateway.observability import router as metrics_router, metrics_middlewa
 
 app = FastAPI()
 app.middleware("http")(metrics_middleware)
-app.include_router(metrics_router, tags=["observability"])
+app.include_router(metrics_router, tags=["obserwowalność"])
 ```
 
-> **Alternatywa (polecane)**: użyj **OpenTelemetry** + `otlp` exporter, a następnie skrapuj metryki przez **otel-collector** → Prometheus. Ta opcja daje spójne metryki, ślady i logi.
+> **Alternatywa (zalecana)**: użyj **OpenTelemetry** + eksportera `otlp`, a następnie zbieraj metryki przez **otel-collector** → Prometheus. Ta opcja zapewnia spójne metryki, ślady i logi.
 
 #### 2) Java Ticket Adapter (Spring Boot)
 
@@ -629,9 +625,9 @@ Po uruchomieniu endpoint jest dostępny pod:
 
 Po starcie Grafany ([http://localhost:3000](http://localhost:3000), domyślnie `admin`/`admin`):
 
-1. **Add data source → Prometheus**
+1. **Dodaj źródło danych → Prometheus**
    URL: `http://prometheus:9090` (z perspektywy sieci Docker Compose) lub `http://localhost:9090` (jeśli dodajesz ręcznie z hosta).
-2. **Importuj dashboard** (np. „Prometheus / Overview” albo własny).
+2. **Zaimportuj dashboard** (np. „Prometheus / Overview" albo własny).
    Możesz też utrzymywać deskryptory w repo (`grafana/dashboard-astradesk.json`) i włączyć provisioning:
 
    ```
@@ -677,16 +673,16 @@ Dodaj skróty do `Makefile`, aby ułatwić pracę:
 .PHONY: up-observability down-observability logs-prometheus logs-grafana
 
 up-observability:
-\tdocker compose up -d prometheus grafana
+	docker compose up -d prometheus grafana
 
 down-observability:
-\tdocker compose rm -sfv prometheus grafana
+	docker compose rm -sfv prometheus grafana
 
 logs-prometheus:
-\tdocker logs -f astradesk-prometheus
+	docker logs -f astradesk-prometheus
 
 logs-grafana:
-\tdocker logs -f astradesk-grafana
+	docker logs -f astradesk-grafana
 ```
 
 <br>
@@ -726,7 +722,7 @@ logs-grafana:
 ## Testowanie
 
 * Uruchom: `make test` (Python), `make test-java`, `make test-admin`.
-* Pokrycie: Unit (pytest, JUnit, Vitest), integracyjne (API flow).
+* Pokrycie: Testy jednostkowe (pytest, JUnit, Vitest), testy integracyjne (przepływy API).
 
 <br>
 
@@ -735,10 +731,10 @@ logs-grafana:
 ## Bezpieczeństwo
 
 * **Auth**: OIDC/JWT z JWKS.
-* **RBAC**: Per tool, na bazie claims.
+* **RBAC**: Per narzędzie, na bazie claims.
 * **mTLS**: STRICT via Istio.
-* **Audyt**: W Postgres + NATS publish.
-* **Polityki**: Allow-lists w toolach, retries w proxy.
+* **Audyt**: W Postgres + publikacja NATS.
+* **Polityki**: Allow-lists w narzędziach, ponawianie w proxy.
 
 <br>
 
@@ -746,10 +742,10 @@ logs-grafana:
 
 ## Mapa drogowa
 
-* Integracja LLM (Bedrock/OpenAI/vLLM) z guardrails.
+* Integracja LLM (Bedrock/OpenAI/vLLM) z mechanizmami zabezpieczającymi.
 * Temporal dla długotrwałych workflowów.
 * Ewaluacje RAG (Ragas).
-* Multi-tenancy i RBAC advanced (OPA).
+* Multi-tenancy i zaawansowany RBAC (OPA).
 * Pełne dashboardy Grafana z alertami.
 
 <br>
@@ -767,7 +763,7 @@ logs-grafana:
 
 ## Licencja
 
-Apache License 2.0. See [LICENSE](LICENSE) for details.
+Apache License 2.0. Zobacz [LICENSE](LICENSE) po szczegóły.
 
 ---
 
@@ -775,7 +771,7 @@ Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 ## Kontakt
 
-🌐 Web site: [AstraDesk](https://astradesk.vercel.app/)
+🌐 Strona WWW: [AstraDesk](https://www.astradesk.dev)
 
 📧 Autor: Siergej Sobolewski ([s.sobolewski@hotmail.com](mailto:s.sobolewski@hotmail.com)).
 
@@ -787,7 +783,4 @@ Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 ---
 
-*Ostatnia aktualizacja: 2025-10-21*
-
-
-
+*Ostatnia aktualizacja: 2026-04-09*
