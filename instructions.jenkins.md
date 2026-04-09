@@ -7,7 +7,7 @@ This document explains how to run the production Jenkins pipeline defined in
 - Jenkins 2.414+ with Pipeline plugin.
 - Agents (static or ephemeral) capable of running:
   - Docker (used in most stages via `agent { docker { image ... } }`)
-  - Python 3.14, Java 25, Node 22 if you opt for bare-metal agents instead.
+  - Python 3.11, Java 21, Node 22 if you opt for bare-metal agents instead.
 - SonarQube server accessible from the agents.
 - Terraform CLI, Helm, kubectl, istioctl available on agents (or inside images).
 
