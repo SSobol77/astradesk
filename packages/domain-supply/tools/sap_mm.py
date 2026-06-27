@@ -10,18 +10,21 @@ Author: Siergej Sobolewski
 Since: 2025-10-16
 """
 
-from typing import AsyncIterator, Dict
-import asyncio
+from collections.abc import AsyncIterator
+
 from tenacity import retry, stop_after_attempt, wait_exponential
+
 from ..clients.api import AdminApiClient, ProblemDetail
+
 
 class SAPMMAdapter:
     """Async SAP MM adapter integrated with Admin API (/connectors)."""
-    def __init__(self, api_url: str = "http://localhost:8080/api/admin/v1", token: str = ""):
+
+    def __init__(self, api_url: str = 'http://localhost:8080/api/admin/v1', token: str = ''):
         self.client = AdminApiClient(api_url, token)
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-    async def fetch_inventory(self, query: str) -> AsyncIterator[Dict]:
+    async def fetch_inventory(self, query: str) -> AsyncIterator[dict]:
         """Fetch inventory data via API /connectors/{id}:probe.
 
         Steps:
@@ -32,20 +35,28 @@ class SAPMMAdapter:
         :raises ValueError: If API call fails (parsed as ProblemDetail).
         :yield: Dict for each inventory record.
         """
-        connector_data = {"name": "sap_mm", "type": "sap", "config": {"system": "SAP_MM", "plant": "PL01"}}
+        connector_data = {
+            'name': 'sap_mm',
+            'type': 'sap',
+            'config': {'system': 'SAP_MM', 'plant': 'PL01'},
+        }
         try:
             connector = await self.client.create_connector(connector_data)
         except ValueError as e:
-            connectors_resp = await self.client._client.get("/connectors", params={"name": "sap_mm"})
+            connectors_resp = await self.client._client.get(
+                '/connectors', params={'name': 'sap_mm'}
+            )
             if connectors_resp.status_code == 200 and connectors_resp.json():
                 connector = connectors_resp.json()[0]
             else:
                 raise e
 
-        probe_data = {"query": query}
-        probe_resp = await self.client._client.post(f"/connectors/{connector['id']}:probe", json=probe_data)
+        probe_data = {'query': query}
+        probe_resp = await self.client._client.post(
+            f"/connectors/{connector['id']}:probe", json=probe_data
+        )
         if probe_resp.status_code != 200:
             raise ValueError(ProblemDetail(**probe_resp.json()))
 
-        for item in probe_resp.json()["result"]:
+        for item in probe_resp.json()['result']:
             yield item

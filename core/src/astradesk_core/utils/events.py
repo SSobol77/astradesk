@@ -16,12 +16,11 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, Optional
-
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
-NATS_URL = "nats://nats:4222"
+NATS_URL = 'nats://nats:4222'
 MAX_MESSAGE_BYTES = 524288
 CONNECT_TIMEOUT_SEC = 2.0
 
@@ -50,14 +49,14 @@ nats = _NatsModule()
 
 class Events:
     def __init__(self) -> None:
-        self._nc: Optional[_DummyNatsClient] = None
+        self._nc: _DummyNatsClient | None = None
         self._lock = asyncio.Lock()
 
     async def _get_connection(self) -> Any:
-        if self._nc and getattr(self._nc, "is_connected", True):
+        if self._nc and getattr(self._nc, 'is_connected', True):
             return self._nc
         async with self._lock:
-            if self._nc and getattr(self._nc, "is_connected", True):
+            if self._nc and getattr(self._nc, 'is_connected', True):
                 return self._nc
             self._nc = await nats.connect(NATS_URL, connect_timeout=CONNECT_TIMEOUT_SEC)
             return self._nc
@@ -66,40 +65,42 @@ class Events:
     def _validate_subject(subject: str) -> bool:
         if not subject or subject.strip() != subject:
             return False
-        if " " in subject or ".." in subject or subject.startswith(".") or subject.endswith("."):
+        if ' ' in subject or '..' in subject or subject.startswith('.') or subject.endswith('.'):
             return False
         return True
 
     @staticmethod
-    def _encode_payload(payload: dict[str, Any]) -> Optional[bytes]:
-        data = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    def _encode_payload(payload: dict[str, Any]) -> bytes | None:
+        data = json.dumps(payload, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
         if len(data) > MAX_MESSAGE_BYTES:
             return None
         return data
 
     async def publish(self, subject: str, payload: dict[str, Any]) -> None:
         if not self._validate_subject(subject):
-            logger.error("Niepoprawny temat NATS: %s", subject)
+            logger.error('Niepoprawny temat NATS: %s', subject)
             return
         data = self._encode_payload(payload)
         if data is None:
-            logger.error("Payload przekracza maksymalny rozmiar wiadomości.")
+            logger.error('Payload przekracza maksymalny rozmiar wiadomości.')
             return
 
         try:
             nc = await self._get_connection()
             await nc.publish(subject, data)
             return
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Pierwsza próba publikacji nie powiodła się: %s", exc)
+        except Exception as exc:
+            logger.warning('Pierwsza próba publikacji nie powiodła się: %s', exc)
             await self._close_connection(graceful=False)
 
         try:
-            logger.info("Ponowne połączenie z NATS po błędzie publikacji.")
+            logger.info('Ponowne połączenie z NATS po błędzie publikacji.')
             nc = await self._get_connection()
             await nc.publish(subject, data)
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Nie udało się opublikować zdarzenia po ponownej próbie: %s", exc, exc_info=True)
+        except Exception as exc:
+            logger.error(
+                'Nie udało się opublikować zdarzenia po ponownej próbie: %s', exc, exc_info=True
+            )
             await self._close_connection(graceful=False)
 
     async def _close_connection(self, *, graceful: bool) -> None:
@@ -110,8 +111,8 @@ class Events:
             if graceful:
                 await nc.drain()
                 return
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Błąd podczas drain(), używam close(): %s", exc)
+        except Exception as exc:
+            logger.warning('Błąd podczas drain(), używam close(): %s', exc)
         try:
             await nc.close()
         except Exception:  # pragma: no cover - best effort
@@ -123,4 +124,4 @@ class Events:
 
 events = Events()
 
-__all__ = ["events", "Events", "NATS_URL", "MAX_MESSAGE_BYTES", "CONNECT_TIMEOUT_SEC", "nats"]
+__all__ = ['events', 'Events', 'NATS_URL', 'MAX_MESSAGE_BYTES', 'CONNECT_TIMEOUT_SEC', 'nats']

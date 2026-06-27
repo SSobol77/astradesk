@@ -7,6 +7,7 @@ Ten moduł weryfikuje kluczowe zachowania i strategie `OpsAgent`,
 zapewniając, że jego logika jest zgodna z założeniami projektowymi,
 takimi jak priorytetyzacja akcji i celowe unikanie RAG.
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock
@@ -15,9 +16,9 @@ import pytest
 
 from packages.domain_ops.agents.ops import OpsAgent
 from services.api_gateway.src.runtime import (
+    RAG,
     KeywordPlanner,
     Memory,
-    RAG,
     ToolRegistry,
 )
 
@@ -26,19 +27,19 @@ from services.api_gateway.src.runtime import (
 def mock_dependencies() -> dict[str, AsyncMock]:
     """Tworzy zestaw mockowanych zależności dla agenta."""
     return {
-        "tools": AsyncMock(spec=ToolRegistry),
-        "memory": AsyncMock(spec=Memory),
-        "planner": AsyncMock(spec=KeywordPlanner),
-        "rag": AsyncMock(spec=RAG),
+        'tools': AsyncMock(spec=ToolRegistry),
+        'memory': AsyncMock(spec=Memory),
+        'planner': AsyncMock(spec=KeywordPlanner),
+        'rag': AsyncMock(spec=RAG),
     }
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "tool_results",
+    'tool_results',
     [
-        pytest.param(["some tool result"], id="with_tool_results"),
-        pytest.param([], id="without_tool_results"),
+        pytest.param(['some tool result'], id='with_tool_results'),
+        pytest.param([], id='without_tool_results'),
     ],
 )
 async def test_ops_agent_strategy_never_uses_rag(
@@ -55,8 +56,8 @@ async def test_ops_agent_strategy_never_uses_rag(
     agent = OpsAgent(**mock_dependencies)
 
     # When: Wywołujemy metodę strategii z różnymi danymi wejściowymi
-    context = await agent._get_contextual_info("test query", tool_results=tool_results)
+    context = await agent._get_contextual_info('test query', tool_results=tool_results)
 
     # Then: Sprawdzamy, czy RAG nie został nigdy wywołany i czy wynik jest poprawny
-    mock_dependencies["rag"].retrieve.assert_not_called()
+    mock_dependencies['rag'].retrieve.assert_not_called()
     assert context == []

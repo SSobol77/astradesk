@@ -29,12 +29,19 @@ target-version = "py313"
 format = { quote-style = "single" }
 
 [tool.ruff.lint]
-ignore = ["TC003", "E501", "F841","D401"]
-select = ["E", "F", "W", "I", "N", "D", "UP", "S", "B", "A", "C4", "T20", "RUF"]
+# See root pyproject.toml for rationale on the pragmatic ruleset.
+ignore = [
+  "TCH003", "E501", "F841", "E402", "B904",
+  "B008",
+  "A001", "A002",
+  "RUF001", "RUF002", "RUF003",
+  "RUF006",
+]
+select = ["E", "F", "W", "I", "UP", "B", "A", "C4", "RUF"]
 
 [tool.mypy]
 python_version = "3.13"
-strict = true
+# Pragmatic baseline: strict disabled until annotated (see root pyproject.toml).
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

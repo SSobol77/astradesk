@@ -4,8 +4,8 @@ Keyword-based planner used by tests to create deterministic ToolCall plans.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import List, Sequence
 
 from .models import ToolCall
 
@@ -21,48 +21,48 @@ class _Rule:
     keywords: Sequence[str]
 
     def make_call(self, query: str) -> ToolCall:
-        if self.name == "create_ticket":
+        if self.name == 'create_ticket':
             stripped = query.strip()
             title = stripped[:80]
-            return ToolCall(name="create_ticket", arguments={"title": title, "body": stripped})
-        if self.name == "get_metrics":
-            return ToolCall(name="get_metrics", arguments={"service": "webapp", "window": "15m"})
+            return ToolCall(name='create_ticket', arguments={'title': title, 'body': stripped})
+        if self.name == 'get_metrics':
+            return ToolCall(name='get_metrics', arguments={'service': 'webapp', 'window': '15m'})
         return ToolCall(name=self.name, arguments={})
 
 
 class KeywordPlanner:
     def __init__(self) -> None:
-        self.rules: List[_Rule] = [
+        self.rules: list[_Rule] = [
             _Rule(
-                "create_ticket",
+                'create_ticket',
                 [
-                    "ticket",
-                    "zgłos",
-                    "zglos",  # fallback without diacritics
-                    "zgłoś",
-                    "incident",
-                    "incydent",
-                    "zgłoszenie",
-                    "bilet serwisowy",
+                    'ticket',
+                    'zgłos',
+                    'zglos',  # fallback without diacritics
+                    'zgłoś',
+                    'incident',
+                    'incydent',
+                    'zgłoszenie',
+                    'bilet serwisowy',
                 ],
             ),
             _Rule(
-                "get_metrics",
+                'get_metrics',
                 [
-                    "cpu",
-                    "latency",
-                    "metryk",
-                    "p95",
-                    "p99",
-                    "użycie",
-                    "uzycie",  # fallback without diacritics
-                    "pamię",
-                    "pamie",  # fallback without diacritics
+                    'cpu',
+                    'latency',
+                    'metryk',
+                    'p95',
+                    'p99',
+                    'użycie',
+                    'uzycie',  # fallback without diacritics
+                    'pamię',
+                    'pamie',  # fallback without diacritics
                 ],
             ),
         ]
 
-    def make_plan(self, query: str) -> List[ToolCall]:
+    def make_plan(self, query: str) -> list[ToolCall]:
         if not query or not query.strip():
             return []
         for rule in self.rules:
@@ -70,16 +70,18 @@ class KeywordPlanner:
                 return [rule.make_call(query)]
         return []
 
-    def finalize(self, *, query: str, tool_results: Sequence[str], rag_context: Sequence[str]) -> str:
+    def finalize(
+        self, *, query: str, tool_results: Sequence[str], rag_context: Sequence[str]
+    ) -> str:
         if tool_results:
-            lines = ["✅ **Wyniki Działania Narzędzi**"]
-            lines.extend(f"- {item}" for item in tool_results)
-            return "\n".join(lines)
+            lines = ['✅ **Wyniki Działania Narzędzi**']
+            lines.extend(f'- {item}' for item in tool_results)
+            return '\n'.join(lines)
         if rag_context:
-            header = f"ℹ️ **Informacje z Bazy Wiedzy na temat:** *{query.strip()}*"
-            body = "\n\n---\n\n".join(rag_context)
-            return f"{header}\n\n{body}"
-        return "Przepraszam, nie znalazłem żadnych informacji, które mogłyby pomóc."
+            header = f'ℹ️ **Informacje z Bazy Wiedzy na temat:** *{query.strip()}*'
+            body = '\n\n---\n\n'.join(rag_context)
+            return f'{header}\n\n{body}'
+        return 'Przepraszam, nie znalazłem żadnych informacji, które mogłyby pomóc.'
 
 
-__all__ = ["KeywordPlanner"]
+__all__ = ['KeywordPlanner']

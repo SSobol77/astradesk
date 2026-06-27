@@ -9,7 +9,7 @@
 # AstraDesk - 企业级 AI 框架
 
 [![许可证](https://img.shields.io/badge/许可证-Apache%202.0-yellow.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Python 版本](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
+[![Python 版本](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/downloads/release/python-3130/)
 [![JDK 版本](https://img.shields.io/badge/JDK-21-green.svg)](https://openjdk.org/projects/jdk/21/)
 [![Node.js 版本](https://img.shields.io/badge/Node.js-22-brightgreen.svg)](https://nodejs.org/en)
 [![构建状态](https://img.shields.io/badge/构建-通过-brightgreen.svg)](https://github.com/your-org/astradesk/actions)
@@ -118,7 +118,7 @@ AstraDesk 由以下几个核心组件组成：
 - **Docker** 和 **Docker Compose**（用于本地开发）。
 - **Kubernetes** 搭配 Helm（用于部署）。
 - **AWS CLI** 和 **Terraform**（用于云环境）。
-- **Node.js 22**、**JDK 21**、**Python 3.11**（用于构建）。
+- **Node.js 22**、**JDK 21**、**Python 3.13**（用于构建）。
 - **Postgres 17**、**MySQL 8**、**Redis 8**、**NATS 2**（基础服务）。
 - **可选**：Istio、cert-manager（用于 mTLS/TLS）。
 
@@ -138,7 +138,7 @@ AstraDesk 由以下几个核心组件组成：
 - **Git**：用于版本控制。
 - **Node.js v22+**：构建管理门户和生成 `package-lock.json` 所需。
 - **JDK 21+**：构建和运行 Java 工单适配器所需。
-- **Python 3.11+ 和 `uv`**：用于管理 Python 环境。
+- **Python 3.13+ 和 `uv`**：用于管理 Python 环境。
 - **make**：推荐用于便捷访问常用命令。
 
 <br>

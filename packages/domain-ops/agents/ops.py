@@ -7,13 +7,13 @@
 zadań administracyjnych i operacyjnych, takich jak pobieranie metryk czy
 restartowanie usług.
 """
-from __future__ import annotations
 
-from typing import Any, List
+from __future__ import annotations
 
 try:
     from services.api_gateway.src.agents.base import BaseAgent  # type: ignore
 except Exception:  # pragma: no cover
+
     class BaseAgent:
         def __init__(self, *, tools, memory, planner, rag, agent_name: str, **kwargs):
             self.tools = tools
@@ -21,6 +21,7 @@ except Exception:  # pragma: no cover
             self.planner = planner
             self.rag = rag
             self.agent_name = agent_name
+
 
 from src.runtime.memory import Memory
 from src.runtime.planner import KeywordPlanner
@@ -51,12 +52,10 @@ class OpsAgent(BaseAgent):
             memory=memory,
             planner=planner,
             rag=rag,
-            agent_name="ops",
+            agent_name='ops',
         )
 
-    async def _get_contextual_info(
-        self, query: str, tool_results: List[str]
-    ) -> List[str]:
+    async def _get_contextual_info(self, query: str, tool_results: list[str]) -> list[str]:
         """Implementacja strategii kontekstowej dla OpsAgent.
 
         Zgodnie ze swoją strategią, ten agent nie korzysta z RAG.

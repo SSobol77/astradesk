@@ -15,8 +15,9 @@ Since: 2025-10-07
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Tuple, Union
+from typing import Any
 
 # Local import – fallback to minimal dataclass if not available
 try:
@@ -27,8 +28,9 @@ except Exception:  # pragma: no cover
     @_dc(frozen=True)
     class ToolCall:
         """Minimal ToolCall fallback."""
+
         name: str
-        arguments: Dict[str, Any]
+        arguments: dict[str, Any]
 
 
 # ---------------------------------------------------------------------------
@@ -37,9 +39,10 @@ except Exception:  # pragma: no cover
 @dataclass(frozen=True)
 class KeywordRule:
     """Single keyword-based planning rule."""
-    keywords: Set[str]  # Lowercased trigger words/phrases
-    tool_name: str     # Tool identifier (e.g., 'create_ticket')
-    arg_factory: Callable[[str], Dict[str, Any]]  # Factory to build args from query
+
+    keywords: set[str]  # Lowercased trigger words/phrases
+    tool_name: str  # Tool identifier (e.g., 'create_ticket')
+    arg_factory: Callable[[str], dict[str, Any]]  # Factory to build args from query
 
 
 # --------------------------------------------------------------------------- #
@@ -54,36 +57,53 @@ class KeywordPlanner:
       - finalize(query: str, tool_results: Any, context: Dict[str, Any]) -> str
     """
 
-    __slots__ = ("_rules",)
+    __slots__ = ('_rules',)
 
     def __init__(self) -> None:
         """Initialize planner with built-in rules."""
-        self._rules: List[KeywordRule] = [
+        self._rules: list[KeywordRule] = [
             # Ticket / zgłoszenia
             KeywordRule(
                 keywords={
-                    "ticket", "bilet", "zgłoszen", "zgłoszenie", "incident",
-                    "incydent", "utwórz zgłoszenie", "create ticket", "new ticket"
+                    'ticket',
+                    'bilet',
+                    'zgłoszen',
+                    'zgłoszenie',
+                    'incident',
+                    'incydent',
+                    'utwórz zgłoszenie',
+                    'create ticket',
+                    'new ticket',
                 },
-                tool_name="create_ticket",
+                tool_name='create_ticket',
                 arg_factory=self._ticket_arg_factory,
             ),
             # Metrics / monitoring
             KeywordRule(
                 keywords={
-                    "metrics", "metryki", "cpu", "memory", "p95", "p99",
-                    "latency", "show metrics", "pokaż metryki"
+                    'metrics',
+                    'metryki',
+                    'cpu',
+                    'memory',
+                    'p95',
+                    'p99',
+                    'latency',
+                    'show metrics',
+                    'pokaż metryki',
                 },
-                tool_name="get_metrics",
+                tool_name='get_metrics',
                 arg_factory=self._metrics_arg_factory,
             ),
             # Service restart
             KeywordRule(
                 keywords={
-                    "restart", "uruchom ponownie", "restart service",
-                    "restartuj usługę", "bounce"
+                    'restart',
+                    'uruchom ponownie',
+                    'restart service',
+                    'restartuj usługę',
+                    'bounce',
                 },
-                tool_name="restart_service",
+                tool_name='restart_service',
                 arg_factory=self._restart_arg_factory,
             ),
         ]
@@ -91,7 +111,7 @@ class KeywordPlanner:
     # ----------------------------------------------------------------------- #
     # Plan Generation
     # ----------------------------------------------------------------------- #
-    def make_plan(self, query: str) -> List[ToolCall]:
+    def make_plan(self, query: str) -> list[ToolCall]:
         """
         Generate a deterministic plan based on keyword matching.
 
@@ -115,12 +135,7 @@ class KeywordPlanner:
 
         # Fallback: long query → assume ticket creation
         if len(low) > 12:
-            return [
-                ToolCall(
-                    name="create_ticket",
-                    arguments={"title": query[:80], "body": query}
-                )
-            ]
+            return [ToolCall(name='create_ticket', arguments={'title': query[:80], 'body': query})]
 
         return []
 
@@ -131,7 +146,7 @@ class KeywordPlanner:
         self,
         query: str,
         tool_results: Any,
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ) -> str:
         """
         Compose a user-facing response from tool results and optional RAG context.
@@ -161,55 +176,50 @@ class KeywordPlanner:
             return tool_results.strip() or self._fallback_for(query)
 
         # 2. List of strings
-        if isinstance(tool_results, list) and all(
-            isinstance(x, str) for x in tool_results
-        ):
-            lines = ["Oto wyniki akcji:", ""]
+        if isinstance(tool_results, list) and all(isinstance(x, str) for x in tool_results):
+            lines = ['Oto wyniki akcji:', '']
             for i, s in enumerate(tool_results, start=1):
-                s = (s or "").strip()
+                s = (s or '').strip()
                 if s:
-                    lines.append(f"{i}) {s}")
-            return "\n".join(lines) if len(lines) > 2 else self._fallback_for(query)
+                    lines.append(f'{i}) {s}')
+            return '\n'.join(lines) if len(lines) > 2 else self._fallback_for(query)
 
         # 3. Dict {tool_name: output}
-        if isinstance(tool_results, dict) and all(
-            isinstance(k, str) for k in tool_results.keys()):
+        if isinstance(tool_results, dict) and all(isinstance(k, str) for k in tool_results.keys()):
             if all(isinstance(v, str) for v in tool_results.values()):
-                lines = ["Podsumowanie wykonanych kroków:", ""]
+                lines = ['Podsumowanie wykonanych kroków:', '']
                 for name, out in tool_results.items():
-                    pretty = (out or "").strip()
+                    pretty = (out or '').strip()
                     if not pretty:
                         continue
-                    lines.append(f"• {name}:")
+                    lines.append(f'• {name}:')
                     lines.append(pretty)
-                    lines.append("")
-                txt = "\n".join(lines).strip()
+                    lines.append('')
+                txt = '\n'.join(lines).strip()
                 return txt or self._fallback_for(query)
 
         # 4. List of (name, output) or dicts
         if isinstance(tool_results, list):
-            normalized: List[Tuple[str, str]] = []
+            normalized: list[tuple[str, str]] = []
             for item in tool_results:
                 if isinstance(item, tuple) and len(item) == 2 and isinstance(item[0], str):
-                    normalized.append((item[0], str(item[1] or "")))
+                    normalized.append((item[0], str(item[1] or '')))
                 elif isinstance(item, dict):
-                    name = str(item.get("name", ""))
-                    out = str(
-                        item.get("output") or item.get("result") or ""
-                    )
+                    name = str(item.get('name', ''))
+                    out = str(item.get('output') or item.get('result') or '')
                     if name:
                         normalized.append((name, out))
 
             if normalized:
-                lines = ["Podsumowanie wykonanych kroków:", ""]
+                lines = ['Podsumowanie wykonanych kroków:', '']
                 for name, out in normalized:
                     out = out.strip()
                     if not out:
                         continue
-                    lines.append(f"• {name}:")
+                    lines.append(f'• {name}:')
                     lines.append(out)
-                    lines.append("")
-                txt = "\n".join(lines).strip()
+                    lines.append('')
+                txt = '\n'.join(lines).strip()
                 return txt or self._fallback_for(query)
 
         # 5. Fallback to str() conversion
@@ -222,24 +232,24 @@ class KeywordPlanner:
     # Argument Factories
     # ----------------------------------------------------------------------- #
     @staticmethod
-    def _ticket_arg_factory(query: str) -> Dict[str, Any]:
+    def _ticket_arg_factory(query: str) -> dict[str, Any]:
         """Extract title/body for ticket creation."""
         title = query.strip()[:80]
-        body = query if len(query) > 80 else ""
-        return {"title": title, "body": body}
+        body = query if len(query) > 80 else ''
+        return {'title': title, 'body': body}
 
     @staticmethod
-    def _metrics_arg_factory(query: str) -> Dict[str, Any]:
+    def _metrics_arg_factory(query: str) -> dict[str, Any]:
         """Parse service and time window from metrics query."""
-        service = _extract_service(query) or "webapp"
-        window = _extract_window(query) or "15m"
-        return {"service": service, "window": window}
+        service = _extract_service(query) or 'webapp'
+        window = _extract_window(query) or '15m'
+        return {'service': service, 'window': window}
 
     @staticmethod
-    def _restart_arg_factory(query: str) -> Dict[str, Any]:
+    def _restart_arg_factory(query: str) -> dict[str, Any]:
         """Extract service name for restart."""
-        service = _extract_service(query) or "webapp"
-        return {"service": service}
+        service = _extract_service(query) or 'webapp'
+        return {'service': service}
 
     # ----------------------------------------------------------------------- #
     # Fallback Response
@@ -248,46 +258,42 @@ class KeywordPlanner:
     def _fallback_for(query: str) -> str:
         """Generate polite fallback message based on query intent."""
         low = query.lower()
-        if any(k in low for k in ("ticket", "zgłoszen", "incident")):
+        if any(k in low for k in ('ticket', 'zgłoszen', 'incident')):
             return (
-                "Nie znalazłem dokładnej akcji, ale możesz utworzyć zgłoszenie: "
-                "“utwórz zgłoszenie <tytuł>”."
+                'Nie znalazłem dokładnej akcji, ale możesz utworzyć zgłoszenie: '
+                '“utwórz zgłoszenie <tytuł>”.'
             )
-        if any(k in low for k in ("metrics", "metryk", "cpu", "p95")):
+        if any(k in low for k in ('metrics', 'metryk', 'cpu', 'p95')):
             return (
-                "Nie udało się pobrać metryk. Spróbuj: "
-                "“pokaż metryki dla webapp z ostatnich 15m”."
+                'Nie udało się pobrać metryk. Spróbuj: '
+                '“pokaż metryki dla webapp z ostatnich 15m”.'
             )
-        return (
-            "Nie rozpoznałem polecenia. Opisz proszę, co chcesz osiągnąć."
-        )
+        return 'Nie rozpoznałem polecenia. Opisz proszę, co chcesz osiągnąć.'
 
 
 # --------------------------------------------------------------------------- #
 # Helper Regex Patterns (compiled at import)
 # --------------------------------------------------------------------------- #
-_svc_pat = re.compile(
-    r"\b(webapp|payments[- ]?api|search[- ]?service|database|db)\b", re.I
-)
-_win_pat = re.compile(r"\b(\d+)([smhd])\b", re.I)
+_svc_pat = re.compile(r'\b(webapp|payments[- ]?api|search[- ]?service|database|db)\b', re.I)
+_win_pat = re.compile(r'\b(\d+)([smhd])\b', re.I)
 
 
-def _extract_service(q: str) -> Optional[str]:
+def _extract_service(q: str) -> str | None:
     """Extract service name from query."""
     m = _svc_pat.search(q)
     if not m:
         return None
-    svc = m.group(1).lower().replace(" ", "-")
-    if "payments" in svc:
-        return "payments-api"
-    if "search" in svc:
-        return "search-service"
-    if svc in ("database", "db"):
-        return "database"
+    svc = m.group(1).lower().replace(' ', '-')
+    if 'payments' in svc:
+        return 'payments-api'
+    if 'search' in svc:
+        return 'search-service'
+    if svc in ('database', 'db'):
+        return 'database'
     return svc
 
 
-def _extract_window(q: str) -> Optional[str]:
+def _extract_window(q: str) -> str | None:
     """Extract time window (e.g., 15m)."""
     m = _win_pat.search(q)
     return m.group(0).lower() if m else None

@@ -7,7 +7,7 @@
 # AstraDesk - Enterprise AI Framework
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Python Version](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
+[![Python Version](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/downloads/release/python-3130/)
 [![JDK Version](https://img.shields.io/badge/JDK-21-green.svg)](https://openjdk.org/projects/jdk/21/)
 [![Node.js Version](https://img.shields.io/badge/Node.js-22-brightgreen.svg)](https://nodejs.org/en)
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](https://github.com/your-org/astradesk/actions)
@@ -116,7 +116,7 @@ Komunikacja: HTTP (między komponentami), NATS (zdarzenia/audyty), Redis (pamię
 - **Docker** i **Docker Compose** (do lokalnego developmentu).
 - **Kubernetes** z Helm (do wdrożenia).
 - **AWS CLI** i **Terraform** (do chmury).
-- **Node.js 22**, **JDK 21**, **Python 3.11** (do budowania).
+- **Node.js 22**, **JDK 21**, **Python 3.13** (do budowania).
 - **Postgres 17**, **MySQL 8**, **Redis 8**, **NATS 2** (serwisy bazowe).
 - **Opcjonalnie:** Istio, cert-manager (do mTLS/TLS).
 
@@ -136,7 +136,7 @@ Ta sekcja zawiera kompletny przewodnik konfiguracji, uruchamiania i developmentu
 - **Git**: Do kontroli wersji.
 - **Node.js v22+**: Wymagany do budowania Portalu Administracyjnego i generowania `package-lock.json`.
 - **JDK 21+**: Wymagany do budowania i uruchamiania Java Ticket Adapter.
-- **Python 3.11+ i `uv`**: Do zarządzania środowiskiem Python.
+- **Python 3.13+ i `uv`**: Do zarządzania środowiskiem Python.
 - **make**: Zalecany dla łatwego dostępu do typowych komend.
 
 <br>

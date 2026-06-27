@@ -4,7 +4,7 @@
 openapi: 3.1.0
 info:
   title: AstraDesk Admin API
-  version: "0.3.0" 
+  version: "1.2.0"
   description: API for AstraDesk Admin v1.2 - operational and governance panel for agents, data, policies, and audits.
   contact:
     name: AstraDesk Operations

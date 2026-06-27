@@ -13,8 +13,7 @@ import signal
 import subprocess
 import sys
 import time
-from pathlib import Path
-from typing import List, Optional, Set
+
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
@@ -37,7 +36,7 @@ class ChangeHandler(FileSystemEventHandler):
         if event.src_path.endswith(('.py', '.yaml', '.yml', '.json')):
             current_time = time.time()
             if current_time - self.last_reload > self.cooldown:
-                logger.info(f"File changed: {event.src_path}")
+                logger.info(f'File changed: {event.src_path}')
                 self.last_reload = current_time
                 self.callback()
 
@@ -51,31 +50,31 @@ class HotReloadServer:
 
     def __init__(
         self,
-        command: List[str],
-        watch_paths: Optional[List[str]] = None,
-        ignore_patterns: Optional[List[str]] = None
+        command: list[str],
+        watch_paths: list[str] | None = None,
+        ignore_patterns: list[str] | None = None,
     ):
         self.command = command
         self.watch_paths = watch_paths or [
-            "services/api-gateway/src",
-            "mcp/src",
-            "packages",
-            "core"
+            'services/api-gateway/src',
+            'mcp/src',
+            'packages',
+            'core',
         ]
         self.ignore_patterns = ignore_patterns or [
-            "__pycache__",
-            ".git",
-            "*.pyc",
-            "*.pyo",
-            ".pytest_cache"
+            '__pycache__',
+            '.git',
+            '*.pyc',
+            '*.pyo',
+            '.pytest_cache',
         ]
-        self.process: Optional[subprocess.Popen] = None
-        self.observer: Optional[Observer] = None
+        self.process: subprocess.Popen | None = None
+        self.observer: Observer | None = None
         self.running = False
 
     async def start(self):
         """Start the hot reload server"""
-        logger.info("Starting hot reload server...")
+        logger.info('Starting hot reload server...')
         self.running = True
 
         # Setup signal handlers
@@ -99,7 +98,7 @@ class HotReloadServer:
 
     async def stop(self):
         """Stop the hot reload server"""
-        logger.info("Stopping hot reload server...")
+        logger.info('Stopping hot reload server...')
         self.running = False
 
         if self.observer:
@@ -117,13 +116,13 @@ class HotReloadServer:
             if os.path.exists(watch_path):
                 handler = ChangeHandler(self._on_file_change)
                 self.observer.schedule(handler, watch_path, recursive=True)
-                logger.info(f"Watching path: {watch_path}")
+                logger.info(f'Watching path: {watch_path}')
 
         self.observer.start()
 
     def _on_file_change(self):
         """Handle file change event"""
-        logger.info("Detected file changes, restarting...")
+        logger.info('Detected file changes, restarting...')
         asyncio.create_task(self._restart_process())
 
     async def _restart_process(self):
@@ -141,14 +140,14 @@ class HotReloadServer:
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
-                universal_newlines=True
+                universal_newlines=True,
             )
 
             # Start output monitoring
             asyncio.create_task(self._monitor_output())
 
         except Exception as e:
-            logger.error(f"Failed to start process: {e}")
+            logger.error(f'Failed to start process: {e}')
 
     async def _stop_process(self):
         """Stop the current process"""
@@ -158,24 +157,24 @@ class HotReloadServer:
                 try:
                     await asyncio.wait_for(
                         asyncio.create_subprocess_shell(
-                            f"kill -TERM {self.process.pid}",
+                            f'kill -TERM {self.process.pid}',
                             stdout=asyncio.subprocess.DEVNULL,
-                            stderr=asyncio.subprocess.DEVNULL
+                            stderr=asyncio.subprocess.DEVNULL,
                         ),
-                        timeout=5.0
+                        timeout=5.0,
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.warning("Process didn't terminate gracefully, killing...")
                     self.process.kill()
 
                 await asyncio.create_subprocess_shell(
-                    f"wait {self.process.pid}",
+                    f'wait {self.process.pid}',
                     stdout=asyncio.subprocess.DEVNULL,
-                    stderr=asyncio.subprocess.DEVNULL
+                    stderr=asyncio.subprocess.DEVNULL,
                 )
 
             except Exception as e:
-                logger.error(f"Error stopping process: {e}")
+                logger.error(f'Error stopping process: {e}')
             finally:
                 self.process = None
 
@@ -194,18 +193,15 @@ class HotReloadServer:
                 elif self.process.poll() is not None:
                     break
         except Exception as e:
-            logger.error(f"Error monitoring output: {e}")
+            logger.error(f'Error monitoring output: {e}')
 
     def _signal_handler(self, signum, frame):
         """Handle shutdown signals"""
-        logger.info(f"Received signal {signum}, shutting down...")
+        logger.info(f'Received signal {signum}, shutting down...')
         self.running = False
 
 
-async def run_hot_reload(
-    command: List[str],
-    watch_paths: Optional[List[str]] = None
-):
+async def run_hot_reload(command: list[str], watch_paths: list[str] | None = None):
     """Run hot reload for the given command"""
     server = HotReloadServer(command, watch_paths)
     await server.start()
@@ -215,22 +211,20 @@ def main():
     """Main entry point"""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Hot Reload Development Server")
+    parser = argparse.ArgumentParser(description='Hot Reload Development Server')
     parser.add_argument(
-        "command",
-        nargs="+",
-        help="Command to run (e.g., python -m uvicorn app:app --reload)"
+        'command', nargs='+', help='Command to run (e.g., python -m uvicorn app:app --reload)'
     )
     parser.add_argument(
-        "--watch",
-        action="append",
-        help="Paths to watch for changes (can be specified multiple times)"
+        '--watch',
+        action='append',
+        help='Paths to watch for changes (can be specified multiple times)',
     )
     parser.add_argument(
-        "--log-level",
-        default="INFO",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-        help="Logging level"
+        '--log-level',
+        default='INFO',
+        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
+        help='Logging level',
     )
 
     args = parser.parse_args()
@@ -238,18 +232,18 @@ def main():
     # Setup logging
     logging.basicConfig(
         level=getattr(logging, args.log_level),
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     )
 
     # Run hot reload
     try:
         asyncio.run(run_hot_reload(args.command, args.watch))
     except KeyboardInterrupt:
-        logger.info("Hot reload stopped by user")
+        logger.info('Hot reload stopped by user')
     except Exception as e:
-        logger.error(f"Hot reload failed: {e}")
+        logger.error(f'Hot reload failed: {e}')
         sys.exit(1)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

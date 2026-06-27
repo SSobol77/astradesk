@@ -13,8 +13,8 @@ Since: 2025-10-16
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import AsyncIterator, Dict, List
 
 from ..clients.api import AdminApiClient
 from ..clients.grpc_client import GrpcOracleErpClient
@@ -29,10 +29,10 @@ class ForecastResult:
 
 
 async def forecast_financial_data(
-    data: List[Dict[str, float]],
-    api_url: str = "http://localhost:8080/api/admin/v1",
-    token: str = "",
-    grpc_url: str = "localhost:50051",
+    data: list[dict[str, float]],
+    api_url: str = 'http://localhost:8080/api/admin/v1',
+    token: str = '',
+    grpc_url: str = 'localhost:50051',
 ) -> AsyncIterator[ForecastResult]:
     """Produce forecast results using the mocked Admin API + gRPC pipeline."""
     client = AdminApiClient(api_url, token)
@@ -40,18 +40,20 @@ async def forecast_financial_data(
 
     input_data = data
     if not input_data:
-        sales_data = await grpc_client.fetch_sales("SELECT revenue, date FROM sales WHERE month=CURRENT_MONTH")
+        sales_data = await grpc_client.fetch_sales(
+            'SELECT revenue, date FROM sales WHERE month=CURRENT_MONTH'
+        )
         input_data = sales_data
 
-    agent_payload = {"name": "finance_forecast", "config": {"method": "simple", "periods": 30}}
+    agent_payload = {'name': 'finance_forecast', 'config': {'method': 'simple', 'periods': 30}}
     agent = await client.create_agent(agent_payload)
 
-    submission = {"input": input_data}
-    run_id = await client.test_agent(agent["id"], submission)
+    submission = {'input': input_data}
+    run_id = await client.test_agent(agent['id'], submission)
     while True:
         run = await client.get_run(run_id)
-        if run["status"] == "completed":
-            for result in run["output"]:
+        if run['status'] == 'completed':
+            for result in run['output']:
                 yield ForecastResult(**result)
             break
         await asyncio.sleep(1)

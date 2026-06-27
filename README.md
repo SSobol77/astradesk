@@ -289,7 +289,7 @@ The app uses **Bearer JWT** authentication:
 - **Docker** and **Docker Compose** (for local dev).
 - **Kubernetes** with Helm (for deployment).
 - **AWS CLI** and **Terraform** (for cloud setup).
-- **Node.js 22**, **JDK 21**, **Python 3.11** (for builds).
+- **Node.js 22**, **JDK 21**, **Python 3.13** (for builds).
 - **Postgres 17**, **MySQL 8**, **Redis 7**, **NATS 2** (core services).
 - **Optional:** Istio, cert-manager (for mTLS/TLS).
 
@@ -385,6 +385,11 @@ make setup
 - **OIDC_JWKS_URL**: JWKS URL (e.g. `https://your-issuer.com/.well-known/jwks.json`).
 
 Full list in `.env.example`.
+
+> **Note:** Missing Redis/Postgres configuration does not crash the service at import or
+> startup. Provider misconfiguration is deferred to first use, so the app (and the test
+> suite) can be collected and started without `DATABASE_URL`/`REDIS_URL` set; the error
+> surfaces only when that backend is actually exercised.
 
 ### OIDC/JWT Authentication
 
@@ -1010,6 +1015,14 @@ testing, comment out `claims: dict[str, Any] = Depends(auth_guard),` in the `run
 
 - Run: `make test` (Python), `make test-java`, `make test-admin`.
 - Coverage: Unit (pytest, JUnit, Vitest), integration (API flow).
+
+### Coverage reports
+
+Each stack emits a machine-readable coverage report that CI uploads as an artifact:
+
+- **Python** — `uv run pytest --cov=core/src --cov=services/api-gateway/src --cov=packages --cov-report=xml` → `coverage.xml`.
+- **Java** — `./gradlew test jacocoTestReport` (from `services/ticket-adapter-java/`) → `build/reports/jacoco/test/jacocoTestReport.xml`.
+- **JS** — `vitest run --coverage` (via `@vitest/coverage-v8`, from `services/admin-portal/`) → `coverage/lcov.info`.
 
 ## Security
 

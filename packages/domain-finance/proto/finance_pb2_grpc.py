@@ -21,15 +21,19 @@ from .finance_pb2 import FetchSalesResponse
 class FinanceServiceStub:
     """Client-side stub used by GrpcOracleErpClient."""
 
-    SERVICE_NAME = "FinanceService"
+    SERVICE_NAME = 'FinanceService'
 
     def __init__(self, channel: aio.InsecureChannel | None = None):
         self._channel = channel
 
-    async def FetchSales(self, request, context=None) -> FetchSalesResponse:  # context kept for compatibility
+    async def FetchSales(
+        self, request, context=None
+    ) -> FetchSalesResponse:  # context kept for compatibility
         if self._channel is None:
-            raise NotImplementedError("FinanceServiceStub without channel is intended for server subclassing.")
-        return await self._channel.invoke(self.SERVICE_NAME, "FetchSales", request)
+            raise NotImplementedError(
+                'FinanceServiceStub without channel is intended for server subclassing.'
+            )
+        return await self._channel.invoke(self.SERVICE_NAME, 'FetchSales', request)
 
 
 def add_FinanceServiceServicer_to_server(servicer: Any, server: aio.InProcessServer) -> None:
@@ -38,7 +42,7 @@ def add_FinanceServiceServicer_to_server(servicer: Any, server: aio.InProcessSer
     async def handler(request, context):
         return await servicer.FetchSales(request, context)
 
-    server.add_handler(FinanceServiceStub.SERVICE_NAME, "FetchSales", handler)
+    server.add_handler(FinanceServiceStub.SERVICE_NAME, 'FetchSales', handler)
 
 
-__all__ = ["FinanceServiceStub", "add_FinanceServiceServicer_to_server"]
+__all__ = ['FinanceServiceStub', 'add_FinanceServiceServicer_to_server']

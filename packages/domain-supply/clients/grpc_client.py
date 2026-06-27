@@ -9,9 +9,8 @@ Description:
 Author: Siergej Sobolewski
 Since: 2025-10-16
 """
-from __future__ import annotations
 
-from typing import Dict, List
+from __future__ import annotations
 
 import grpc
 
@@ -25,17 +24,17 @@ class GrpcSapS4HanaClient:
 
     def __init__(
         self,
-        grpc_url: str = "localhost:50051",
-        api_url: str = "http://localhost:8080/api/admin/v1",
-        token: str = "",
+        grpc_url: str = 'localhost:50051',
+        api_url: str = 'http://localhost:8080/api/admin/v1',
+        token: str = '',
     ) -> None:
         self.grpc_url = grpc_url
         self.api_client = AdminApiClient(api_url, token)
 
-    async def fetch_inventory(self, query: str) -> List[Dict[str, float]]:
+    async def fetch_inventory(self, query: str) -> list[dict[str, float]]:
         """Fetch inventory data using the stubbed gRPC service."""
         async with grpc.aio.insecure_channel(self.grpc_url) as channel:
             stub = SupplyServiceStub(channel)
             request = FetchInventoryRequest(query=query)
             response = await stub.FetchInventory(request)
-            return [{"material": item.material, "stock": item.stock} for item in response.items]
+            return [{'material': item.material, 'stock': item.stock} for item in response.items]

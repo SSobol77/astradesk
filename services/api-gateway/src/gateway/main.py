@@ -20,89 +20,85 @@ This module sets up the FastAPI application, including:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import uuid
-import asyncio
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any, AsyncGenerator, Dict, Optional
+from typing import Any
 
 from dotenv import load_dotenv
+
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
 load_dotenv(os.path.join(project_root, '.env'))
 
-import asyncpg
 import httpx
-import redis.asyncio as redis
+from agents.base import BaseAgent
+from agents.billing import BillingAgent
+from agents.ops import OpsAgent
+from agents.support import SupportAgent
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError, jwt
-from opa_client.opa import OpaClient
-from opentelemetry import trace
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 # AstraDesk imports
-from gateway.orchestrator import (
-    AgentOrchestrator,
-    AgentNotFoundError,
-    PolicyViolationError
-)
+from gateway.orchestrator import AgentNotFoundError, AgentOrchestrator, PolicyViolationError
+from jose import JWTError, jwt
 from model_gateway.llm_planner import LLMPlanner
 from model_gateway.router import provider_router
+from opa_client.opa import OpaClient
 from runtime.memory import Memory
 from runtime.models import AgentRequest, AgentResponse
 from runtime.planner import KeywordPlanner
 from runtime.rag import RAG
 from runtime.registry import ToolRegistry, load_domain_packs
-from agents.base import BaseAgent
-from agents.support import SupportAgent
-from agents.billing import BillingAgent
-from agents.ops import OpsAgent
 from tools import metrics, ops_actions, tickets_proxy
 
+import asyncpg
+import redis.asyncio as redis
+
 # --- Configuration ---
-logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+logging.basicConfig(level=os.getenv('LOG_LEVEL', 'INFO'))
 logger = logging.getLogger(__name__)
 
-ADMIN_API_URL = os.getenv("ADMIN_API_URL", "http://localhost:8001")
+ADMIN_API_URL = os.getenv('ADMIN_API_URL', 'http://localhost:8001')
 # Safe local/CI fallbacks: in environments where `.env` is gitignored (e.g. the
 # GitHub Actions runner) these variables are often unset. Falling back to dummy
 # local placeholders keeps imports and CI green instead of crashing at startup.
 # Real deployments MUST override these via environment / secrets.
-_DEFAULT_DATABASE_URL = "postgresql://dummy:dummy@localhost:5432/astradb"
-_DEFAULT_REDIS_URL = "redis://localhost:6379/0"
-DATABASE_URL = os.getenv("DATABASE_URL", _DEFAULT_DATABASE_URL)
-REDIS_URL = os.getenv("REDIS_URL", _DEFAULT_REDIS_URL)
-OPA_URL = os.getenv("OPA_URL", "http://localhost:8181")
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "super-secret-key-for-dev")
-JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+_DEFAULT_DATABASE_URL = 'postgresql://dummy:dummy@localhost:5432/astradb'
+_DEFAULT_REDIS_URL = 'redis://localhost:6379/0'
+DATABASE_URL = os.getenv('DATABASE_URL', _DEFAULT_DATABASE_URL)
+REDIS_URL = os.getenv('REDIS_URL', _DEFAULT_REDIS_URL)
+OPA_URL = os.getenv('OPA_URL', 'http://localhost:8181')
+JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'super-secret-key-for-dev')
+JWT_ALGORITHM = os.getenv('JWT_ALGORITHM', 'HS256')
 
 # --- Global State ---
 # Use a dictionary for state to avoid global variables
-app_state: Dict[str, Any] = {}
+app_state: dict[str, Any] = {}
 http_bearer = HTTPBearer(
-    description="Bearer token for authentication with JWT claims.",
-    scheme_name="Bearer",
+    description='Bearer token for authentication with JWT claims.',
+    scheme_name='Bearer',
 )
 
 
 # --- Authentication ---
 async def get_current_user_claims(
     token: HTTPAuthorizationCredentials = Depends(http_bearer),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Dependency to decode and validate JWT, returning user claims.
     This is a best-practice user loader function.
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
+        detail='Could not validate credentials',
+        headers={'WWW-Authenticate': 'Bearer'},
     )
     try:
-        payload = jwt.decode(
-            token.credentials, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM]
-        )
-        if "sub" not in payload or "roles" not in payload:
+        payload = jwt.decode(token.credentials, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        if 'sub' not in payload or 'roles' not in payload:
             raise credentials_exception
         await asyncio.sleep(0)
         return payload
@@ -111,7 +107,7 @@ async def get_current_user_claims(
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while processing credentials.",
+            detail='An error occurred while processing credentials.',
         )
 
 
@@ -121,7 +117,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Handles application startup and shutdown events to manage resources.
     """
-    logger.info("API Gateway starting up...")
+    logger.info('API Gateway starting up...')
 
     # --- Initialize connections ---
     # DATABASE_URL/REDIS_URL always resolve (to real values or safe dummy
@@ -129,12 +125,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # so local/CI import-time checks stay green.
     if DATABASE_URL == _DEFAULT_DATABASE_URL or REDIS_URL == _DEFAULT_REDIS_URL:
         logger.warning(
-            "DATABASE_URL/REDIS_URL not set; using local dummy defaults. "
-            "Do not use these in production."
+            'DATABASE_URL/REDIS_URL not set; using local dummy defaults. '
+            'Do not use these in production.'
         )
     pg_pool = await asyncpg.create_pool(DATABASE_URL)
     if not pg_pool:
-        raise RuntimeError("Failed to create PostgreSQL connection pool.")
+        raise RuntimeError('Failed to create PostgreSQL connection pool.')
     # decode_responses removed for compatibility with redis 5.x
     redis_client = redis.from_url(REDIS_URL, single_connection_client=True)
     opa_client = OpaClient(url=OPA_URL)
@@ -142,9 +138,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # --- Initialize core components ---
     tool_registry = ToolRegistry()
     # Register built-in tools
-    await tool_registry.register("get_metrics", metrics.get_metrics, description="Get service performance metrics.")
-    await tool_registry.register("restart_service", ops_actions.restart_service, description="Restart a service deployment.")
-    await tool_registry.register("create_ticket", tickets_proxy.create_ticket, description="Create a support ticket.")
+    await tool_registry.register(
+        'get_metrics', metrics.get_metrics, description='Get service performance metrics.'
+    )
+    await tool_registry.register(
+        'restart_service', ops_actions.restart_service, description='Restart a service deployment.'
+    )
+    await tool_registry.register(
+        'create_ticket', tickets_proxy.create_ticket, description='Create a support ticket.'
+    )
     # Discover and load tools from external domain packs
     load_domain_packs(tool_registry)
 
@@ -153,20 +155,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     llm_planner = LLMPlanner(opa_client=opa_client)
     rag = RAG(llm_planner=llm_planner)
-    await rag.ainit() 
+    await rag.ainit()
 
     memory = Memory(pg_pool=pg_pool, redis_cli=redis_client)
     keyword_planner = KeywordPlanner()
 
     # --- Initialize agents ---
-    agents: Dict[str, BaseAgent] = {
-        "support": SupportAgent(tool_registry, memory, keyword_planner, rag, llm_planner),
-        "billing": BillingAgent(tool_registry, memory, keyword_planner, rag, llm_planner),
-        "ops": OpsAgent(tool_registry, memory, keyword_planner, rag, llm_planner),
+    agents: dict[str, BaseAgent] = {
+        'support': SupportAgent(tool_registry, memory, keyword_planner, rag, llm_planner),
+        'billing': BillingAgent(tool_registry, memory, keyword_planner, rag, llm_planner),
+        'ops': OpsAgent(tool_registry, memory, keyword_planner, rag, llm_planner),
     }
 
     # --- Create and store the main orchestrator ---
-    app_state["orchestrator"] = AgentOrchestrator(
+    app_state['orchestrator'] = AgentOrchestrator(
         llm_planner=llm_planner,
         agents=agents,
         tools=tool_registry,
@@ -174,69 +176,70 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         redis=redis_client,
         opa_client=opa_client,
     )
-    logger.info("Agent Orchestrator initialized successfully.")
+    logger.info('Agent Orchestrator initialized successfully.')
 
     # --- Initialize client for Admin API proxy ---
-    app_state["admin_api_client"] = httpx.AsyncClient(base_url=ADMIN_API_URL)
-    logger.info(f"Admin API client initialized for {ADMIN_API_URL}")
+    app_state['admin_api_client'] = httpx.AsyncClient(base_url=ADMIN_API_URL)
+    logger.info(f'Admin API client initialized for {ADMIN_API_URL}')
 
     yield  # Application is now running
 
     # --- Shutdown logic ---
-    logger.info("API Gateway shutting down...")
-    if "orchestrator" in app_state:
-        orchestrator = app_state["orchestrator"]
+    logger.info('API Gateway shutting down...')
+    if 'orchestrator' in app_state:
+        orchestrator = app_state['orchestrator']
         await orchestrator.pg_pool.close()
         await orchestrator.redis.close()
         await provider_router.shutdown()
 
-    if "admin_api_client" in app_state:
-        await app_state["admin_api_client"].aclose()
-        logger.info("Admin API client shut down.")
+    if 'admin_api_client' in app_state:
+        await app_state['admin_api_client'].aclose()
+        logger.info('Admin API client shut down.')
 
-    logger.info("Resources cleaned up.")
+    logger.info('Resources cleaned up.')
 
 
 # --- FastAPI Application ---
 app = FastAPI(
-    title="AstraDesk API Gateway",
-    description="Central API for orchestrating AI agents and tools.",
-    version="1.2.0",
+    title='AstraDesk API Gateway',
+    description='Central API for orchestrating AI agents and tools.',
+    version='1.2.0',
     lifespan=lifespan,
 )
 
 
 # --- API Endpoints ---
 
-@app.get("/healthz", tags=["Health"])
-def healthz() -> Dict[str, str]:
+
+@app.get('/healthz', tags=['Health'])
+def healthz() -> dict[str, str]:
     """Provides a simple health check endpoint."""
-    return {"status": "ok"}
+    return {'status': 'ok'}
 
 
 @app.api_route(
-    "/api/admin/v1/{path:path}",
-    methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    tags=["Admin Proxy"],
-    summary="Proxy for the Admin API service",
-    description="This endpoint acts as a reverse proxy, forwarding all requests to the separate Admin API microservice.",
+    '/api/admin/v1/{path:path}',
+    methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    tags=['Admin Proxy'],
+    summary='Proxy for the Admin API service',
+    description='This endpoint acts as a reverse proxy, forwarding all requests to the separate Admin API microservice.',
 )
 async def proxy_to_admin_service(request: Request) -> Response:
     """
     Reverse proxies all requests for /api/admin/v1 to the Admin API service.
     It streams the request and response for efficiency.
     """
-    client: Optional[httpx.AsyncClient] = app_state.get("admin_api_client")
+    client: httpx.AsyncClient | None = app_state.get('admin_api_client')
     if not client:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Admin API client is not initialized.",
+            detail='Admin API client is not initialized.',
         )
 
     # Construct the URL for the downstream service
     url = httpx.URL(
         path=f"/{request.path_params['path']}",
-        query=request.url.query.encode("utf-8"),
+        query=request.url.query.encode('utf-8'),
     )
 
     # Build the downstream request
@@ -253,7 +256,7 @@ async def proxy_to_admin_service(request: Request) -> Response:
     except httpx.ConnectError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to connect to the Admin API service.",
+            detail='Unable to connect to the Admin API service.',
         )
 
     # Stream the response back to the client
@@ -265,16 +268,16 @@ async def proxy_to_admin_service(request: Request) -> Response:
 
 
 @app.post(
-    "/v1/run",
+    '/v1/run',
     response_model=AgentResponse,
-    tags=["Agents"],
-    summary="Execute an agent with a given query",
-    description="Receives a user query, routes it to the appropriate agent, orchestrates tool execution, and returns a final response.",
+    tags=['Agents'],
+    summary='Execute an agent with a given query',
+    description='Receives a user query, routes it to the appropriate agent, orchestrates tool execution, and returns a final response.',
 )
 async def execute_agent(
     agent_request: AgentRequest,
     request: Request,
-    claims: Dict[str, Any] = Depends(get_current_user_claims),
+    claims: dict[str, Any] = Depends(get_current_user_claims),
 ) -> AgentResponse:
     """
     Main endpoint to run an agent.
@@ -282,14 +285,14 @@ async def execute_agent(
     - Passes the request to the orchestrator.
     - Handles errors and returns a structured response.
     """
-    orchestrator: Optional[AgentOrchestrator] = app_state.get("orchestrator")
+    orchestrator: AgentOrchestrator | None = app_state.get('orchestrator')
     if not orchestrator:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Orchestrator is not initialized.",
+            detail='Orchestrator is not initialized.',
         )
 
-    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    request_id = request.headers.get('X-Request-ID', str(uuid.uuid4()))
 
     try:
         response = await orchestrator.run(agent_request, claims, request_id)
@@ -299,8 +302,8 @@ async def execute_agent(
     except PolicyViolationError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:
-        logger.exception(f"[{request_id}] Unexpected error during agent execution")
+        logger.exception(f'[{request_id}] Unexpected error during agent execution')
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An internal error occurred: {e}",
+            detail=f'An internal error occurred: {e}',
         )
