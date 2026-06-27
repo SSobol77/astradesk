@@ -1,0 +1,1 @@
+"""AstraDesk MCP gateway package."""

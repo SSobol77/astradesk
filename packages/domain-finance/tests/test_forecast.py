@@ -9,19 +9,13 @@ Author: Siergej Sobolewski
 Since: 2025-10-16
 """
 
-if not (__package__ or '').startswith('packages.domain_finance'):
-    __package__ = 'packages.domain_finance.tests'
-    if __spec__ is not None:
-        globals()['__spec__'] = None
-
 import pytest
-from proto.finance_pb2 import FetchSalesResponse, SalesItem
-from proto.finance_pb2_grpc import FinanceServiceStub
+from domain_finance.agents.forecast import forecast_financial_data
+from domain_finance.clients.grpc_client import GrpcOracleErpClient
+from domain_finance.proto.finance_pb2 import FetchSalesResponse, SalesItem
+from domain_finance.proto.finance_pb2_grpc import FinanceServiceStub
 
 from respx import MockRouter
-
-from ..agents.forecast import forecast_financial_data
-from ..clients.grpc_client import GrpcOracleErpClient
 
 
 @pytest.mark.asyncio
@@ -46,9 +40,8 @@ async def test_forecast_success(respx_mock: MockRouter):
 @pytest.mark.asyncio
 async def test_forecast_grpc_integration():
     """Test gRPC client with mocked server."""
+    from domain_finance.proto.finance_pb2_grpc import add_FinanceServiceServicer_to_server
     from grpc.aio import server as aio_server
-
-    from ..proto.finance_pb2_grpc import add_FinanceServiceServicer_to_server
 
     class MockFinanceService(FinanceServiceStub):
         async def FetchSales(self, request, context):

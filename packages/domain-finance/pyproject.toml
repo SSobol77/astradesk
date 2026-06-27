@@ -18,6 +18,9 @@ dependencies = [
   "protobuf>=5.0",
 ]
 
+[project.entry-points."astradesk.pack"]
+domain_finance = "domain_finance:Pack"
+
 [project.optional-dependencies]
 dev = [
   "pytest>=8.3",
@@ -31,4 +34,13 @@ requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = {find = {where = ["."]}}
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["domain_finance*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+domain_finance = ["flows/*.yaml", "policies/*.rego", "proto/*.proto"]

@@ -9,17 +9,11 @@ Author: Siergej Sobolewski
 Since: 2025-10-16
 """
 
-if not (__package__ or '').startswith('packages.domain_support'):
-    __package__ = 'packages.domain_support.tests'
-    if __spec__ is not None:
-        globals()['__spec__'] = None
-
 import pytest
+from domain_support.agents.triage import triage_tickets
+from domain_support.clients.api import ProblemDetail
 
 from respx import MockRouter
-
-from ..agents.triage import triage_tickets
-from ..clients.api import ProblemDetail
 
 
 @pytest.mark.asyncio

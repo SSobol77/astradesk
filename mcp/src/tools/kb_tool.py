@@ -7,8 +7,8 @@ It uses the KnowledgeBaseClient to interact with the actual knowledge base servi
 
 from typing import Any
 
-from ..clients.kb_client import KnowledgeBaseClient
-from .base import SideEffect, Tool, ToolResult
+from mcp.src.clients.kb_client import KnowledgeBaseClient
+from mcp.src.tools.base import SideEffect, Tool, ToolResult
 
 
 class KnowledgeBaseTool(Tool):

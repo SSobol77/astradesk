@@ -13,24 +13,17 @@ from __future__ import annotations
 from unittest.mock import AsyncMock
 
 import pytest
-
-from packages.domain_ops.agents.ops import OpsAgent
-from services.api_gateway.src.runtime import (
-    RAG,
-    KeywordPlanner,
-    Memory,
-    ToolRegistry,
-)
+from domain_ops.agents.ops import OpsAgent
 
 
 @pytest.fixture
 def mock_dependencies() -> dict[str, AsyncMock]:
     """Tworzy zestaw mockowanych zależności dla agenta."""
     return {
-        'tools': AsyncMock(spec=ToolRegistry),
-        'memory': AsyncMock(spec=Memory),
-        'planner': AsyncMock(spec=KeywordPlanner),
-        'rag': AsyncMock(spec=RAG),
+        'tools': AsyncMock(),
+        'memory': AsyncMock(),
+        'planner': AsyncMock(),
+        'rag': AsyncMock(),
     }
 
 

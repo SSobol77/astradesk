@@ -49,7 +49,7 @@ jobs:
           uv run mypy .
 
       - name: Run Python Tests with Coverage
-        run: uv run pytest -q --cov=core/src --cov=services/api-gateway/src --cov=packages --cov-report=xml
+        run: uv run pytest -q
 
       - name: Build Docker Image (Python)
         run: docker build -t astradesk:ci-python -f Dockerfile .

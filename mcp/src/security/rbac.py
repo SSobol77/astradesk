@@ -7,9 +7,9 @@ It checks if a user has permissions to execute a specific tool with a given side
 
 from typing import Any
 
-from ..exceptions import PolicyViolationError
-from ..gateway.config import ToolConfig
-from ..tools.base import SideEffect
+from mcp.src.exceptions import PolicyViolationError
+from mcp.src.gateway.config import ToolConfig
+from mcp.src.tools.base import SideEffect
 
 
 async def check_permissions(

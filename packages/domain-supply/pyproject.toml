@@ -17,6 +17,9 @@ dependencies = [
   "protobuf>=5.0",
 ]
 
+[project.entry-points."astradesk.pack"]
+domain_supply = "domain_supply:Pack"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3",
@@ -29,6 +32,14 @@ dev = [
 requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["proto*", "flows*", "agents*", "clients*", "policies*"]
+where = ["src"]
+include = ["domain_supply*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+domain_supply = ["flows/*.yaml", "policies/*.rego", "proto/*.proto"]

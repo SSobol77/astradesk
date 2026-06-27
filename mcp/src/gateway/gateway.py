@@ -18,16 +18,15 @@ from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.responses import Response
 
 import redis.asyncio as redis
-
-from ..exceptions import (
+from mcp.src.exceptions import (
     PolicyViolationError,
     RateLimitExceededError,
 )
-from ..security.audit import AuditLogger
-from ..security.auth import verify_token
-from ..security.rbac import check_permissions
-from .config import GatewayConfig, ToolConfig
-from .middleware import MetricsMiddleware
+from mcp.src.gateway.config import GatewayConfig, ToolConfig
+from mcp.src.gateway.middleware import MetricsMiddleware
+from mcp.src.security.audit import AuditLogger
+from mcp.src.security.auth import verify_token
+from mcp.src.security.rbac import check_permissions
 
 
 class MCPGateway:

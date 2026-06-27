@@ -17,8 +17,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 # AstraDesk imports
-from services.api_gateway.src.gateway.main import app
-from services.api_gateway.src.runtime.models import AgentRequest
+from gateway.main import app
+from runtime.models import AgentRequest
+
 from tests.test_harness import TestResult, TestScenario
 
 logger = logging.getLogger(__name__)

@@ -8,9 +8,8 @@ import uvicorn
 import yaml
 
 import redis.asyncio as redis
-
-from .config import AuditConfig, GatewayConfig, OIDCConfig, ToolConfig
-from .gateway import create_gateway
+from mcp.src.gateway.config import AuditConfig, GatewayConfig, OIDCConfig, ToolConfig
+from mcp.src.gateway.gateway import create_gateway
 
 
 def load_config_from_file(config_path: str) -> GatewayConfig:

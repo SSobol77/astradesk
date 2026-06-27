@@ -8,10 +8,10 @@ including authentication, authorization, and RBAC functionality.
 import pytest
 from jose import JWTError
 
-from ..src.gateway.config import OIDCConfig
-from ..src.security.auth import verify_token
-from ..src.security.rbac import _get_required_role, _is_side_effect_allowed
-from ..src.tools.base import SideEffect
+from mcp.src.gateway.config import OIDCConfig
+from mcp.src.security.auth import verify_token
+from mcp.src.security.rbac import _get_required_role, _is_side_effect_allowed
+from mcp.src.tools.base import SideEffect
 
 
 @pytest.fixture

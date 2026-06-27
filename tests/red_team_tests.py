@@ -20,8 +20,7 @@ from typing import Any
 
 import httpx
 import pytest
-
-from services.api_gateway.src.runtime.models import AgentRequest
+from runtime.models import AgentRequest
 
 logger = logging.getLogger(__name__)
 

@@ -142,6 +142,15 @@ temp/
 
 # Old version
 _*.*
+!mcp/__init__.py
+!mcp/src/**/__init__.py
+!packages/domain-support/src/**/__init__.py
+!packages/domain-ops/src/**/__init__.py
+!packages/domain-finance/src/**/__init__.py
+!packages/domain-supply/src/**/__init__.py
+!core/src/**/__init__.py
+!services/api-gateway/src/**/__init__.py
+!services/admin_api/src/**/__init__.py
 
 # Build artifacts
 *.tar.gz

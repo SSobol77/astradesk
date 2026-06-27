@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # File: mcp/pyproject.toml v2.0.0
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "astradesk-mcp"
@@ -48,9 +48,20 @@ test = [
     "httpx>=0.23.0",
 ]
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["src*"]
+[tool.setuptools]
+include-package-data = false
+packages = [
+    "mcp",
+    "mcp.src",
+    "mcp.src.clients",
+    "mcp.src.gateway",
+    "mcp.src.security",
+    "mcp.src.tools",
+]
+package-dir = {mcp = ".", "mcp.src" = "src"}
+
+[tool.setuptools.package-data]
+mcp = ["config*.yaml", "schemas/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

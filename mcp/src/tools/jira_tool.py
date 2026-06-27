@@ -7,8 +7,8 @@ It uses the JiraClient to interact with the actual Jira service.
 
 from typing import Any
 
-from ..clients.jira_client import JiraClient
-from .base import SideEffect, Tool, ToolResult
+from mcp.src.clients.jira_client import JiraClient
+from mcp.src.tools.base import SideEffect, Tool, ToolResult
 
 
 class JiraTool(Tool):

@@ -15,15 +15,14 @@ import time
 from pathlib import Path
 from typing import Any
 
+from agents.base import BaseAgent
+from model_gateway.llm_planner import LLMPlanner
 from pydantic import BaseModel, Field
-
-from services.api_gateway.src.agents.base import BaseAgent
-from services.api_gateway.src.model_gateway.llm_planner import LLMPlanner
-from services.api_gateway.src.runtime.memory import Memory
+from runtime.memory import Memory
 
 # AstraDesk imports
-from services.api_gateway.src.runtime.rag import RAG
-from services.api_gateway.src.runtime.registry import ToolRegistry
+from runtime.rag import RAG
+from runtime.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 

@@ -9,19 +9,13 @@ Author: Siergej Sobolewski
 Since: 2025-10-16
 """
 
-if not (__package__ or '').startswith('packages.domain_supply'):
-    __package__ = 'packages.domain_supply.tests'
-    if __spec__ is not None:
-        globals()['__spec__'] = None
-
 import pytest
+from domain_supply.agents.replenish import replenish_inventory
+from domain_supply.clients.grpc_client import GrpcSapS4HanaClient
+from domain_supply.proto.supply_pb2 import FetchInventoryResponse, InventoryItem
+from domain_supply.proto.supply_pb2_grpc import SupplyServiceStub
 
 from respx import MockRouter
-
-from ..agents.replenish import replenish_inventory
-from ..clients.grpc_client import GrpcSapS4HanaClient
-from ..proto.supply_pb2 import FetchInventoryResponse, InventoryItem
-from ..proto.supply_pb2_grpc import SupplyServiceStub
 
 
 @pytest.mark.asyncio
@@ -51,9 +45,8 @@ async def test_replenish_success(respx_mock: MockRouter):
 @pytest.mark.asyncio
 async def test_replenish_grpc_integration():
     """Test gRPC client with mocked server."""
+    from domain_supply.proto.supply_pb2_grpc import add_SupplyServiceServicer_to_server
     from grpc.aio import server as aio_server
-
-    from ..proto.supply_pb2_grpc import add_SupplyServiceServicer_to_server
 
     class MockSupplyService(SupplyServiceStub):
         async def FetchInventory(self, request, context):

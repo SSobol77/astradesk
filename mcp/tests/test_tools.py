@@ -7,10 +7,10 @@ including error handling and validation tests.
 
 import pytest
 
-from ..src.clients.jira_client import JiraClient
-from ..src.tools.base import SideEffect, ToolResult
-from ..src.tools.jira_tool import JiraTool
-from ..src.tools.kb_tool import KnowledgeBaseTool
+from mcp.src.clients.jira_client import JiraClient
+from mcp.src.tools.base import SideEffect, ToolResult
+from mcp.src.tools.jira_tool import JiraTool
+from mcp.src.tools.kb_tool import KnowledgeBaseTool
 
 
 @pytest.fixture

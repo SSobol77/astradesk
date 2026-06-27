@@ -16,8 +16,7 @@ from typing import Any
 import httpx
 
 import redis.asyncio as redis
-
-from ..gateway.config import AuditConfig
+from mcp.src.gateway.config import AuditConfig
 
 
 class AuditLogger:

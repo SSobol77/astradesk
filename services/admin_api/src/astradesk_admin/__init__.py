@@ -1,0 +1,1 @@
+"""AstraDesk Admin API service."""

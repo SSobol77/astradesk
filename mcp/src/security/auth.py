@@ -12,8 +12,7 @@ import httpx
 from jose import JWTError, jwt
 
 import redis.asyncio as redis
-
-from ..gateway.config import OIDCConfig
+from mcp.src.gateway.config import OIDCConfig
 
 
 async def fetch_jwks(

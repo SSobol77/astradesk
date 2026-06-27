@@ -102,22 +102,30 @@ select = ["E", "F", "W", "I", "UP", "B", "A", "C4", "RUF"]
 python_version = "3.13"
 # Pragmatic baseline: full strict mode disabled until the codebase is annotated.
 ignore_missing_imports = true
-# This is a multi-root workspace; declare each source root so `mypy .` resolves
-# packages by their real import path instead of colliding on bare filenames
-# (e.g. mcp `security.auth` vs core `astradesk_core.utils.auth`).
-explicit_package_bases = true
-namespace_packages = true
+namespace_packages = false
 mypy_path = [
   "core/src",
   "services/api-gateway/src",
   "services/admin_api/src",
-  "mcp/src",
+  "packages/domain-support/src",
+  "packages/domain-ops/src",
+  "packages/domain-finance/src",
+  "packages/domain-supply/src",
 ]
-# Exclude the legacy duplicate `src/` tree (superseded by services/api-gateway/src)
-# and build/venv artifacts.
-exclude = '^(src/|\.venv/|build/|dist/|.*/build/)'
+# Exclude the legacy `src/` tree, the tracked `services/api_gateway` compatibility
+# symlink, and build/venv artifacts so each module is analyzed exactly once.
+exclude = '^(src/|services/api_gateway/|\.venv/|build/|dist/|.*/build/)'
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-addopts = "--cov=core/src --cov=services/api-gateway/src --cov=packages --cov-report=xml --cov-report=term-missing"
-pythonpath = ["services", "packages", "services/api-gateway/src"]
+addopts = "--cov=core/src --cov=services/api-gateway/src --cov=mcp.src --cov=domain_support --cov=domain_ops --cov=domain_finance --cov=domain_supply --cov-report=xml --cov-report=term-missing"
+pythonpath = ["services/api-gateway/src"]
+testpaths = [
+  "tests",
+  "services/api-gateway/tests",
+  "mcp/tests",
+  "packages/domain-support/tests",
+  "packages/domain-ops/tests",
+  "packages/domain-finance/tests",
+  "packages/domain-supply/tests",
+]

@@ -16,6 +16,9 @@ dependencies = [
   "astradesk-core",
 ]
 
+[project.entry-points."astradesk.pack"]
+domain_support = "domain_support:Pack"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3",
@@ -27,6 +30,14 @@ dev = [
 requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["flows*", "agents*", "clients*", "policies*"]
+where = ["src"]
+include = ["domain_support*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+domain_support = ["flows/*.yaml", "policies/*.rego"]

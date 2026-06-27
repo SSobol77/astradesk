@@ -1,6 +1,7 @@
 # Netlify build configuration for the AstraDesk documentation site.
 # Overrides the UI-set build command (`make all`, which has no rule) with a real
 # MkDocs build. The MkDocs `site_dir` default is `site/`, which is published here.
+# `--isolated --no-project` prevents the runtime workspace (including torch) from loading.
 [build]
-  command = "pip install uv && uv run --extra docs mkdocs build"
+  command = "pip install uv && NO_MKDOCS_2_WARNING=true uv run --isolated --no-project --with 'mkdocs>=1.6.0' --with 'mkdocs-material>=9.5.0' --with mkdocs-material-extensions --with 'pymdown-extensions>=10.8' --with 'mkdocs-redoc-tag>=0.2.0' --with 'mkdocstrings>=0.23.0' mkdocs build --strict"
   publish = "site"
