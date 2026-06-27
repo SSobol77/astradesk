@@ -35,7 +35,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Sync dependencies (locked)
-        run: uv sync --frozen
+        run: uv sync --frozen --extra dev
 
       - name: OpenAPI drift guard
         run: |
@@ -78,8 +78,10 @@ jobs:
           ./gradlew test jacocoTestReport --no-daemon
 
       - name: Build Docker Image (Java)
-        working-directory: services/ticket-adapter-java
-        run: docker build -t astradesk:ci-java .
+        # Dockerfile uses repo-root-relative COPY paths (gradlew, settings.gradle.kts,
+        # services/ticket-adapter-java/…), so it must build with the repository root
+        # as the Docker context.
+        run: docker build -f services/ticket-adapter-java/Dockerfile -t astradesk:ci-java .
 
       - name: Upload Java coverage report
         uses: actions/upload-artifact@v4
@@ -112,6 +114,10 @@ jobs:
 
       - name: Build Next.js
         working-directory: services/admin-portal
+        # Build-time placeholder so client-env validation (lib/env.ts) passes during
+        # static page-data collection. Runtime still requires a real value.
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
         run: npm run build
 
       - name: Build Docker Image (JS)

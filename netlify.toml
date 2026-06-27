@@ -1,0 +1,6 @@
+# Netlify build configuration for the AstraDesk documentation site.
+# Overrides the UI-set build command (`make all`, which has no rule) with a real
+# MkDocs build. The MkDocs `site_dir` default is `site/`, which is published here.
+[build]
+  command = "pip install uv && uv run --extra docs mkdocs build"
+  publish = "site"

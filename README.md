@@ -934,7 +934,7 @@ Ideal for fast development and debugging with instant reloads.
 ### 4. Working with Database and RAG
 
 - **Initialize database (create `pgvector` extension):**
-  _Note: not needed if using `docker-compose.deps.yml`._
+  _Note: not needed if using `docker-compose.dev.yml`._
 
   ```bash
   make migrate
@@ -1023,6 +1023,34 @@ Each stack emits a machine-readable coverage report that CI uploads as an artifa
 - **Python** — `uv run pytest --cov=core/src --cov=services/api-gateway/src --cov=packages --cov-report=xml` → `coverage.xml`.
 - **Java** — `./gradlew test jacocoTestReport` (from `services/ticket-adapter-java/`) → `build/reports/jacoco/test/jacocoTestReport.xml`.
 - **JS** — `vitest run --coverage` (via `@vitest/coverage-v8`, from `services/admin-portal/`) → `coverage/lcov.info`.
+
+## Versioning
+
+AstraDesk tracks two independent version axes — do not conflate them:
+
+| Axis | Value | Source of truth |
+| :--- | :--- | :--- |
+| **Product / package** | `0.3.0` | `pyproject.toml`, Gradle, Sonar (`SONAR_PROJECT_VERSION`) |
+| **Admin API contract** | `1.2.0` | `info.version` in `openapi/astradesk-admin.v1.yaml` |
+
+The Admin API spec is named `astradesk-admin.v1.yaml`, where `v1` encodes the API **MAJOR**
+version; the full contract version is the semver `1.2.0` carried in `info.version`. The same
+`1.2.0` is stamped on the `FastAPI(version=...)` app in `services/admin_api` and shown in the
+docs API reference. `scripts/check-openapi-version.sh` enforces that the spec stays at
+`openapi: 3.1.0` / `info.version: "1.2.0"`, and `services/admin-portal/OpenAPI.yaml` is a
+symlink to the canonical spec so the UI never drifts.
+
+### Naming conventions
+
+- **Service & domain-pack directories are hyphenated**: `services/api-gateway`,
+  `services/ticket-adapter-java`, `services/admin-portal`, `packages/domain-*`.
+- **Python import-root packages use underscores** where the directory is itself an import
+  package: `services/admin_api`, `core/src/astradesk_core`. These are import/build-significant
+  and are **not** renamed to match the hyphen style — always refer to a source tree by its
+  real path (e.g. `services/api-gateway/src`).
+- **Localized docs** use one canonical directory per language: `docs/en`, `docs/pl`, `docs/zh-CN`.
+- **Compose files**: `docker-compose.yml` (full local stack) and `docker-compose.dev.yml`
+  (developer stack with migrations auto-applied).
 
 ## Security
 

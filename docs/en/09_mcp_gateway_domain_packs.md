@@ -307,6 +307,25 @@ paths:
 
 ---
 
+## 9.7a Versioning: Product vs. API Contract
+
+AstraDesk separates two version axes:
+
+- **Product / package version** (`0.3.0`) — the release version of the codebase, stamped in
+  `pyproject.toml`, Gradle, and Sonar.
+- **Admin API contract version** (`1.2.0`) — the semver of the HTTP contract, carried in
+  `info.version` of `openapi/astradesk-admin.v1.yaml` and stamped on the `services/admin_api`
+  FastAPI app.
+
+The spec filename follows `*.v<MAJOR>.yaml` (`astradesk-admin.v1.yaml`), encoding the API
+**MAJOR** version (`v1`); the complete contract version (`1.2.0`) lives in `info.version`.
+`scripts/check-openapi-version.sh` enforces `openapi: 3.1.0` and `info.version: "1.2.0"`, and
+`services/admin-portal/OpenAPI.yaml` is a symlink to the canonical spec to prevent drift.
+
+<br>
+
+---
+
 ## 9.7 Rate Limiting & Quotas (design)
 
 - **Hierarchies**: tenant → agent → tool.

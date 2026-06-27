@@ -1,4 +1,4 @@
-FROM gradle:9.2.0-jdk25 AS build
+FROM gradle:9.2.0-jdk21 AS build
 
 WORKDIR /workspace
 
@@ -15,7 +15,7 @@ COPY services/ticket-adapter-java ./services/ticket-adapter-java
 RUN chmod +x gradlew && \
     ./gradlew :services:ticket-adapter-java:bootJar --no-daemon
 
-FROM eclipse-temurin:25-jre
+FROM eclipse-temurin:21-jre
 WORKDIR /app
 COPY --from=build /workspace/services/ticket-adapter-java/build/libs/*.jar app.jar
 EXPOSE 8081

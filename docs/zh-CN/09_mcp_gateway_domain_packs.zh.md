@@ -314,10 +314,10 @@ flowchart LR
 
 ## 9.10 交叉引用
 
-- 下一步: [10. 未来路线图](10_future_roadmap.md)
+- 下一步: [10. 未来路线图](../en/10_future_roadmap.md)
 
-- 上一步: [8. 安全与治理](08_security_governance.md)
+- 上一步: [8. 安全与治理](../en/08_security_governance.md)
 
-- 另请参阅: [7. 监控与运营](07_monitor_operate.md), [4. 构建阶段](04_build_phase.md)
+- 另请参阅: [7. 监控与运营](../en/07_monitor_operate.md), [4. 构建阶段](../en/04_build_phase.md)
 
 <br>

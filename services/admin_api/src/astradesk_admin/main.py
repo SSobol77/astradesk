@@ -524,7 +524,9 @@ store = DataStore()
 app = FastAPI(
     title="AstraDesk Admin API",
     description="API for AstraDesk Admin v1.2 - operational and governance panel for agents, data, policies, and audits.",
-    version="0.3.0",
+    # Admin API contract version (semver of the API surface), independent of the
+    # product/package version (0.3.0). Must match openapi/astradesk-admin.v1.yaml.
+    version="1.2.0",
     root_path="/api/admin/v1",
     openapi_url="/openapi.json",
     docs_url="/docs",
