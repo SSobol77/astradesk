@@ -21,6 +21,11 @@ services/ticket-adapter-java/gradle/wrapper/*.jar
 *.jar
 *.war
 *.ear
+# The Gradle wrapper JARs MUST be committed so `./gradlew` works in CI and on
+# fresh clones. Re-include them despite the broad `*.jar` ignore above.
+# (Negations must come AFTER `*.jar` — the last matching pattern wins.)
+!gradle/wrapper/gradle-wrapper.jar
+!services/ticket-adapter-java/gradle/wrapper/gradle-wrapper.jar
 target/
 astradesk.egg-info/
 # Ignoruj pliki generowane przez IDE i systemy budowania
@@ -101,6 +106,8 @@ coverage/
 junit.xml
 pytest_cache/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 test-results/
 test-output/
 

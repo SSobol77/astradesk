@@ -22,13 +22,13 @@ import reactor.core.publisher.Mono;
 /**
  * Application service orchestrating persistence and outbound integrations.
  *
- * <p>Responsibilities:
+ * <p>Responsibilities:</p>
  * <ul>
  *   <li>Persist tickets via {@link TicketRepository}</li>
  *   <li>Open Jira issues to keep the service desk in sync</li>
  *   <li>Push Slack notifications to keep the on-call team informed</li>
  * </ul>
- * The service is reactive end-to-end to avoid blocking Netty threads.</p>
+ * <p>The service is reactive end-to-end to avoid blocking Netty threads.</p>
  */
 @Service
 public class TicketService {

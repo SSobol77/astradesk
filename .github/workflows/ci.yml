@@ -16,7 +16,7 @@ on:
 
 env:
   PYTHON_VERSION: "3.13"
-  JAVA_VERSION: "25"
+  JAVA_VERSION: "21"
   NODE_VERSION: "22"
   SONAR_PROJECT_VERSION: "0.3.0" # per pyproject version
 
