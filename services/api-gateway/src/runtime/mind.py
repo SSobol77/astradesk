@@ -20,6 +20,7 @@ from typing import Any, Protocol
 import torch  # PyTorch 2.9 for embeddings & reward model
 from opentelemetry import trace  # AstraOps/OTel tracing
 from pydantic import BaseModel, Field
+
 from runtime.policy import policy as opa_policy  # OPA facade
 
 logger = logging.getLogger(__name__)

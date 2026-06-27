@@ -16,9 +16,10 @@ from __future__ import annotations
 
 import logging
 
-from model_gateway.router import provider_router
 from opa_client.opa import OpaClient
 from opentelemetry import trace
+
+from model_gateway.router import provider_router
 
 from .base import ChatParams, LLMMessage
 from .guardrails import (

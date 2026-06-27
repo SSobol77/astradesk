@@ -40,9 +40,6 @@ from agents.ops import OpsAgent
 from agents.support import SupportAgent
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-
-# AstraDesk imports
-from gateway.orchestrator import AgentNotFoundError, AgentOrchestrator, PolicyViolationError
 from jose import JWTError, jwt
 from model_gateway.llm_planner import LLMPlanner
 from model_gateway.router import provider_router
@@ -56,6 +53,9 @@ from tools import metrics, ops_actions, tickets_proxy
 
 import asyncpg
 import redis.asyncio as redis
+
+# AstraDesk imports
+from gateway.orchestrator import AgentNotFoundError, AgentOrchestrator, PolicyViolationError
 
 # --- Configuration ---
 logging.basicConfig(level=os.getenv('LOG_LEVEL', 'INFO'))

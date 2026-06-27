@@ -66,18 +66,14 @@ class AstraDeskBaseModel(BaseModel):
         populate_by_name=True,
         frozen=True,
         validate_assignment=True,
-        json_encoders={dict: lambda v: v},
     )
 
     @model_validator(mode='after')
     def check_total_size(self) -> AstraDeskBaseModel:
         """Reject models exceeding total serialized size (DoS protection)."""
-        try:
-            serialized = self.model_dump_json().encode('utf-8')
-            if len(serialized) > _MAX_MODEL_SIZE:
-                raise ValueError(f'Model exceeds max size ({_MAX_MODEL_SIZE} bytes).')
-        except Exception as e:
-            raise ValueError(f'Failed to serialize model for size check: {e}')
+        serialized = self.model_dump_json().encode('utf-8')
+        if len(serialized) > _MAX_MODEL_SIZE:
+            raise ValueError(f'Model exceeds max size ({_MAX_MODEL_SIZE} bytes).')
         return self
 
 
@@ -113,6 +109,11 @@ class ToolCall(AstraDeskBaseModel):
         if v.startswith('.') or v.endswith('.') or '..' in v:
             raise ValueError("Tool name cannot start/end with '.' or contain '..'.")
         return v
+
+    @field_validator('arguments', mode='before')
+    @classmethod
+    def default_arguments(cls, v: Any) -> Any:
+        return {} if v is None else v
 
     @field_validator('arguments')
     @classmethod
@@ -226,7 +227,7 @@ class AgentResponse(AstraDeskBaseModel):
     errors: list[str] | None = Field(
         default=None,
         description='Non-fatal errors.',
-        max_items=50,
+        max_length=50,
     )
 
     @field_validator('output')
@@ -305,7 +306,7 @@ class IntentNode(AstraDeskBaseModel):
     id: str = Field(..., max_length=128)
     action: str = Field(..., max_length=128)
     arguments: dict[str, Any] = Field(default_factory=dict)
-    dependencies: list[str] = Field(default_factory=list, max_items=50)
+    dependencies: list[str] = Field(default_factory=list, max_length=50)
 
     @field_validator('id', 'action')
     @classmethod
@@ -324,7 +325,7 @@ class IntentNode(AstraDeskBaseModel):
 
 
 class IntentGraph(AstraDeskBaseModel):
-    nodes: list[IntentNode] = Field(..., min_length=1, max_items=100)
+    nodes: list[IntentNode] = Field(..., min_length=1, max_length=100)
     start_node: str = Field(...)
 
     @field_validator('start_node')

@@ -19,10 +19,11 @@ import inspect
 import logging
 import os
 
-from model_gateway.base import LLMProvider
-from model_gateway.guardrails import ProblemDetail
 from opa_client.opa import OpaClient
 from opentelemetry import trace
+
+from model_gateway.base import LLMProvider
+from model_gateway.guardrails import ProblemDetail
 
 from .providers.bedrock_provider import BedrockProvider
 from .providers.openai_provider import OpenAIProvider
