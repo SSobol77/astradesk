@@ -1,5 +1,5 @@
 # CI pipeline for AstraDesk Framework AI.
-# Aligns with pyproject: Python 3.14, project version 0.3.0.
+# Aligns with pyproject: Python 3.13, project version 0.3.0.
 # Runs linting, type-checks, tests with coverage across Python/Java/JS,
 # builds Docker images for smoke, and enforces OpenAPI drift guard.
 # Project: AstraDesk Framework AI
@@ -15,7 +15,7 @@ on:
     branches: [main]
 
 env:
-  PYTHON_VERSION: "3.14"
+  PYTHON_VERSION: "3.13"
   JAVA_VERSION: "25"
   NODE_VERSION: "22"
   SONAR_PROJECT_VERSION: "0.3.0" # per pyproject version

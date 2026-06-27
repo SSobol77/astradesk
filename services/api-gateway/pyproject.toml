@@ -8,7 +8,7 @@ version = "0.3.0"
 description = "AstraDesk's core API Gateway and runtime."
 authors = [{ name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com" }]
 license = { text = "Apache-2.0" }
-requires-python = ">=3.14"
+requires-python = ">=3.13"
 
 dependencies = [
   # Zależność od naszego współdzielonego pakietu `core`

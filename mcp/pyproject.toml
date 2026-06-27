@@ -9,7 +9,7 @@ name = "astradesk-mcp"
 version = "2.0.0"
 description = "AstraDesk Model Context Protocol Gateway"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.13"
 license = "Apache-2.0"
 keywords = ["ai", "agents", "mcp", "gateway"]
 authors = [
@@ -17,7 +17,7 @@ authors = [
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
-    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.13",
     "Framework :: FastAPI",
     "Topic :: Software Development :: Libraries :: Application Frameworks",
     "Topic :: System :: Distributed Computing",
@@ -37,16 +37,7 @@ dependencies = [
     "tenacity>=8.2.3",
     "cryptography>=42.0.0",
     "python-multipart>=0.0.9",
-]
-dependencies = [
-    "fastapi>=0.68.0",
-    "pydantic>=2.0.0",
-    "httpx>=0.23.0",
-    "prometheus-client>=0.14.0",
-    "python-jose>=3.3.0",
     "passlib>=1.7.4",
-    "uvicorn>=0.15.0",
-    "redis>=5.0,<5.1",
     "PyYAML>=6.0",
 ]
 

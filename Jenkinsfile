@@ -5,7 +5,7 @@
 //     Full production Jenkins pipeline for AstraDesk.
 //     Covers:
 //       • Checkout & stash
-//       • Parallel code-analysis + unit/integration tests (Python 3.14, Java 25, Node 22)
+//       • Parallel code-analysis + unit/integration tests (Python 3.13, Java 25, Node 22)
 //       • Coverage aggregation & SonarQube scan
 //       • Secrets injection into Admin API (/secrets)
 //       • Terraform (init → validate → plan → apply) with AWS credentials
@@ -94,7 +94,7 @@ pipeline {
 
                 // --------------------- Python --------------------- //
                 stage('Python') {
-                    agent { docker { image 'python:3.14-slim' } }
+                    agent { docker { image 'python:3.13-slim' } }
                     environment {
                         UV_CACHE_DIR = '/uv-cache'
                     }
@@ -142,7 +142,7 @@ pipeline {
                 
                 // --------------------- MCP --------------------- //
                 stage('MCP Gateway') {
-                    agent { docker { image 'python:3.14-slim' } }
+                    agent { docker { image 'python:3.13-slim' } }
                     steps {
                         unstash 'source'
                         dir('mcp') {
@@ -286,7 +286,7 @@ pipeline {
             parallel {
 
                 stage('Ansible Dry-Run') {
-                    agent{ docker { image 'python:3.14-slim' } }
+                    agent{ docker { image 'python:3.13-slim' } }
                     steps {
                         unstash 'source'
                         sh 'pip install --no-cache-dir ansible'
@@ -325,7 +325,7 @@ pipeline {
             parallel {
 
                 stage('Ansible Deploy') {
-                    agent { docker { image 'python:3.14-slim' } }
+                    agent { docker { image 'python:3.13-slim' } }
                     steps {
                         unstash 'source'
                         sh 'pip install --no-cache-dir ansible'

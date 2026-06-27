@@ -163,3 +163,15 @@ build/
 
 # Test artifacts
 coverage.xml
+
+# AGENTS
+AGENTS.md
+CLAUDE.md
+CODEX.md
+CURSOR.md
+audit-report.md
+*.txt
+.claude/
+.codex/
+.cursor/
+.gitignore

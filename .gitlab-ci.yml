@@ -70,7 +70,7 @@ default:
 
 test:python:
   stage: test
-  image: python:3.14-slim
+  image: python:3.13-slim
   variables:
     UV_CACHE_DIR: "/uv-cache"
   before_script:
@@ -121,7 +121,7 @@ test:node:
 
 coverage:aggregate:
   stage: coverage
-  image: python:3.14-slim
+  image: python:3.13-slim
   needs: ["test:python", "test:java", "test:node"]
   script:
     - pip install --no-cache-dir coverage

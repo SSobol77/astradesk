@@ -10,7 +10,7 @@ supporting services can be tested end‑to‑end.
    - Keep `.env` out of version control.
 
 2. **Install local tooling**
-   - Python 3.14 with [`uv`](https://github.com/astral-sh/uv) (`pip install uv`).
+   - Python 3.13+ with [`uv`](https://github.com/astral-sh/uv).
    - Node.js 22.x + npm.
    - Java JDK 21+ (Gradle wrapper downloads its own distro).
    - Docker Engine + Compose plugin.

@@ -37,7 +37,7 @@ jobs:
           enable-cache: true
 
       - name: Install Python (via uv)
-        run: uv python install 3.14
+        run: uv python install 3.13
 
       - name: Build site (MkDocs via uv)
         run: |

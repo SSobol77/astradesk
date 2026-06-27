@@ -7,65 +7,88 @@
 # AstraDesk - Enterprise AI Agents Framework
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Python Version](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
+[![Python Version](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/downloads/release/python-3130/)
 [![JDK Version](https://img.shields.io/badge/JDK-21-orange.svg)](https://openjdk.org/projects/jdk/21/)
 [![PyTorch Version](https://img.shields.io/badge/PyTorch-2.9-magenta.svg)](https://pytorch.org/projects/pytorch/)
 [![Node.js Version](https://img.shields.io/badge/Node.js-22-brightgreen.svg)](https://nodejs.org/en)
-[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](https://github.com/your-org/astradesk/actions)
-
+[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](https://github.com/SSobol77/astradesk/actions)
 
 🌍 **Languages:** 🇺🇸 [English](https://github.com/SSobol77/astradesk/edit/main/README.md) | [Polski](https://github.com/SSobol77/astradesk/edit/main/docs/pl/README.pl.main.md) | [中文](https://github.com/SSobol77/astradesk/blob/main/docs/zh/README.zh-CN.main.md)
 
 <br>
 
 [AstraDesk](https://astradesk.dev)
-is an internal framework for building AI agents designed for Support and SRE/DevOps departments.  
-It provides a modular architecture with ready-to-use demo agents, integrations with databases, messaging systems, and DevOps tools.  
+is an internal framework for building AI agents designed for Support and SRE/DevOps departments.
+It provides a modular architecture with ready-to-use demo agents, integrations with databases, messaging systems, and DevOps tools.
 The framework supports scalability, enterprise-grade security (OIDC/JWT, RBAC, mTLS via Istio), and full CI/CD automation.
 
 ---
 
 ## Table of Contents
 
-- [Features](#features)
-- [Purpose and Use Cases](#purpose-and-use-cases)
-- [Architecture Overview](#architecture-overview)
-- [Admin Portal](#admin-portal)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-  - [Local Environment (Docker Compose)](#local-environment-docker-compose)
-  - [Build from Source](#build-from-source)
-- [Configuration](#configuration)
-  - [Environment Variables](#environment-variables)
-  - [OIDC/JWT Authentication](#oidcjwt-authentication)
-  - [RBAC Policies](#rbac-policies)
-- [Usage](#usage)
-  - [Running Agents](#running-agents)
-  - [Loading Documents into RAG](#loading-documents-into-rag)
+- [AstraDesk - Enterprise AI Agents Framework](#astradesk---enterprise-ai-agents-framework)
+  - [Table of Contents](#table-of-contents)
+  - [Features](#features)
+  - [Purpose and Use Cases](#purpose-and-use-cases)
+  - [Architecture Overview](#architecture-overview)
   - [Admin Portal](#admin-portal)
-  - [Tools and Integrations](#tools-and-integrations)
-- [Deployment](#deployment)
-  - [Kubernetes (Helm)](#kubernetes-helm)
-  - [OpenShift](#openshift)
-  - [AWS (Terraform)](#aws-terraform)
-  - [Configuration Management Tools](#configuration-management-tools)
-  - [mTLS and Istio Service Mesh](#mtls-and-istio-service-mesh)
-- [CI/CD](#cicd)
-  - [Jenkins](#jenkins)
-  - [GitLab CI](#gitlab-ci)
-- [Monitoring and Observability](#monitoring-and-observability)
-  - [Quick Start (Docker Compose)](#quick-start-docker-compose)
-  - [Prometheus Configuration](#prometheus-configuration)
-  - [Metrics Endpoints Integrations](#metrics-endpoints-integrations)
-  - [Grafana (Quick Setup)](#grafana-quick-setup)
-  - [Handy Commands (Makefile)](#handy-commands-makefile)
-- [Developer Guide](#developer-guide)
-- [Testing](#testing)
-- [Security](#security)
-- [Roadmap](#roadmap)
-- [Contributing](#contributing)
-- [License](#license)
-- [Contact](#contact)
+    - [Overview](#overview)
+    - [Features](#features-1)
+    - [Quick Start](#quick-start)
+      - [Development Mode](#development-mode)
+      - [Environment Variables](#environment-variables)
+      - [Mock API Mode (Testing Without Backend)](#mock-api-mode-testing-without-backend)
+    - [Available Pages](#available-pages)
+    - [Authentication](#authentication)
+    - [Architecture](#architecture)
+    - [Tech Stack](#tech-stack)
+    - [Links](#links)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+    - [Local Environment (Docker Compose)](#local-environment-docker-compose)
+    - [Build from Source](#build-from-source)
+  - [Configuration](#configuration)
+    - [Environment Variables](#environment-variables-1)
+    - [OIDC/JWT Authentication](#oidcjwt-authentication)
+    - [RBAC Policies](#rbac-policies)
+  - [Usage](#usage)
+    - [Running Agents](#running-agents)
+    - [Loading Documents into RAG](#loading-documents-into-rag)
+    - [Tools and Integrations](#tools-and-integrations)
+  - [Deployment](#deployment)
+    - [Kubernetes (Helm)](#kubernetes-helm)
+    - [OpenShift](#openshift)
+    - [AWS (Terraform)](#aws-terraform)
+    - [Configuration Management Tools](#configuration-management-tools)
+    - [mTLS and Istio Service Mesh](#mtls-and-istio-service-mesh)
+  - [CI/CD](#cicd)
+    - [Jenkins](#jenkins)
+    - [GitLab CI](#gitlab-ci)
+  - [Monitoring and Observability](#monitoring-and-observability)
+    - [Goals](#goals)
+    - [Quick Start (Docker Compose)](#quick-start-docker-compose)
+    - [Prometheus Configuration](#prometheus-configuration)
+    - [Metrics Endpoints Integrations](#metrics-endpoints-integrations)
+      - [1) Python FastAPI (Gateway)](#1-python-fastapi-gateway)
+      - [2) Java Ticket Adapter (Spring Boot)](#2-java-ticket-adapter-spring-boot)
+    - [Grafana (Quick Setup)](#grafana-quick-setup)
+    - [Handy Commands (Makefile)](#handy-commands-makefile)
+    - [Validation Checklist](#validation-checklist)
+  - [Developer Guide](#developer-guide)
+    - [1. Basic Environment Setup](#1-basic-environment-setup)
+    - [2. How to Run the Application?](#2-how-to-run-the-application)
+      - [**Mode A: Full Docker Environment (Recommended)**](#mode-a-full-docker-environment-recommended)
+      - [**Mode B: Hybrid Development (for Python work)**](#mode-b-hybrid-development-for-python-work)
+    - [3. Testing](#3-testing)
+    - [4. Working with Database and RAG](#4-working-with-database-and-rag)
+    - [5. Testing the Agents](#5-testing-the-agents)
+    - [6. FAQ - Common Issues and Questions](#6-faq---common-issues-and-questions)
+  - [Testing](#testing)
+  - [Security](#security)
+  - [Roadmap](#roadmap)
+  - [Contributing](#contributing)
+  - [License](#license)
+  - [Contact](#contact)
 
 ---
 
@@ -90,7 +113,7 @@ The framework supports scalability, enterprise-grade security (OIDC/JWT, RBAC, m
 
 ## Purpose and Use Cases
 
-**AstraDesk** is a **framework for building AI agents** for **Support** and **SRE/DevOps** teams.  
+**AstraDesk** is a **framework for building AI agents** for **Support** and **SRE/DevOps** teams.
 It provides a modular core (planner, memory, RAG, tool registry) and includes ready-to-use agent examples.
 
 - **Support / Helpdesk**: RAG over company documentation (procedures, FAQs, runbooks), ticket creation/update, conversation memory.
@@ -106,6 +129,7 @@ It provides a modular core (planner, memory, RAG, tool registry) and includes re
 ## Architecture Overview
 
 AstraDesk consists of several main components:
+
 - **Python API Gateway**: FastAPI service handling agent requests, RAG, memory, and tools.
 - **Java Ticket Adapter**: Reactive WebFlux service integrating with MySQL for ticketing.
 - **Next.js Admin Portal**: Web interface for monitoring.
@@ -136,16 +160,16 @@ Communication: HTTP (between components), NATS (events/audits), Redis (working m
 
 ### Features
 
-| Feature | Description |
-|---------|-------------|
-| **🔌 OpenAPI-First** | Strictly typed from OpenAPI 3.1 spec |
-| **⚡ Next.js 16 + React 19** | Modern App Router architecture |
-| **🔒 Type-Safe** | Generated TypeScript types from OpenAPI |
-| **📡 Real-Time SSE** | Live streaming for run updates |
-| **🧪 Mock API Mode** | Test UI without backend (dev/demo) |
-| **👥 Full RBAC + Audit** | Role-based access control with audit trails |
-| **📊 Intent Graph** | Visual representation of agent intents |
-| **🔄 Runs & Jobs** | Live streaming, filters, export |
+| Feature                      | Description                                 |
+| ---------------------------- | ------------------------------------------- |
+| **🔌 OpenAPI-First**         | Strictly typed from OpenAPI 3.1 spec        |
+| **⚡ Next.js 16 + React 19** | Modern App Router architecture              |
+| **🔒 Type-Safe**             | Generated TypeScript types from OpenAPI     |
+| **📡 Real-Time SSE**         | Live streaming for run updates              |
+| **🧪 Mock API Mode**         | Test UI without backend (dev/demo)          |
+| **👥 Full RBAC + Audit**     | Role-based access control with audit trails |
+| **📊 Intent Graph**          | Visual representation of agent intents      |
+| **🔄 Runs & Jobs**           | Live streaming, filters, export             |
 
 ### Quick Start
 
@@ -191,21 +215,21 @@ For development, testing, or demos without a running backend:
 
 ### Available Pages
 
-| Page | Route | Description |
-|------|-------|-------------|
-| **Dashboard** | `/` | Health, usage, recent errors |
-| **Agents** | `/agents` | CRUD, test, promote, metrics |
-| **Intent Graph** | `/intent-graph` | Read-only graph visualization |
-| **Flows** | `/flows` | Validate, dry run, logs |
-| **Datasets** | `/datasets` | Schema, embeddings, reindex |
-| **Tools** | `/tools` | Connector management |
-| **Secrets** | `/secrets` | Key rotation, disable |
-| **Runs & Logs** | `/runs` | Live streaming, filters, export |
-| **Jobs** | `/jobs` | Schedules, triggers, DLQ |
-| **RBAC** | `/rbac` | Users, roles, invites |
-| **Policies** | `/policies` | OPA policy management |
-| **Audit** | `/audit` | Immutable audit trail |
-| **Settings** | `/settings` | Platform configuration |
+| Page             | Route           | Description                     |
+| ---------------- | --------------- | ------------------------------- |
+| **Dashboard**    | `/`             | Health, usage, recent errors    |
+| **Agents**       | `/agents`       | CRUD, test, promote, metrics    |
+| **Intent Graph** | `/intent-graph` | Read-only graph visualization   |
+| **Flows**        | `/flows`        | Validate, dry run, logs         |
+| **Datasets**     | `/datasets`     | Schema, embeddings, reindex     |
+| **Tools**        | `/tools`        | Connector management            |
+| **Secrets**      | `/secrets`      | Key rotation, disable           |
+| **Runs & Logs**  | `/runs`         | Live streaming, filters, export |
+| **Jobs**         | `/jobs`         | Schedules, triggers, DLQ        |
+| **RBAC**         | `/rbac`         | Users, roles, invites           |
+| **Policies**     | `/policies`     | OPA policy management           |
+| **Audit**        | `/audit`        | Immutable audit trail           |
+| **Settings**     | `/settings`     | Platform configuration          |
 
 ### Authentication
 
@@ -240,22 +264,22 @@ The app uses **Bearer JWT** authentication:
 
 ### Tech Stack
 
-| Layer | Technology |
-|-------|------------|
-| **Framework** | Next.js 16 App Router |
-| **UI Library** | React 19.2, shadcn/ui |
-| **Language** | TypeScript (generated from OpenAPI) |
-| **State** | React Query, Zustand |
-| **Real-time** | Server-Sent Events (SSE) |
-| **Styling** | Tailwind CSS |
-| **Testing** | Vitest, Playwright |
+| Layer          | Technology                          |
+| -------------- | ----------------------------------- |
+| **Framework**  | Next.js 16 App Router               |
+| **UI Library** | React 19.2, shadcn/ui               |
+| **Language**   | TypeScript (generated from OpenAPI) |
+| **State**      | React Query, Zustand                |
+| **Real-time**  | Server-Sent Events (SSE)            |
+| **Styling**    | Tailwind CSS                        |
+| **Testing**    | Vitest, Playwright                  |
 
 ### Links
 
-| Resource | URL |
-|----------|-----|
-| 🌐 **Live Demo** | [https://astradesk-admin](https://astradesk-admin-portal.vercel.app/) |
-| 🐙 **Repository** | [https://github.com/SSobol77/astradesk-admin-portal](https://github.com/SSobol77/astradesk-admin-portal) |
+| Resource             | URL                                                                                                                    |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| 🌐 **Live Demo**     | [https://astradesk-admin](https://astradesk-admin-portal.vercel.app/)                                                  |
+| 🐙 **Repository**    | [https://github.com/SSobol77/astradesk-admin-portal](https://github.com/SSobol77/astradesk-admin-portal)               |
 | 📖 **Documentation** | [https://github.com/SSobol77/astradesk-admin-portal#readme](https://github.com/SSobol77/astradesk-admin-portal#readme) |
 
 ---
@@ -282,7 +306,7 @@ git clone https://github.com/your-org/astradesk.git
 cd astradesk
 ```
 
-2. Copy the sample configuration:
+1. Copy the sample configuration:
 
 ```
 cp .env.example .env
@@ -290,7 +314,7 @@ cp .env.example .env
 
 - Edit `.env` (e.g. DATABASE_URL, OIDC_ISSUER).
 
-3. Build and start:
+1. Build and start:
 
 ```
 make up
@@ -298,27 +322,26 @@ make up
 
 - This starts: API Gateway (8000), MCP Servers (8001-8004), Admin Portal (3000), databases and supporting services.
 
-4. Initialize Postgres (pgvector):
+1. Initialize Postgres (pgvector):
 
 ```
 make migrate
 ```
 
-5. Upload documents to `./docs` (e.g. .md, .txt) and initialize RAG:
+1. Upload documents to `./docs` (e.g. .md, .txt) and initialize RAG:
 
 ```
 make ingest
 ```
 
-6. Check health:
+1. Check health:
 
 ```
 curl http://localhost:8000/healthz
 ```
 
-- Admin Portal: http://localhost:3000
-- MCP Servers: http://localhost:8001 (support), 8002 (ops), 8003 (finance), 8004 (supply)
-
+- Admin Portal: <http://localhost:3000>
+- MCP Servers: <http://localhost:8001> (support), 8002 (ops), 8003 (finance), 8004 (supply)
 
 ### Build from Source
 
@@ -330,12 +353,13 @@ make build-java    # Java components
 make build-admin   # Next.js Admin Portal
 ```
 
-2. Run locally (without Docker):
+1. Run locally (without Docker):
+
 - API Gateway: `make dev-server` (with hot reload)
 - MCP Servers: `make mcp-all` (starts all domain pack servers)
 - Admin Portal: `cd services/admin-portal && npm run dev`
 
-3. Alternative development setup:
+1. Alternative development setup:
 
 ```
 # Automated setup (recommended)
@@ -388,22 +412,22 @@ curl -X POST http://localhost:8080/v1/agents/run \
 -H "Content-Type: application/json" \
 -H "Authorization: Bearer <your-jwt-token>" \
 -d '{"agent": "support", "input": "Create a ticket for a network incident", "meta": {"user": "alice"}}'
-````
+```
 
-* Response: JSON with output, reasoning_trace_id, invoked_tools.
-* Available agents: `support`, `ops`, `billing`
-* Demo queries: `./scripts/demo_queries.sh`.
+- Response: JSON with output, reasoning_trace_id, invoked_tools.
+- Available agents: `support`, `ops`, `billing`
+- Demo queries: `./scripts/demo_queries.sh`.
 
 ### Loading Documents into RAG
 
-* Supported formats: .md, .txt (extendable to PDF/HTML).
-* Run: `make ingest` (source: `./docs`).
+- Supported formats: .md, .txt (extendable to PDF/HTML).
+- Run: `make ingest` (source: `./docs`).
 
 ### Tools and Integrations
 
-* Tool registry: `registry.py` — add new ones via `register(name, async_fn)`.
-* Examples: create_ticket (proxy to Java), get_metrics (Prometheus stub), restart_service (RBAC-protected).
-* **MCP Gateway**: Standardized protocol for AI agent tool interactions with built-in security, audit, and rate limiting. See [MCP documentation](mcp/README.md) for implementation details.
+- Tool registry: `registry.py` — add new ones via `register(name, async_fn)`.
+- Examples: create_ticket (proxy to Java), get_metrics (Prometheus stub), restart_service (RBAC-protected).
+- **MCP Gateway**: Standardized protocol for AI agent tool interactions with built-in security, audit, and rate limiting. See [MCP documentation](mcp/README.md) for implementation details.
 
 ---
 
@@ -420,15 +444,15 @@ curl -X POST http://localhost:8080/v1/agents/run \
      --set autoscaling.enabled=true
    ```
 
-   * HPA: scales when CPU >60%.
+   - HPA: scales when CPU >60%.
 
 ### OpenShift
 
 1. Process template:
 
-  ```sh
-  oc process -f deploy/openshift/astradesk-template.yaml -p TAG=0.3.0 | oc apply -f -
-  ```
+```sh
+oc process -f deploy/openshift/astradesk-template.yaml -p TAG=0.3.0 | oc apply -f -
+```
 
 ### AWS (Terraform)
 
@@ -440,13 +464,13 @@ curl -X POST http://localhost:8080/v1/agents/run \
    terraform apply -var="region=us-east-1" -var="project=astradesk"
    ```
 
-   * Creates: VPC, EKS, RDS (Postgres/MySQL), S3.
+   - Creates: VPC, EKS, RDS (Postgres/MySQL), S3.
 
 ### Configuration Management Tools
 
-* **Ansible**: `ansible-playbook -i ansible/inventories/dev/hosts.ini ansible/roles/astradesk_docker/main.yml`.
-* **Puppet**: `puppet apply puppet/manifests/astradesk.pp`.
-* **Salt**: `salt '*' state.apply astradesk`.
+- **Ansible**: `ansible-playbook -i ansible/inventories/dev/hosts.ini ansible/roles/astradesk_docker/main.yml`.
+- **Puppet**: `puppet apply puppet/manifests/astradesk.pp`.
+- **Salt**: `salt '*' state.apply astradesk`.
 
 ### mTLS and Istio Service Mesh
 
@@ -458,11 +482,11 @@ curl -X POST http://localhost:8080/v1/agents/run \
 
 ### Jenkins
 
-* Run pipeline: `Jenkinsfile` builds/tests/pushes images, deploys via Helm.
+- Run pipeline: `Jenkinsfile` builds/tests/pushes images, deploys via Helm.
 
 ### GitLab CI
 
-* `.gitlab-ci.yml`: stages for build/test/docker/deploy (manual).
+- `.gitlab-ci.yml`: stages for build/test/docker/deploy (manual).
 
 <br>
 
@@ -475,6 +499,7 @@ curl -X POST http://localhost:8080/v1/agents/run \
 This section explains how to enable full observability for the AstraDesk platform using **Prometheus** (metrics), **Grafana** (dashboards), and **OpenTelemetry** (instrumentation).
 
 ### Goals
+
 - Collect metrics from the **Python API Gateway** (`/metrics`) and the **Java Ticket Adapter** (`/actuator/prometheus`).
 - Get a quick health view in **Grafana**.
 - Alerting (e.g., high 5xx error rate) in Prometheus.
@@ -484,6 +509,7 @@ This section explains how to enable full observability for the AstraDesk platfor
 ### Quick Start (Docker Compose)
 
 Below is a minimal snippet to add Prometheus + Grafana services to `docker-compose.yml`.
+
 > **Note:** We assume `api` and `ticket-adapter` services run with: `api:8080`, `ticket-adapter:8081`.
 
 ```yaml
@@ -495,7 +521,7 @@ services:
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
-      - "--web.enable-lifecycle"        # allows hot-reload of the config
+      - "--web.enable-lifecycle" # allows hot-reload of the config
     volumes:
       - ./dev/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
@@ -530,7 +556,7 @@ volumes:
 
 <br>
 
-### Prometheus Configuration 
+### Prometheus Configuration
 
 `dev/prometheus/prometheus.yml`
 
@@ -565,7 +591,7 @@ rule_files:
   - /etc/prometheus/alerts.yml
 ```
 
-*(Optional) Add `dev/prometheus/alerts.yml` and mount it similarly into the container (e.g., via an extra volume or fold it into `prometheus.yml`).*
+_(Optional) Add `dev/prometheus/alerts.yml` and mount it similarly into the container (e.g., via an extra volume or fold it into `prometheus.yml`)._
 
 <br>
 
@@ -765,13 +791,13 @@ logs-grafana:
 
 ### Validation Checklist
 
-* Prometheus UI: **[http://localhost:9090](http://localhost:9090)**
+- Prometheus UI: **[http://localhost:9090](http://localhost:9090)**
+  - Check that `api` and `ticket-adapter` jobs are **UP** (Status → Targets).
 
-  * Check that `api` and `ticket-adapter` jobs are **UP** (Status → Targets).
-* Grafana UI: **[http://localhost:3000](http://localhost:3000)**
+- Grafana UI: **[http://localhost:3000](http://localhost:3000)**
+  - Connect the Prometheus data source, import a dashboard, and watch key metrics (latency, request count, 5xx errors).
 
-  * Connect the Prometheus data source, import a dashboard, and watch key metrics (latency, request count, 5xx errors).
-* Quick test:
+- Quick test:
 
   ```bash
   curl -s http://localhost:8080/metrics | head
@@ -779,9 +805,10 @@ logs-grafana:
   ```
 
 > If the endpoints don’t return metrics, make sure:
-> 1) the paths (`/metrics`, `/actuator/prometheus`) are enabled,
-> 2) services are reachable by the Compose network names `api` / `ticket-adapter`,
-> 3) `prometheus.yml` points at the correct `targets`.
+>
+> 1. the paths (`/metrics`, `/actuator/prometheus`) are enabled,
+> 2. services are reachable by the Compose network names `api` / `ticket-adapter`,
+> 3. `prometheus.yml` points at the correct `targets`.
 
 <br>
 
@@ -795,8 +822,8 @@ This section provides practical instructions and answers to common questions to 
 
 Before starting, ensure you have:
 
-* **Docker** and **Docker Compose** (Docker Desktop recommended).
-* **Git**, **make**, and **Node.js** (v22+) installed locally.
+- **Docker** and **Docker Compose** (Docker Desktop recommended).
+- **Git**, **make**, and **Node.js** (v22+) installed locally.
 
 Preparation steps (run once):
 
@@ -806,11 +833,13 @@ Preparation steps (run once):
    git clone https://github.com/your-org/astradesk.git
    cd astradesk
    ```
+
 2. **Copy configuration file**:
 
    ```bash
    cp .env.example .env
    ```
+
 3. **Generate `package-lock.json`**: Required for building the Admin Portal Docker image.
 
    ```bash
@@ -825,27 +854,26 @@ You can choose between two modes depending on your needs.
 
 Runs **the entire application** (all microservices) inside Docker containers. Ideal for integration testing and production-like environments.
 
-* **To start:**
+- **To start:**
 
   ```bash
   make up
   ```
 
-  *(Alternatively: `docker compose up --build -d`)*
+  _(Alternatively: `docker compose up --build -d`)_
 
-* **To stop and clean up:**
+- **To stop and clean up:**
 
   ```bash
   make down
   ```
 
-  *(Alternatively: `docker compose down -v`)*
+  _(Alternatively: `docker compose down -v`)_
 
-* **Available services:**
-
-  * **API Gateway**: `http://localhost:8080`
-  * **Admin Portal**: `http://localhost:3000`
-  * **Ticket Adapter**: `http://localhost:8081`
+- **Available services:**
+  - **API Gateway**: `http://localhost:8080`
+  - **Admin Portal**: `http://localhost:3000`
+  - **Ticket Adapter**: `http://localhost:8081`
 
 <br>
 
@@ -860,7 +888,7 @@ Ideal for fast development and debugging with instant reloads.
    make up-deps
    ```
 
-   *(Alternatively: `docker compose up -d db mysql redis nats ticket-adapter`)*
+   _(Alternatively: `docker compose up -d db mysql redis nats ticket-adapter`)_
 
 2. **Step 2: Run the API locally** (in another terminal):
 
@@ -868,28 +896,31 @@ Ideal for fast development and debugging with instant reloads.
    make run-local
    ```
 
-   *(Alternatively: `python -m uvicorn src.gateway.main:app --host 0.0.0.0 --port 8080 --reload --app-dir src`)*
+   _(Alternatively: `python -m uvicorn src.gateway.main:app --host 0.0.0.0 --port 8080 --reload --app-dir src`)_
 
 ### 3. Testing
 
 `Makefile` provides simple commands for running tests.
 
-* **Run all tests:**
+- **Run all tests:**
 
   ```bash
   make test-all
   ```
-* **Python tests only:**
+
+- **Python tests only:**
 
   ```bash
   make test
   ```
-* **Java tests only:**
+
+- **Java tests only:**
 
   ```bash
   make test-java
   ```
-* **Admin Portal tests only:**
+
+- **Admin Portal tests only:**
 
   ```bash
   make test-admin
@@ -897,15 +928,14 @@ Ideal for fast development and debugging with instant reloads.
 
 ### 4. Working with Database and RAG
 
-* **Initialize database (create `pgvector` extension):**
-  *Note: not needed if using `docker-compose.deps.yml`.*
+- **Initialize database (create `pgvector` extension):**
+  _Note: not needed if using `docker-compose.deps.yml`._
 
   ```bash
   make migrate
   ```
 
-* **Feed the RAG knowledge base:**
-
+- **Feed the RAG knowledge base:**
   1. Add your `.md` or `.txt` files to `docs/`.
   2. Run:
 
@@ -917,23 +947,25 @@ Ideal for fast development and debugging with instant reloads.
 
 Once the app is running (in any mode), you can send requests to the API using `curl`.
 
-*Note: The following assumes the authorization guard (`auth_guard`) in `main.py` is temporarily disabled for testing.*
+_Note: The following assumes the authorization guard (`auth_guard`) in `main.py` is temporarily disabled for testing._
 
-* **Test `create_ticket` tool:**
+- **Test `create_ticket` tool:**
 
   ```bash
   curl -X POST http://localhost:8080/v1/agents/run \
     -H "Content-Type: application/json" \
     -d '{"agent": "support", "input": "My internet is down, please create a ticket."}'
   ```
-* **Test `get_metrics` tool:**
+
+- **Test `get_metrics` tool:**
 
   ```bash
   curl -X POST http://localhost:8080/v1/agents/run \
     -H "Content-Type: application/json" \
     -d '{"agent": "ops", "input": "Show me metrics for the webapp service"}'
   ```
-* **Test RAG (knowledge base):**
+
+- **Test RAG (knowledge base):**
 
   ```bash
   curl -X POST http://localhost:8080/v1/agents/run \
@@ -943,68 +975,62 @@ Once the app is running (in any mode), you can send requests to the API using `c
 
 ### 6. FAQ - Common Issues and Questions
 
-* **Q: I get `Connection refused` on startup.**
-
-  * **A:** Most likely the API server (`make run-local`) starts before dependent containers are ready.
+- **Q: I get `Connection refused` on startup.**
+  - **A:** Most likely the API server (`make run-local`) starts before dependent containers are ready.
     Ensure `docker ps` shows `(healthy)` for `db`, `mysql`, and `redis` before starting Python.
 
-* **Q: I get `{"detail":"Missing Bearer authorization header."}`.**
-
-  * **A:** That means `auth_guard` in `src/gateway/main.py` is enabled.
+- **Q: I get `{"detail":"Missing Bearer authorization header."}`.**
+  - **A:** That means `auth_guard` in `src/gateway/main.py` is enabled.
     For local
-
 
 testing, comment out `claims: dict[str, Any] = Depends(auth_guard),` in the `run_agent` endpoint definition and pass `{}` as `claims` to `orchestrator.run`.
 
-* **Q: How do I view logs for a specific service?**
-
-  * **A:** Use `docker logs`. For example, to follow Auditor logs live:
+- **Q: How do I view logs for a specific service?**
+  - **A:** Use `docker logs`. For example, to follow Auditor logs live:
 
     ```bash
     docker logs -f astradesk-auditor-1
     ```
 
-    *(Container name may vary — check with `docker ps`.)*
+    _(Container name may vary — check with `docker ps`.)_
 
-* **Q: How do I rebuild a single Docker image?**
-
-  * **A:** Use the `--build` flag:
+- **Q: How do I rebuild a single Docker image?**
+  - **A:** Use the `--build` flag:
 
     ```bash
     docker compose up -d --build api
     ```
 
-* **Q: Where can I modify `KeywordPlanner` keywords?**
-
-  * **A:** In `src/runtime/planner.py`, inside the `__init__` method of `KeywordPlanner`.
+- **Q: Where can I modify `KeywordPlanner` keywords?**
+  - **A:** In `src/runtime/planner.py`, inside the `__init__` method of `KeywordPlanner`.
 
 <br>
 
 ## Testing
 
-* Run: `make test` (Python), `make test-java`, `make test-admin`.
-* Coverage: Unit (pytest, JUnit, Vitest), integration (API flow).
+- Run: `make test` (Python), `make test-java`, `make test-admin`.
+- Coverage: Unit (pytest, JUnit, Vitest), integration (API flow).
 
 ## Security
 
-* **Auth**: OIDC/JWT with JWKS.
-* **RBAC**: Per tool, based on claims.
-* **mTLS**: STRICT via Istio.
-* **Audit**: Logged to Postgres + NATS publish.
-* **Policies**: Allow-lists in tools, proxy retries.
+- **Auth**: OIDC/JWT with JWKS.
+- **RBAC**: Per tool, based on claims.
+- **mTLS**: STRICT via Istio.
+- **Audit**: Logged to Postgres + NATS publish.
+- **Policies**: Allow-lists in tools, proxy retries.
 
 ## Roadmap
 
-* LLM integration (Bedrock/OpenAI/vLLM) with guardrails.
-* Temporal for long-running workflows.
-* RAG evaluations (Ragas).
-* Advanced multi-tenancy & RBAC (OPA).
-* Full Grafana dashboards with alerts.
+- LLM integration (Bedrock/OpenAI/vLLM) with guardrails.
+- Temporal for long-running workflows.
+- RAG evaluations (Ragas).
+- Advanced multi-tenancy & RBAC (OPA).
+- Full Grafana dashboards with alerts.
 
 ## Contributing
 
-* Fork the repo, create a branch, and submit a PR with tests.
-* Run `make lint/type` before committing.
+- Fork the repo, create a branch, and submit a PR with tests.
+- Run `make lint/type` before committing.
 
 ## License
 
@@ -1026,5 +1052,4 @@ Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 ---
 
-*Last updated: 2026-04-09*
-
+_Last updated: 2026-04-09_

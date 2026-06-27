@@ -72,7 +72,7 @@ BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID")
 BEDROCK_REGION = os.getenv("AWS_REGION", "us-east-1")
 
 if not BEDROCK_MODEL_ID:
-    raise ModelGatewayError("BEDROCK_MODEL_ID environment variable is required", provider="bedrock")
+    logger.info("BEDROCK_MODEL_ID env var not set; BedrockProvider imports, but chat()/stream() will raise until configured.")
 
 
 class BedrockProvider(LLMProvider):

@@ -21,7 +21,7 @@ The `deploy/istio/` directory contains Istio configurations for the AstraDesk pr
 
 This directory supports the polyglot stack:
 
-- **Python 3.14**: `api` (FastAPI), `auditor`.
+- **Python 3.13+**: `api` (FastAPI), `auditor`.
 
 - **Java 25**: `ticket-adapter`.
 

@@ -30,11 +30,13 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 from opentelemetry import trace
 
-from runtime import RAG, KeywordPlanner, Memory, ToolRegistry
-from model_gateway.llm_planner import LLMPlanner
+from runtime.rag import RAG, RAGSnippet
 from runtime.models import ToolCall
 from runtime.policy import policy as opa_policy
-from runtime.rag import RAG, RAGSnippet
+from runtime.registry import ToolRegistry
+from runtime.memory import Memory
+from runtime.planner import KeywordPlanner
+from model_gateway.llm_planner import LLMPlanner
 from .base import BaseAgent, Plan, PlanStep
 
 logger = logging.getLogger(__name__)

@@ -9,7 +9,7 @@ version = "0.3.0"
 description = "Supply chain domain pack for AstraDesk — replenishment and SAP integration."
 authors = [{ name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com" }]
 license = "Apache-2.0"
-requires-python = ">=3.14"
+requires-python = ">=3.13"
 
 dependencies = [
   "astradesk-core",

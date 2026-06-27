@@ -1,16 +1,16 @@
 # AstraDesk Admin API
 
 FastAPI-based Admin backend for **AstraDesk** Admin Portal (aligned with **Admin API v1.2.0**).  
-**Environment policy:** We target **Python 3.14 only** and use **`uv` exclusively** (no `pip`).
+**Environment policy:** We target **Python 3.13+** and use **`uv` exclusively** (no `pip`).
 
 > **Spec reference:** Admin API contract: `services/admin-portal/OpenAPI.yaml` (version **1.2.0**).
 
 ---
 
-## 🚀 Quick Start (Python 3.14 + uv)
+## 🚀 Quick Start (Python 3.13 + uv)
 
 ### Prerequisites
-- **Python 3.14** (CPython)
+- **Python 3.13** (CPython)
 - **[`uv`](https://github.com/astral-sh/uv)** installed and on PATH
 
 ### Install & Run (dev)
@@ -103,12 +103,12 @@ Implementation lives in `src/astradesk_admin/main.py` and returns structured `py
 
 ## 🐳 Docker (uv-only)
 
-> We avoid `pip` and keep Python at **3.14**.
+> We avoid `pip` and keep Python at **3.13+**.
 
 Example `Dockerfile` for local dev images:
 ```Dockerfile
 # services/admin_api/Dockerfile
-FROM python:3.14-slim
+FROM python:3.13-slim
 
 # Install system basics
 RUN apt-get update && apt-get install -y --no-install-recommends     curl ca-certificates build-essential &&     rm -rf /var/lib/apt/lists/*
@@ -151,7 +151,7 @@ docker run --rm -p 8001:8001 astradesk-admin-api:dev
 - Wire real DB/cache/vector-store health checks
 - Add OPA/claims-based auth for admin endpoints
 - OpenTelemetry traces/metrics
-- CI with `uv` matrix (3.14), Docker, SBOM
+- CI with `uv` matrix (3.13), Docker, SBOM
 - Contract tests vs Admin API v1.2.0
 
 ---

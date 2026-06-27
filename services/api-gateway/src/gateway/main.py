@@ -123,7 +123,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     pg_pool = await asyncpg.create_pool(DATABASE_URL)
     if not pg_pool:
         raise RuntimeError("Failed to create PostgreSQL connection pool.")
-    redis_client = redis.from_url(REDIS_URL, decode_responses=True)
+    # decode_responses removed for compatibility with redis 5.x
+    redis_client = redis.from_url(REDIS_URL, single_connection_client=True)
     opa_client = OpaClient(url=OPA_URL)
 
     # --- Initialize core components ---

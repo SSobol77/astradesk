@@ -7,11 +7,11 @@
 name = "astradesk"
 version = "0.3.0"
 description = "AstraDesk – Enterprise AI Framework"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 authors = [{ name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com" }]
 license = { text = "Apache-2.0" }
 
-# Root paczka jest meta-koordynatorem AstraDesk Enterprise AI Agents Framework – tu zwykle nie trzymamy zależności runtime.
+# Root package is the meta-coordinator of AstraDesk Enterprise AI Agents Framework – runtime deps live in member packages.
 dependencies = [
     "astradesk-core",
     "astradesk-api-gateway",
@@ -36,11 +36,6 @@ dev = [
   "types-redis>=4.6.0,<5.0",
   "pip-audit>=2.7,<3.0",
 ]
-# GPU optional – używaj tylko na hostach z CUDA; unikamy globalnych CU indexów
-#cu121 = [
-#  "torch==2.9.0+cu121",
-#]
-
 
 docs = [
   "mkdocs>=1.6.0",
@@ -57,19 +52,15 @@ ingestion = [
   "beautifulsoup4>=4.12.3",
 ]
 
-
-
 [tool.uv]
-# Pozwól na prerelease (np. Python 3.14.0rc1) – świadomie, bo projekt celuje w 3.14
 prerelease = "allow"
 #extra-index-url = ["https://download.pytorch.org/whl/cu121"]
-
 
 [tool.uv.workspace]
 members = [
   "core",
   "services/api-gateway",
-  "services/auditor", 
+  "services/auditor",
   "services/admin_api",
   "packages/domain-support",
   "packages/domain-finance",
@@ -80,7 +71,7 @@ members = [
 [tool.uv.sources]
 astradesk-core = { workspace = true }
 astradesk-api-gateway = { workspace = true }
-astradesk-auditor = { workspace = true } 
+astradesk-auditor = { workspace = true }
 astradesk-domain-ops = { workspace = true }
 astradesk-domain-finance = { workspace = true }
 astradesk-domain-supply = { workspace = true }
@@ -89,16 +80,15 @@ astradesk-admin-api = { workspace = true }
 
 [tool.ruff]
 line-length = 100
-target-version = "py314"
+target-version = "py313"
 format = { quote-style = "single" }
 
 [tool.ruff.lint]
-# Nowy schemat Ruff 0.5+: sekcja lint w osobnym bloku (masz już zgodny zapis)
 ignore = ["TC003", "E501", "F841","D401"]
 select = ["E", "F", "W", "I", "N", "D", "UP", "S", "B", "A", "C4", "T20", "RUF"]
 
 [tool.mypy]
-python_version = "3.14"
+python_version = "3.13"
 strict = true
 ignore_missing_imports = true
 mypy_path = "services/api-gateway/src"
@@ -106,3 +96,4 @@ mypy_path = "services/api-gateway/src"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 addopts = "--cov=core/src --cov=services/api-gateway/src --cov=packages --cov-report=xml --cov-report=term-missing"
+pythonpath = ["services", "packages", "services/api-gateway/src"]

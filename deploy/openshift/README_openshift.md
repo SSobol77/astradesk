@@ -6,7 +6,7 @@
 The `deploy/openshift/` directory contains OpenShift templates for deploying the AstraDesk project in a production-ready environment. These templates define `DeploymentConfig`, `Service`, and `Route` resources for core services (`api`, `ticket-adapter`, `admin-portal`, `auditor`) and domain packs (`domain-support`). The configurations:
 - Enable Istio sidecar injection for mTLS (`deploy/istio/10-peer-authentication.yaml`).
 - Integrate with cert-manager for TLS/mTLS (`deploy/istio/certs/`).
-- Support polyglot stack (Python 3.14+, Java 25+, Node.js 22, Postgres 18+).
+- Support polyglot stack (Python 3.13+, Java 25+, Node.js 22, Postgres 18+).
 - Use Admin API (`/secrets`) for certificate and token storage.
 
 ## Directory Contents

@@ -8,7 +8,7 @@ The `infra/` directory contains Terraform configurations for deploying the Astra
 - **Istio**: mTLS and Gateway (`deploy/istio/`).
 - **cert-manager**: TLS certificates (`deploy/istio/certs/`).
 - **Admin API**: `/secrets` for AWS credentials (OpenAPI 3.1.0).
-- **Polyglot Stack**: Python 3.14+ (API), Java 25+ (ticket-adapter), Node.js 22 (admin-portal), Postgres 18+.
+- **Polyglot Stack**: Python 3.13+ (API), Java 25+ (ticket-adapter), Node.js 22 (admin-portal), Postgres 18+.
 - **CI/CD**: Jenkinsfile (`terraform plan/apply`), Makefile (`terraform-init`, `terraform-apply`).
 
 ## Directory Structure

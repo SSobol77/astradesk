@@ -10,7 +10,7 @@
 # Since: 2025-11-09
 
 # --- Builder Stage ---
-FROM python:3.14-slim AS builder
+FROM python:3.13-slim AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -42,7 +42,7 @@ RUN --mount=type=cache,target=/uv-cache \
     uv sync --all-extras --frozen
 
 # --- Runtime Stage ---
-FROM python:3.14-slim AS runtime
+FROM python:3.13-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -86,7 +86,7 @@ LABEL org.opencontainers.image.title="AstraDesk API" \
       org.opencontainers.image.url="https://astradesk.com" \
       org.opencontainers.image.source="https://github.com/astradesk/framework" \
       org.opencontainers.image.documentation="https://docs.astradesk.com/api/admin/v1" \
-      org.opencontainers.image.base.name="python:3.14-slim"
+      org.opencontainers.image.base.name="python:3.13-slim"
 
 # --- Expose ports ---
 EXPOSE 8080

@@ -3,7 +3,7 @@
 # Description:
 #     OpenShift Template for deploying the AstraDesk API service.
 #     Includes DeploymentConfig, Service, and Route with Istio sidecar injection and mTLS/TLS support.
-#     Integrates with deploy/istio/, /secrets (Admin API), and polyglot stack (Python 3.14+).
+#     Integrates with deploy/istio/, /secrets (Admin API), and polyglot stack (Python 3.13+).
 # Author: Siergej Sobolewski
 # Since: 2025-10-22
 
