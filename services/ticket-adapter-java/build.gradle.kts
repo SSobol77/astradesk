@@ -8,6 +8,7 @@ import org.springframework.boot.gradle.tasks.run.BootRun
 
 plugins {
     id("java")
+    id("jacoco")                              // test coverage report consumed by CI/Sonar
     id("org.springframework.boot")            // wersja przypięta w root build.gradle.kts
     id("io.spring.dependency-management")     // zarządzanie wersjami zależności przez BOM SB
 }
@@ -66,6 +67,16 @@ tasks.withType<JavaCompile>().configureEach {
 
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
+    finalizedBy(tasks.named("jacocoTestReport"))
+}
+
+tasks.named<JacocoReport>("jacocoTestReport") {
+    dependsOn(tasks.named("test"))
+    reports {
+        // CI uploads build/reports/jacoco/test/jacocoTestReport.xml (the default path).
+        xml.required.set(true)
+        html.required.set(true)
+    }
 }
 
 tasks.withType<BootJar>().configureEach {

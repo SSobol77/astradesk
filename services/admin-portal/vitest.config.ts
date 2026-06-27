@@ -8,6 +8,9 @@ export default defineConfig({
     environment: "node",
     coverage: {
       enabled: false,
+      provider: "v8",
+      // lcov produces coverage/lcov.info which CI uploads as the JS coverage artifact.
+      reporter: ["text", "lcov"],
     },
     include: ["tests/unit/**/*.test.ts"],
   },

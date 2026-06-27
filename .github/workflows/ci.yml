@@ -27,11 +27,12 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
 
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'uv'
 
       - name: Sync dependencies (locked)
         run: uv sync --frozen
