@@ -72,9 +72,7 @@ def ingress_client(
 ) -> Iterator[tuple[TestClient, _RecordingVerifier, _RecordingOrchestrator]]:
     verifier = _RecordingVerifier()
     orchestrator = _RecordingOrchestrator()
-    monkeypatch.setattr(
-        gateway_main.app.state, 'token_verifier', verifier, raising=False
-    )
+    monkeypatch.setattr(gateway_main.app.state, 'token_verifier', verifier, raising=False)
     monkeypatch.setitem(gateway_main.app_state, 'orchestrator', orchestrator)
     client = TestClient(gateway_main.app)
     yield client, verifier, orchestrator

@@ -27,18 +27,18 @@ from jwt import PyJWKClient
 from jwt.exceptions import PyJWKClientError
 
 __all__ = [
-    "AuthConfigError",
-    "AuthError",
-    "LocalDevVerifier",
-    "OIDCSettings",
-    "Principal",
-    "TokenVerifier",
-    "Verifier",
-    "build_verifier_from_env",
+    'AuthConfigError',
+    'AuthError',
+    'LocalDevVerifier',
+    'OIDCSettings',
+    'Principal',
+    'TokenVerifier',
+    'Verifier',
+    'build_verifier_from_env',
 ]
 
 # Tiers on which a weakened (symmetric) auth path must never be reachable.
-_DEPLOYED_TIERS = frozenset({"production", "prod", "staging", "stage"})
+_DEPLOYED_TIERS = frozenset({'production', 'prod', 'staging', 'stage'})
 
 
 class AuthConfigError(RuntimeError):
@@ -95,7 +95,7 @@ def _split_scope(value: Any) -> tuple[str, ...]:
 def _dotted_get(claims: Mapping[str, Any], path: str) -> Any:
     """Resolve a dotted claim path, e.g. 'realm_access.roles' (Keycloak)."""
     cur: Any = claims
-    for part in path.split("."):
+    for part in path.split('.'):
         if not isinstance(cur, Mapping) or part not in cur:
             return None
         cur = cur[part]
@@ -109,50 +109,44 @@ class OIDCSettings:
     issuer: str
     audience: str
     jwks_url: str
-    algorithms: tuple[str, ...] = ("RS256",)
+    algorithms: tuple[str, ...] = ('RS256',)
     leeway_seconds: int = 30
     jwks_cache_ttl: int = 600
-    roles_claim: str = "roles"
-    scope_claim: str = "scope"
+    roles_claim: str = 'roles'
+    scope_claim: str = 'scope'
     required_scopes: tuple[str, ...] = ()
 
     @staticmethod
     def from_env() -> OIDCSettings:
-        issuer = os.getenv("OIDC_ISSUER", "").strip()
-        audience = os.getenv("OIDC_AUDIENCE", "").strip()
-        jwks_url = os.getenv("OIDC_JWKS_URL", "").strip()
+        issuer = os.getenv('OIDC_ISSUER', '').strip()
+        audience = os.getenv('OIDC_AUDIENCE', '').strip()
+        jwks_url = os.getenv('OIDC_JWKS_URL', '').strip()
         missing = [
             name
             for name, val in (
-                ("OIDC_ISSUER", issuer),
-                ("OIDC_AUDIENCE", audience),
-                ("OIDC_JWKS_URL", jwks_url),
+                ('OIDC_ISSUER', issuer),
+                ('OIDC_AUDIENCE', audience),
+                ('OIDC_JWKS_URL', jwks_url),
             )
             if not val
         ]
         if missing:
-            raise AuthConfigError(
-                "Missing required OIDC configuration: " + ", ".join(missing)
-            )
+            raise AuthConfigError('Missing required OIDC configuration: ' + ', '.join(missing))
         algorithms = tuple(
-            a.strip()
-            for a in os.getenv("OIDC_ALGORITHMS", "RS256").split(",")
-            if a.strip()
+            a.strip() for a in os.getenv('OIDC_ALGORITHMS', 'RS256').split(',') if a.strip()
         )
         required_scopes = tuple(
-            s.strip()
-            for s in os.getenv("OIDC_REQUIRED_SCOPES", "").split(",")
-            if s.strip()
+            s.strip() for s in os.getenv('OIDC_REQUIRED_SCOPES', '').split(',') if s.strip()
         )
         return OIDCSettings(
             issuer=issuer,
             audience=audience,
             jwks_url=jwks_url,
-            algorithms=algorithms or ("RS256",),
-            leeway_seconds=int(os.getenv("OIDC_LEEWAY_SECONDS", "30")),
-            jwks_cache_ttl=int(os.getenv("OIDC_JWKS_CACHE_TTL", "600")),
-            roles_claim=os.getenv("OIDC_ROLES_CLAIM", "roles"),
-            scope_claim=os.getenv("OIDC_SCOPE_CLAIM", "scope"),
+            algorithms=algorithms or ('RS256',),
+            leeway_seconds=int(os.getenv('OIDC_LEEWAY_SECONDS', '30')),
+            jwks_cache_ttl=int(os.getenv('OIDC_JWKS_CACHE_TTL', '600')),
+            roles_claim=os.getenv('OIDC_ROLES_CLAIM', 'roles'),
+            scope_claim=os.getenv('OIDC_SCOPE_CLAIM', 'scope'),
             required_scopes=required_scopes,
         )
 
@@ -185,9 +179,7 @@ class _JwksKeyResolver:
             try:
                 return self._client.get_signing_key_from_jwt(token).key
             except PyJWKClientError as exc2:
-                raise AuthError(
-                    "invalid_token", f"no usable signing key: {exc2}"
-                ) from exc
+                raise AuthError('invalid_token', f'no usable signing key: {exc2}') from exc
 
 
 class TokenVerifier:
@@ -206,13 +198,13 @@ class TokenVerifier:
 
     def verify(self, token: str) -> Principal:
         if not token:
-            raise AuthError("missing_token", "no bearer token presented")
+            raise AuthError('missing_token', 'no bearer token presented')
         try:
             key = self._resolve_key(token)
         except AuthError:
             raise
         except Exception as exc:  # - any resolver failure is fail-closed
-            raise AuthError("invalid_token", f"key resolution failed: {exc}") from exc
+            raise AuthError('invalid_token', f'key resolution failed: {exc}') from exc
 
         try:
             claims = jwt.decode(
@@ -223,31 +215,31 @@ class TokenVerifier:
                 issuer=self._s.issuer,
                 leeway=self._s.leeway_seconds,
                 options={
-                    "require": ["exp", "iat"],
-                    "verify_signature": True,
-                    "verify_aud": True,
-                    "verify_iss": True,
-                    "verify_exp": True,
-                    "verify_nbf": True,  # validated only if the claim is present
+                    'require': ['exp', 'iat'],
+                    'verify_signature': True,
+                    'verify_aud': True,
+                    'verify_iss': True,
+                    'verify_exp': True,
+                    'verify_nbf': True,  # validated only if the claim is present
                 },
             )
         except jwt.ExpiredSignatureError as exc:
-            raise AuthError("token_expired", str(exc)) from exc
+            raise AuthError('token_expired', str(exc)) from exc
         except jwt.InvalidAudienceError as exc:
-            raise AuthError("invalid_audience", str(exc)) from exc
+            raise AuthError('invalid_audience', str(exc)) from exc
         except jwt.InvalidIssuerError as exc:
-            raise AuthError("invalid_issuer", str(exc)) from exc
+            raise AuthError('invalid_issuer', str(exc)) from exc
         except jwt.ImmatureSignatureError as exc:
-            raise AuthError("token_not_yet_valid", str(exc)) from exc
+            raise AuthError('token_not_yet_valid', str(exc)) from exc
         except jwt.InvalidTokenError as exc:
-            raise AuthError("invalid_token", str(exc)) from exc
+            raise AuthError('invalid_token', str(exc)) from exc
 
         return self._to_principal(claims)
 
     def _to_principal(self, claims: Mapping[str, Any]) -> Principal:
-        subject = str(claims.get("sub") or "")
+        subject = str(claims.get('sub') or '')
         if not subject:
-            raise AuthError("invalid_token", "token has no subject")
+            raise AuthError('invalid_token', 'token has no subject')
         roles_raw = _dotted_get(claims, self._s.roles_claim)
         roles = (
             tuple(str(r) for r in roles_raw)
@@ -255,13 +247,9 @@ class TokenVerifier:
             else _split_scope(roles_raw)
         )
         scopes = _split_scope(claims.get(self._s.scope_claim))
-        if self._s.required_scopes and not set(self._s.required_scopes).issubset(
-            scopes
-        ):
-            raise AuthError("insufficient_scope", "required scope not present")
-        return Principal(
-            subject=subject, roles=roles, scopes=scopes, claims=dict(claims)
-        )
+        if self._s.required_scopes and not set(self._s.required_scopes).issubset(scopes):
+            raise AuthError('insufficient_scope', 'required scope not present')
+        return Principal(subject=subject, roles=roles, scopes=scopes, claims=dict(claims))
 
 
 class LocalDevVerifier:
@@ -272,11 +260,9 @@ class LocalDevVerifier:
     identical to production: a subject is required.
     """
 
-    def __init__(
-        self, secret: str, audience: str, issuer: str, leeway: int = 30
-    ) -> None:
+    def __init__(self, secret: str, audience: str, issuer: str, leeway: int = 30) -> None:
         if not secret:
-            raise AuthConfigError("local-dev auth requires ASTRADESK_DEV_JWT_SECRET")
+            raise AuthConfigError('local-dev auth requires ASTRADESK_DEV_JWT_SECRET')
         self._secret = secret
         self._audience = audience
         self._issuer = issuer
@@ -284,24 +270,24 @@ class LocalDevVerifier:
 
     def verify(self, token: str) -> Principal:
         if not token:
-            raise AuthError("missing_token", "no bearer token presented")
+            raise AuthError('missing_token', 'no bearer token presented')
         try:
             claims = jwt.decode(
                 token,
                 key=self._secret,
-                algorithms=["HS256"],
+                algorithms=['HS256'],
                 audience=self._audience,
                 issuer=self._issuer,
                 leeway=self._leeway,
-                options={"require": ["exp", "iat"], "verify_signature": True},
+                options={'require': ['exp', 'iat'], 'verify_signature': True},
             )
         except jwt.InvalidTokenError as exc:
-            raise AuthError("invalid_token", str(exc)) from exc
-        subject = str(claims.get("sub") or "")
+            raise AuthError('invalid_token', str(exc)) from exc
+        subject = str(claims.get('sub') or '')
         if not subject:
-            raise AuthError("invalid_token", "token has no subject")
-        roles = _split_scope(claims.get("roles"))
-        scopes = _split_scope(claims.get("scope"))
+            raise AuthError('invalid_token', 'token has no subject')
+        roles = _split_scope(claims.get('roles'))
+        scopes = _split_scope(claims.get('scope'))
         return Principal(
             subject=subject,
             roles=roles,
@@ -318,21 +304,19 @@ def build_verifier_from_env() -> Verifier:
     tier; returns a symmetric LocalDevVerifier. Any deployed tier requesting
     local-dev aborts startup.
     """
-    auth_mode = os.getenv("AUTH_MODE", "production").strip().lower()
-    environment = os.getenv("ENVIRONMENT", "production").strip().lower()
+    auth_mode = os.getenv('AUTH_MODE', 'production').strip().lower()
+    environment = os.getenv('ENVIRONMENT', 'production').strip().lower()
 
-    if auth_mode == "local-dev":
+    if auth_mode == 'local-dev':
         if environment in _DEPLOYED_TIERS:
-            raise AuthConfigError(
-                f"AUTH_MODE=local-dev is forbidden on tier '{environment}'"
-            )
+            raise AuthConfigError(f"AUTH_MODE=local-dev is forbidden on tier '{environment}'")
         return LocalDevVerifier(
-            secret=os.getenv("ASTRADESK_DEV_JWT_SECRET", ""),
-            audience=os.getenv("OIDC_AUDIENCE", "astradesk-local"),
-            issuer=os.getenv("OIDC_ISSUER", "astradesk-local"),
+            secret=os.getenv('ASTRADESK_DEV_JWT_SECRET', ''),
+            audience=os.getenv('OIDC_AUDIENCE', 'astradesk-local'),
+            issuer=os.getenv('OIDC_ISSUER', 'astradesk-local'),
         )
 
-    if auth_mode != "production":
-        raise AuthConfigError(f"unknown AUTH_MODE: {auth_mode!r}")
+    if auth_mode != 'production':
+        raise AuthConfigError(f'unknown AUTH_MODE: {auth_mode!r}')
 
     return TokenVerifier(OIDCSettings.from_env())

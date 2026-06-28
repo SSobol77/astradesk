@@ -20,7 +20,7 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.testclient import TestClient
 from gateway.auth_dependency import get_principal, require_authenticated
 
-HANDLER_MARKER = {"handler_ran": True}
+HANDLER_MARKER = {'handler_ran': True}
 
 
 class _FakeVerifier:
@@ -41,46 +41,44 @@ def _make_app(verifier: _FakeVerifier) -> FastAPI:
     app = FastAPI()
     app.state.token_verifier = verifier
 
-    @app.get("/protected")
-    async def protected(
-        request: Request, principal: Principal = Depends(require_authenticated)
-    ):
+    @app.get('/protected')
+    async def protected(request: Request, principal: Principal = Depends(require_authenticated)):
         # Reaching here means the gate let the request through.
         attached = get_principal(request)
-        return {"handler_ran": True, "sub": principal.subject, "attached": attached.subject}
+        return {'handler_ran': True, 'sub': principal.subject, 'attached': attached.subject}
 
     return app
 
 
-_VALID_PRINCIPAL = Principal(subject="user-1", roles=("operator",), scopes=(), claims={})
+_VALID_PRINCIPAL = Principal(subject='user-1', roles=('operator',), scopes=(), claims={})
 
 
 def test_missing_header_returns_401_and_skips_handler():
     client = TestClient(_make_app(_FakeVerifier(principal=_VALID_PRINCIPAL)))
-    resp = client.get("/protected")
+    resp = client.get('/protected')
     assert resp.status_code == 401
-    assert resp.json()["detail"]["error"] == "missing_token"
+    assert resp.json()['detail']['error'] == 'missing_token'
 
 
 def test_malformed_header_returns_401():
     client = TestClient(_make_app(_FakeVerifier(principal=_VALID_PRINCIPAL)))
-    resp = client.get("/protected", headers={"Authorization": "Token abc"})
+    resp = client.get('/protected', headers={'Authorization': 'Token abc'})
     assert resp.status_code == 401
-    assert resp.json()["detail"]["error"] == "missing_token"
+    assert resp.json()['detail']['error'] == 'missing_token'
 
 
 def test_verifier_autherror_maps_to_401():
-    bad = _FakeVerifier(error=AuthError("token_expired", "expired"))
+    bad = _FakeVerifier(error=AuthError('token_expired', 'expired'))
     client = TestClient(_make_app(bad))
-    resp = client.get("/protected", headers={"Authorization": "Bearer x.y.z"})
+    resp = client.get('/protected', headers={'Authorization': 'Bearer x.y.z'})
     assert resp.status_code == 401
-    assert resp.json()["detail"]["error"] == "token_expired"
-    assert resp.headers.get("WWW-Authenticate") == 'Bearer error="token_expired"'
+    assert resp.json()['detail']['error'] == 'token_expired'
+    assert resp.headers.get('WWW-Authenticate') == 'Bearer error="token_expired"'
 
 
 def test_valid_token_reaches_handler_and_attaches_principal():
     client = TestClient(_make_app(_FakeVerifier(principal=_VALID_PRINCIPAL)))
-    resp = client.get("/protected", headers={"Authorization": "Bearer good.token"})
+    resp = client.get('/protected', headers={'Authorization': 'Bearer good.token'})
     assert resp.status_code == 200
     body = resp.json()
-    assert body == {"handler_ran": True, "sub": "user-1", "attached": "user-1"}
+    assert body == {'handler_ran': True, 'sub': 'user-1', 'attached': 'user-1'}
