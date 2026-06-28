@@ -25,9 +25,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 env:
   PYTHON_VERSION: "3.13"
@@ -85,7 +85,7 @@ jobs:
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: "temurin"
-          cache: 'gradle'
+          cache: "gradle"
 
       - name: Build and Test Java Adapter
         working-directory: services/ticket-adapter-java
