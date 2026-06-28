@@ -1,3 +1,19 @@
+<!--
+SPDX-License-Identifier: GPL-2.0-only
+Project: AstraDesk
+File: docs/en/09_mcp_gateway_domain_packs.md
+Website: https://www.astradesk.dev
+Repository: https://github.com/SSobol77/astradesk
+
+Description: Documents AstraDesk architecture, operation, or component behavior.
+
+Copyright (c) 2026 Siergej Sobolewski
+This file is part of AstraDesk.
+
+AstraDesk is licensed under the GNU General Public License version 2 only.
+See the LICENSE file in the project root for the full license text.
+-->
+
 ![AstraDesk](../assets/astradesk-logo.svg)
 
 # 9. MCP Gateway & Domain Packs
@@ -302,6 +318,25 @@ paths:
         "4XX": { description: "Policy/Schema error" }
         "5XX": { description: "Upstream error" }
 ```
+
+<br>
+
+---
+
+## 9.7a Versioning: Product vs. API Contract
+
+AstraDesk separates two version axes:
+
+- **Product / package version** (`0.3.0`) — the release version of the codebase, stamped in
+  `pyproject.toml`, Gradle, and Sonar.
+- **Admin API contract version** (`1.2.0`) — the semver of the HTTP contract, carried in
+  `info.version` of `openapi/astradesk-admin.v1.yaml` and stamped on the `services/admin_api`
+  FastAPI app.
+
+The spec filename follows `*.v<MAJOR>.yaml` (`astradesk-admin.v1.yaml`), encoding the API
+**MAJOR** version (`v1`); the complete contract version (`1.2.0`) lives in `info.version`.
+`scripts/check-openapi-version.sh` enforces `openapi: 3.1.0` and `info.version: "1.2.0"`, and
+`services/admin-portal/OpenAPI.yaml` is a symlink to the canonical spec to prevent drift.
 
 <br>
 

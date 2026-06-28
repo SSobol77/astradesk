@@ -1,30 +1,35 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/api-gateway/src/model_gateway/router.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/model_gateway/router.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/model_gateway/router.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Project: astradesk
-Pakage: api-gateway
-
-Author: Siergej Sobolewski
-Since: 2025-10-29
-
-Central router and lifecycle manager for LLM providers.
+"""Central router and lifecycle manager for LLM providers.
 Implements singleton pattern with lazy initialization, async safety, OPA governance, and OTel tracing.
-
 """
 
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import os
-import inspect
-from typing import Dict, Type, Optional
 
-from opentelemetry import trace
 from opa_client.opa import OpaClient
+from opentelemetry import trace
 
 from model_gateway.base import LLMProvider
 from model_gateway.guardrails import ProblemDetail
+
 from .providers.bedrock_provider import BedrockProvider
 from .providers.openai_provider import OpenAIProvider
 from .providers.vllm_provider import VLLMProvider
@@ -41,30 +46,30 @@ class ProviderNotFoundError(Exception):
 
     def to_problem_detail(self) -> ProblemDetail:
         return ProblemDetail(
-            type="https://astradesk.com/errors/provider-not-found",
-            title="Provider Not Found",
+            type='https://astradesk.com/errors/provider-not-found',
+            title='Provider Not Found',
             detail=f"LLM provider '{self.provider_name}' is not registered. Check MODEL_PROVIDER.",
-            status=500
+            status=500,
         )
 
 
 class ProviderRouter:
     """Manages lifecycle of a single, shared LLM provider instance."""
 
-    def __init__(self, opa_client: Optional[OpaClient] = None) -> None:
+    def __init__(self, opa_client: OpaClient | None = None) -> None:
         """Initializes router with optional OPA client."""
-        self._providers: Dict[str, Type[LLMProvider]] = {}
-        self._instance: Optional[LLMProvider] = None
+        self._providers: dict[str, type[LLMProvider]] = {}
+        self._instance: LLMProvider | None = None
         self._lock = asyncio.Lock()
         self.opa_client = opa_client
         self.tracer = trace.get_tracer(__name__)
 
         # Register default providers
-        self.register("openai", OpenAIProvider)
-        self.register("bedrock", BedrockProvider)
-        self.register("vllm", VLLMProvider)
+        self.register('openai', OpenAIProvider)
+        self.register('bedrock', BedrockProvider)
+        self.register('vllm', VLLMProvider)
 
-    def register(self, name: str, provider_class: Type[LLMProvider]) -> None:
+    def register(self, name: str, provider_class: type[LLMProvider]) -> None:
         """Registers a new provider class under a name."""
         self._providers[name.lower()] = provider_class
 
@@ -77,30 +82,30 @@ class ProviderRouter:
             if self._instance:
                 return self._instance
 
-            with self.tracer.start_as_current_span("model_gateway.get_provider") as span:
-                provider_name = os.getenv("MODEL_PROVIDER", "openai").lower()
-                span.set_attribute("provider_name", provider_name)
+            with self.tracer.start_as_current_span('model_gateway.get_provider') as span:
+                provider_name = os.getenv('MODEL_PROVIDER', 'openai').lower()
+                span.set_attribute('provider_name', provider_name)
 
                 # OPA governance check
                 if self.opa_client:
                     decision = await self.opa_client.check_policy(
-                        input={"provider": provider_name},
-                        policy_path="astradesk/model_gateway/provider"
+                        input={'provider': provider_name},
+                        policy_path='astradesk/model_gateway/provider',
                     )
-                    if not decision.get("result", True):
-                        logger.error(f"OPA denied provider: {provider_name}")
-                        span.add_event("opa_denied_provider")
+                    if not decision.get('result', True):
+                        logger.error(f'OPA denied provider: {provider_name}')
+                        span.add_event('opa_denied_provider')
                         raise ProviderNotFoundError(provider_name)
 
                 provider_class = self._providers.get(provider_name)
                 if not provider_class:
-                    logger.error(f"Provider not registered: {provider_name}")
+                    logger.error(f'Provider not registered: {provider_name}')
                     raise ProviderNotFoundError(provider_name)
 
-                logger.info(f"Initializing LLM provider: {provider_name}")
+                logger.info(f'Initializing LLM provider: {provider_name}')
                 self._instance = provider_class()
-                logger.info(f"Provider {provider_name} initialized successfully.")
-                span.add_event("provider_initialized")
+                logger.info(f'Provider {provider_name} initialized successfully.')
+                span.add_event('provider_initialized')
 
                 return self._instance
 
@@ -109,17 +114,19 @@ class ProviderRouter:
         if not self._instance:
             return
 
-        with self.tracer.start_as_current_span("model_gateway.shutdown"):
-            logger.info(f"Shutting down provider: {self._instance.__class__.__name__}")
-            aclose_method = getattr(self._instance, "aclose", None)
+        with self.tracer.start_as_current_span('model_gateway.shutdown'):
+            logger.info(f'Shutting down provider: {self._instance.__class__.__name__}')
+            aclose_method = getattr(self._instance, 'aclose', None)
             if aclose_method and inspect.iscoroutinefunction(aclose_method):
                 try:
                     await aclose_method()
-                    logger.info("Provider shut down successfully.")
+                    logger.info('Provider shut down successfully.')
                 except Exception as e:
-                    logger.error(f"Error during provider shutdown: {e}", exc_info=True)
+                    logger.error(f'Error during provider shutdown: {e}', exc_info=True)
             else:
-                logger.debug(f"Provider {self._instance.__class__.__name__} has no aclose() method.")
+                logger.debug(
+                    f'Provider {self._instance.__class__.__name__} has no aclose() method.'
+                )
             self._instance = None
 
 

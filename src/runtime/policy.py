@@ -1,3 +1,18 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: src/runtime/policy.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for src/runtime/policy.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 """
 Simplified policy engine with caching semantics mirroring the tests.
 """
@@ -5,8 +20,9 @@ Simplified policy engine with caching semantics mirroring the tests.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Optional, Set
+from typing import Any
 
 
 class PolicyError(Exception):
@@ -19,13 +35,15 @@ class AuthorizationError(Exception):
 
 @dataclass(frozen=True)
 class PolicySnapshot:
-    roles_required: Dict[str, Dict[str, List[str]]] = field(default_factory=dict)
-    abac: Dict[str, List[Dict[str, Any]]] = field(default_factory=dict)
-    idp_role_mapping: Dict[str, Any] = field(default_factory=lambda: {"from": ["roles"], "prefix_strip": [], "lowercase": True})
+    roles_required: dict[str, dict[str, list[str]]] = field(default_factory=dict)
+    abac: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    idp_role_mapping: dict[str, Any] = field(
+        default_factory=lambda: {'from': ['roles'], 'prefix_strip': [], 'lowercase': True}
+    )
 
 
 _DEFAULT_POLICY = PolicySnapshot()
-_POLICY_ENV = ""
+_POLICY_ENV = ''
 
 
 class PolicyStore:
@@ -38,10 +56,12 @@ class PolicyStore:
             self._compiled = _DEFAULT_POLICY
             return
         data = json.loads(_POLICY_ENV)
-        roles_required = data.get("roles_required", {})
-        abac = data.get("abac", {})
-        idp_map = data.get("idp_role_mapping", {})
-        self._compiled = PolicySnapshot(roles_required=roles_required, abac=abac, idp_role_mapping=idp_map)
+        roles_required = data.get('roles_required', {})
+        abac = data.get('abac', {})
+        idp_map = data.get('idp_role_mapping', {})
+        self._compiled = PolicySnapshot(
+            roles_required=roles_required, abac=abac, idp_role_mapping=idp_map
+        )
 
     def current(self) -> PolicySnapshot:
         return self._compiled
@@ -54,7 +74,7 @@ policy.refresh_now()
 def _extract_from_claims(data: Any, path: str) -> Iterable[str]:
     if not data:
         return []
-    parts = path.split(".")
+    parts = path.split('.')
     current = data
     for part in parts:
         if isinstance(current, dict):
@@ -70,101 +90,103 @@ def _extract_from_claims(data: Any, path: str) -> Iterable[str]:
     return []
 
 
-def get_roles(claims: Optional[Dict[str, Any]]) -> Set[str]:
+def get_roles(claims: dict[str, Any] | None) -> set[str]:
     mapping = policy.current().idp_role_mapping
-    sources = mapping.get("from", ["roles"])
-    prefixes = mapping.get("prefix_strip", [])
-    lowercase = mapping.get("lowercase", False)
+    sources = mapping.get('from', ['roles'])
+    prefixes = mapping.get('prefix_strip', [])
+    lowercase = mapping.get('lowercase', False)
 
-    result: Set[str] = set()
+    result: set[str] = set()
     for source in sources:
         for role in _extract_from_claims(claims or {}, source):
             cleaned = role
             for prefix in prefixes:
                 if cleaned.startswith(prefix):
-                    cleaned = cleaned[len(prefix):]
+                    cleaned = cleaned[len(prefix) :]
             if lowercase:
                 cleaned = cleaned.lower()
             result.add(cleaned)
     return result
 
 
-def has_role(claims: Optional[Dict[str, Any]], role: str) -> bool:
+def has_role(claims: dict[str, Any] | None, role: str) -> bool:
     return role.lower() in {r.lower() for r in get_roles(claims)}
 
 
-def require_role(claims: Optional[Dict[str, Any]], role: str) -> None:
+def require_role(claims: dict[str, Any] | None, role: str) -> None:
     if not has_role(claims, role):
         raise AuthorizationError(f"Role '{role}' required.")
 
 
-def require_any_role(claims: Optional[Dict[str, Any]], roles: Iterable[str]) -> None:
+def require_any_role(claims: dict[str, Any] | None, roles: Iterable[str]) -> None:
     available = {r.lower() for r in get_roles(claims)}
     if not any(role.lower() in available for role in roles):
-        raise AuthorizationError("Missing any of the required roles.")
+        raise AuthorizationError('Missing any of the required roles.')
 
 
-def require_all_roles(claims: Optional[Dict[str, Any]], roles: Iterable[str]) -> None:
+def require_all_roles(claims: dict[str, Any] | None, roles: Iterable[str]) -> None:
     available = {r.lower() for r in get_roles(claims)}
     if not all(role.lower() in available for role in roles):
-        raise AuthorizationError("Missing required roles.")
+        raise AuthorizationError('Missing required roles.')
 
 
-def _check_rbac(action: str, claims: Optional[Dict[str, Any]], snapshot: PolicySnapshot) -> None:
+def _check_rbac(action: str, claims: dict[str, Any] | None, snapshot: PolicySnapshot) -> None:
     gate = snapshot.roles_required.get(action)
     if gate is None:
         for pattern, candidate in snapshot.roles_required.items():
-            if pattern.endswith("*") and action.startswith(pattern[:-1]):
+            if pattern.endswith('*') and action.startswith(pattern[:-1]):
                 gate = candidate
                 break
     if not gate:
         return
     available = {r.lower() for r in get_roles(claims)}
-    required_any = [role.lower() for role in gate.get("any", [])]
-    required_all = [role.lower() for role in gate.get("all", [])]
+    required_any = [role.lower() for role in gate.get('any', [])]
+    required_all = [role.lower() for role in gate.get('all', [])]
 
     if required_any and not any(role in available for role in required_any):
-        raise AuthorizationError("RBAC any-of requirement failed.")
+        raise AuthorizationError('RBAC any-of requirement failed.')
     if required_all and not all(role in available for role in required_all):
-        raise AuthorizationError("RBAC all-of requirement failed.")
+        raise AuthorizationError('RBAC all-of requirement failed.')
 
 
-def _check_abac(action: str, attrs: Optional[Dict[str, Any]], snapshot: PolicySnapshot) -> None:
+def _check_abac(action: str, attrs: dict[str, Any] | None, snapshot: PolicySnapshot) -> None:
     constraints = snapshot.abac.get(action)
     if not constraints:
         return
     attrs = attrs or {}
     for rule in constraints:
-        attr = rule.get("attr")
+        attr = rule.get('attr')
         if attr is None:
             continue
         if attr not in attrs:
-            raise AuthorizationError("ABAC attribute missing.")
+            raise AuthorizationError('ABAC attribute missing.')
         value = attrs[attr]
-        if "equals" in rule and value != rule["equals"]:
-            raise AuthorizationError("ABAC equals requirement failed.")
-        if "in" in rule:
-            allowed = rule["in"]
+        if 'equals' in rule and value != rule['equals']:
+            raise AuthorizationError('ABAC equals requirement failed.')
+        if 'in' in rule:
+            allowed = rule['in']
             if value not in allowed:
-                raise AuthorizationError("ABAC membership requirement failed.")
+                raise AuthorizationError('ABAC membership requirement failed.')
 
 
-def authorize(action: str, claims: Optional[Dict[str, Any]], attrs: Optional[Dict[str, Any]] = None) -> None:
+def authorize(
+    action: str, claims: dict[str, Any] | None, attrs: dict[str, Any] | None = None
+) -> None:
     if not action:
-        raise PolicyError("Action must be provided.")
+        raise PolicyError('Action must be provided.')
     snapshot = policy.current()
     _check_rbac(action, claims, snapshot)
     _check_abac(action, attrs, snapshot)
 
 
 __all__ = [
-    "AuthorizationError",
-    "PolicyError",
-    "authorize",
-    "get_roles",
-    "has_role",
-    "policy",
-    "require_role",
-    "require_any_role",
-    "require_all_roles",
+    'AuthorizationError',
+    'PolicyError',
+    'authorize',
+    'get_roles',
+    'has_role',
+    'policy',
+    'require_role',
+    'require_any_role',
+    'require_all_roles',
 ]

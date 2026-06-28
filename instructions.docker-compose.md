@@ -1,3 +1,19 @@
+<!--
+SPDX-License-Identifier: GPL-2.0-only
+Project: AstraDesk
+File: instructions.docker-compose.md
+Website: https://www.astradesk.dev
+Repository: https://github.com/SSobol77/astradesk
+
+Description: Documents AstraDesk architecture, operation, or component behavior.
+
+Copyright (c) 2026 Siergej Sobolewski
+This file is part of AstraDesk.
+
+AstraDesk is licensed under the GNU General Public License version 2 only.
+See the LICENSE file in the project root for the full license text.
+-->
+
 # AstraDesk — Docker Compose Guide
 
 This workflow runs every service (API, admin portal, ticket adapter, auditor,
@@ -59,4 +75,3 @@ supporting databases) inside containers.
 - Health checks failing → inspect individual service logs.
 - Port collisions → adjust published ports in `docker-compose.yml`.
 - Database migrations → run `docker compose exec api uv run python scripts/ingest_docs.py support` as needed.
-

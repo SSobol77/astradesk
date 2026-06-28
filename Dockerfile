@@ -1,16 +1,20 @@
-# SPDX-License-Identifier: Apache-2.0
-# File: Dockerfile v.2.1 --production-ready--
-# Project: AstraDesk Enterprise AI Agents Framework
-# Description:
-#     Production Dockerfile for AstraDesk API service.
-#     Multi-stage build with uv, non-root user, mTLS, Istio, OTel, and Sigstore.
-#     Supports AstraFlow 2.0, Domain Packs, Admin API v1.2.0, and RAG agents.
-#     Optimized for Kubernetes + Istio + Helm + Terraform.
-# Author: Siergej Sobolewski
-# Since: 2025-11-09
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: Dockerfile
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Builds the AstraDesk container image for the associated component.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
 # --- Builder Stage ---
-FROM python:3.14-slim AS builder
+FROM python:3.13-slim AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -34,7 +38,7 @@ COPY core ./core
 COPY services/api-gateway ./services/api-gateway
 COPY services/auditor ./services/auditor
 COPY services/admin_api ./services/admin_api
-COPY services/mcp ./services/mcp
+COPY mcp ./mcp
 COPY packages/ ./packages/
 
 # Sync dependencies with cache
@@ -42,7 +46,7 @@ RUN --mount=type=cache,target=/uv-cache \
     uv sync --all-extras --frozen
 
 # --- Runtime Stage ---
-FROM python:3.14-slim AS runtime
+FROM python:3.13-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -63,7 +67,7 @@ ENV PATH="/app/.venv/bin:$PATH"
 COPY services/api-gateway/src ./src
 COPY services/auditor /app/services/auditor
 COPY services/admin_api /app/services/admin_api
-COPY services/mcp /app/services/mcp
+COPY mcp /app/mcp
 COPY core /app/core
 COPY packages ./packages
 
@@ -82,11 +86,11 @@ LABEL org.opencontainers.image.title="AstraDesk API" \
       org.opencontainers.image.description="Enterprise AI Orchestration Framework - Admin API v1.2.0" \
       org.opencontainers.image.vendor="AstraDesk" \
       org.opencontainers.image.authors="ops@astradesk.com" \
-      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.licenses="GPL-2.0-only" \
       org.opencontainers.image.url="https://astradesk.com" \
       org.opencontainers.image.source="https://github.com/astradesk/framework" \
       org.opencontainers.image.documentation="https://docs.astradesk.com/api/admin/v1" \
-      org.opencontainers.image.base.name="python:3.14-slim"
+      org.opencontainers.image.base.name="python:3.13-slim"
 
 # --- Expose ports ---
 EXPOSE 8080

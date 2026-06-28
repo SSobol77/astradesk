@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: packages/domain-supply/src/domain_supply/flows/exception_routing.yaml
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Configures the associated AstraDesk component or deployment.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
+flow: supply_exception_routing
+version: 2.1
+trigger: { type: webhook, endpoint: "/supply/exceptions" }
+steps:
+  - id: fetch
+    use: tool.sap_mm.fetch_inventory
+    with: { query: "SELECT material, stock FROM MM WHERE stock < min_stock" }
+  - id: replenish
+    use: agent.supply.replenish
+    input: ${fetch.items}
+  - id: notify
+    use: tool.email.send
+    input: ${replenish.items}
+    params: { to: "supply-team@company.com", subject: "Urgent Replenishment: ${item.item_id}" }
+    when: ${item.priority} == "urgent"
+policies:
+  retry: { max: 3, backoff: "exp_jitter" }
+  pii: "redact_auto"
+  guardrails: [cost_threshold=0.01]
+outputs:
+  - type: report
+    format: csv
+    target: s3://supply-reports/${now}.csv

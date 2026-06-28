@@ -1,3 +1,19 @@
+<!--
+SPDX-License-Identifier: GPL-2.0-only
+Project: AstraDesk
+File: docs/zh-CN/09_mcp_gateway_domain_packs.zh.md
+Website: https://www.astradesk.dev
+Repository: https://github.com/SSobol77/astradesk
+
+Description: Documents AstraDesk architecture, operation, or component behavior.
+
+Copyright (c) 2026 Siergej Sobolewski
+This file is part of AstraDesk.
+
+AstraDesk is licensed under the GNU General Public License version 2 only.
+See the LICENSE file in the project root for the full license text.
+-->
+
 ![AstraDesk](../assets/astradesk-logo.svg)
 
 # 9. MCP网关和域包
@@ -314,10 +330,10 @@ flowchart LR
 
 ## 9.10 交叉引用
 
-- 下一步: [10. 未来路线图](10_future_roadmap.md)
+- 下一步: [10. 未来路线图](../en/10_future_roadmap.md)
 
-- 上一步: [8. 安全与治理](08_security_governance.md)
+- 上一步: [8. 安全与治理](../en/08_security_governance.md)
 
-- 另请参阅: [7. 监控与运营](07_monitor_operate.md), [4. 构建阶段](04_build_phase.md)
+- 另请参阅: [7. 监控与运营](../en/07_monitor_operate.md), [4. 构建阶段](../en/04_build_phase.md)
 
 <br>

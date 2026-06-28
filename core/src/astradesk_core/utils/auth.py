@@ -1,14 +1,19 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: core/src/astradesk_core/utils/auth.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: core/src/astradesk_core/utils/auth.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for core/src/astradesk_core/utils/auth.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Project: astradesk
-Package: astradesk_core
-
-Author: Siergej Sobolewski
-Since: 2025-10-29
-
-Description:
-    OIDC/JWT verification utilities for the API layer. Fetches and short-term
+"""OIDC/JWT verification utilities for the API layer. Fetches and short-term
     caches JWKS from the configured Identity Provider (IdP) and validates token
     signature and standard claims (issuer, audience, exp/nbf/iat) with clock
     skew tolerance. Exposes a single, reusable configuration object.
@@ -91,14 +96,13 @@ Uwaga:
 ------
    Ten moduł nie implementuje logiki RBAC; do tego służy np. runtime.policy.
    Tutaj walidujemy tożsamość (kto) i integralność tokena (czy jest ważny).
-
-"""  # noqa: D205
+"""
 
 from __future__ import annotations
 
 import os
 import time
-from typing import Any, Dict, Optional  # noqa: UP035
+from typing import Any
 
 import httpx
 from jose import jwk, jwt
@@ -107,15 +111,15 @@ from jose import jwk, jwt
 # Konfiguracja z ENV
 # ---------------------------------------------------------------------------
 
-ISSUER: str = os.getenv("OIDC_ISSUER", "").strip()
-AUDIENCE: str = os.getenv("OIDC_AUDIENCE", "").strip()
-JWKS_URL: str = os.getenv("OIDC_JWKS_URL", "").strip()
+ISSUER: str = os.getenv('OIDC_ISSUER', '').strip()
+AUDIENCE: str = os.getenv('OIDC_AUDIENCE', '').strip()
+JWKS_URL: str = os.getenv('OIDC_JWKS_URL', '').strip()
 
 # TTL cache’a dla JWKS (sekundy). Po tym czasie klucze zostaną odświeżone.
-JWKS_TTL_SECONDS: int = int(os.getenv("OIDC_JWKS_TTL", "3600"))
+JWKS_TTL_SECONDS: int = int(os.getenv('OIDC_JWKS_TTL', '3600'))
 
 # Dopuszczalny dryf zegara (sekundy) przy walidacji exp/nbf/iat.
-TIME_SKEW_LEEWAY: int = int(os.getenv("OIDC_TIME_SKEW_LEEWAY", "60"))
+TIME_SKEW_LEEWAY: int = int(os.getenv('OIDC_TIME_SKEW_LEEWAY', '60'))
 
 
 class OIDCConfig:
@@ -129,21 +133,21 @@ class OIDCConfig:
         jwks_url: URL do dokumentu JWKS (lista kluczy publicznych).
         _jwks:    Ostatnio pobrany zestaw kluczy (cache).
         _fetched_at: Znacznik czasu ostatniego pobrania JWKS (epoch seconds).
-    """  # noqa: D205
+    """
 
     def __init__(self, issuer: str, audience: str, jwks_url: str) -> None:
         # Wczesna walidacja konfiguracji pomaga szybciej wykryć błędy w środowisku.
         if not issuer or not audience or not jwks_url:
             raise RuntimeError(
-                "Brak wymaganego OIDC configu: ustaw OIDC_ISSUER, OIDC_AUDIENCE, OIDC_JWKS_URL."
+                'Brak wymaganego OIDC configu: ustaw OIDC_ISSUER, OIDC_AUDIENCE, OIDC_JWKS_URL.'
             )
         self.issuer = issuer
         self.audience = audience
         self.jwks_url = jwks_url
-        self._jwks: Optional[Dict[str, Any]] = None
+        self._jwks: dict[str, Any] | None = None
         self._fetched_at: float = 0.0
 
-    async def _fetch_jwks(self) -> Dict[str, Any]:
+    async def _fetch_jwks(self) -> dict[str, Any]:
         """Pobiera dokument JWKS (JSON Web Key Set) z IdP.
 
         Zwraca:
@@ -157,21 +161,19 @@ class OIDCConfig:
             resp.raise_for_status()
             return resp.json()
 
-    async def _ensure_jwks(self) -> Dict[str, Any]:
+    async def _ensure_jwks(self) -> dict[str, Any]:
         """Zwraca aktualny JWKS, odświeżając cache, jeśli wygasł.
 
         Zwraca:
             Dict[str, Any]: Aktualny JWKS.
         """
-        needs_refresh = (
-            self._jwks is None or (time.time() - self._fetched_at) > JWKS_TTL_SECONDS
-        )
+        needs_refresh = self._jwks is None or (time.time() - self._fetched_at) > JWKS_TTL_SECONDS
         if needs_refresh:
             self._jwks = await self._fetch_jwks()
             self._fetched_at = time.time()
         return self._jwks  # type: ignore[return-value]
 
-    async def verify(self, token: str) -> Dict[str, Any]:
+    async def verify(self, token: str) -> dict[str, Any]:
         """Weryfikuje podpis i roszczenia (claims) tokena JWT.
 
         Kroki:
@@ -191,35 +193,37 @@ class OIDCConfig:
             jose.JWTError: gdy podpis/claims są niepoprawne.
         """
         if not token:
-            raise ValueError("Pusty token")
+            raise ValueError('Pusty token')
 
         jwks = await self._ensure_jwks()
         headers = jwt.get_unverified_header(token)
-        kid = headers.get("kid")
+        kid = headers.get('kid')
         if not kid:
             raise ValueError("Brak 'kid' w nagłówku JWT")
-        alg = headers.get("alg", "RS256")
+        alg = headers.get('alg', 'RS256')
 
-        key = next((k for k in jwks.get("keys", []) if k.get("kid") == kid), None)
+        key = next((k for k in jwks.get('keys', []) if k.get('kid') == kid), None)
         if not key:
             # Klucze mogły zostać zrotowane, wymuś odświeżenie i spróbuj ponownie
             self.clear_cache()
             jwks = await self._ensure_jwks()
-            key = next((k for k in jwks.get("keys", []) if k.get("kid") == kid), None)
+            key = next((k for k in jwks.get('keys', []) if k.get('kid') == kid), None)
             if not key:
-                raise ValueError(f"Klucz JWKS o ID (kid) '{kid}' nie został znaleziony nawet po odświeżeniu.")
+                raise ValueError(
+                    f"Klucz JWKS o ID (kid) '{kid}' nie został znaleziony nawet po odświeżeniu."
+                )
 
         # Walidacja podpisu i claims.
         # `leeway` jest teraz częścią słownika `options`.
-        payload: Dict[str, Any] = jwt.decode(
+        payload: dict[str, Any] = jwt.decode(
             token,
             key=jwk.construct(key),
             algorithms=[alg],
             audience=self.audience,
             issuer=self.issuer,
             options={
-                "verify_at_hash": False,
-                "leeway": TIME_SKEW_LEEWAY,
+                'verify_at_hash': False,
+                'leeway': TIME_SKEW_LEEWAY,
             },
         )
         return payload
@@ -227,7 +231,7 @@ class OIDCConfig:
     def clear_cache(self) -> None:
         """Czyści lokalny cache JWKS - przydatne w testach lub wymuszeniu natychmiastowej
         odświeżki kluczy po rotacji po stronie IdP.
-        """  # noqa: D205
+        """
         self._jwks = None
         self._fetched_at = 0.0
 

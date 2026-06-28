@@ -1,5 +1,18 @@
-# SPDX-License-Identifier: Apache-2.0
-# services/api-gateway/src/runtime/policy.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/runtime/policy.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/runtime/policy.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 """Production-grade RBAC + ABAC policy layer for AstraDesk.
 
 Provides fast, dependency-free authorization checks with TTL-cached, hot-reloadable
@@ -16,8 +29,9 @@ import json
 import logging
 import os
 import threading
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List, Optional, Set
+from typing import Any
 
 from opentelemetry import trace  # AstraOps/OTel tracing
 
@@ -26,36 +40,36 @@ logger = logging.getLogger(__name__)
 # --------------------------------------------------------------------------- #
 # Policy Configuration & Cache
 # --------------------------------------------------------------------------- #
-_POLICY_JSON_ENV = "POLICY_JSON"
-_POLICY_FILE_ENV = "POLICY_FILE"
-_POLICY_TTL_ENV = "POLICY_TTL_SECONDS"
+_POLICY_JSON_ENV = 'POLICY_JSON'
+_POLICY_FILE_ENV = 'POLICY_FILE'
+_POLICY_TTL_ENV = 'POLICY_TTL_SECONDS'
 _DEFAULT_TTL = 60  # seconds
 
 # Thread-safe cache with TTL
-_policy_store: "_PolicyStore" = None  # type: ignore
+_policy_store: _PolicyStore
 _lock = threading.Lock()
 
 
-def _load_policy_from_env() -> Optional[Dict[str, Any]]:
+def _load_policy_from_env() -> dict[str, Any] | None:
     """Load policy from POLICY_JSON env var."""
     raw = os.getenv(_POLICY_JSON_ENV)
     if raw:
         try:
             return json.loads(raw)
         except json.JSONDecodeError as e:
-            logger.error(f"Invalid POLICY_JSON: {e}")
+            logger.error(f'Invalid POLICY_JSON: {e}')
     return None
 
 
-def _load_policy_from_file() -> Optional[Dict[str, Any]]:
+def _load_policy_from_file() -> dict[str, Any] | None:
     """Load policy from POLICY_FILE path."""
     path = os.getenv(_POLICY_FILE_ENV)
     if path and os.path.isfile(path):
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:  # pragma: no cover
-            logger.error(f"Failed to load policy from {path}: {e}")
+            logger.error(f'Failed to load policy from {path}: {e}')
     return None
 
 
@@ -65,31 +79,35 @@ def _load_policy_from_file() -> Optional[Dict[str, Any]]:
 @dataclass(frozen=True)
 class RolesRequired:
     """RBAC role requirements per action."""
-    any: Optional[Set[str]] = None  # At least one
-    all: Optional[Set[str]] = None  # All required
+
+    any: set[str] | None = None  # At least one
+    all: set[str] | None = None  # All required
 
 
 @dataclass(frozen=True)
 class AbacRule:
     """Single ABAC constraint."""
+
     attr: str
-    equals: Optional[Any] = None
-    in_set: Optional[Set[Any]] = None
+    equals: Any | None = None
+    in_set: set[Any] | None = None
 
 
 @dataclass(frozen=True)
 class IdpRoleMapping:
     """Role normalization config."""
-    from_paths: List[str]  # e.g., ["roles", "realm_access.roles"]
-    prefix_strip: List[str] = None  # e.g., ["ROLE_"]
+
+    from_paths: list[str]  # e.g., ["roles", "realm_access.roles"]
+    prefix_strip: list[str] | None = None  # e.g., ["ROLE_"]
     lowercase: bool = True
 
 
 @dataclass(frozen=True)
 class CompiledPolicy:
     """Compiled, immutable policy snapshot."""
-    roles_required: Dict[str, RolesRequired]
-    abac: Dict[str, List[AbacRule]]
+
+    roles_required: dict[str, RolesRequired]
+    abac: dict[str, list[AbacRule]]
     idp_role_mapping: IdpRoleMapping
 
 
@@ -99,10 +117,10 @@ class CompiledPolicy:
 class _PolicyStore:
     """Thread-safe, TTL-cached policy store with explicit refresh."""
 
-    __slots__ = ("_policy", "_loaded_at", "_ttl", "_tracer")
+    __slots__ = ('_policy', '_loaded_at', '_ttl', '_tracer')
 
     def __init__(self) -> None:
-        self._policy: Optional[CompiledPolicy] = None
+        self._policy: CompiledPolicy | None = None
         self._loaded_at: float = 0.0
         self._ttl = int(os.getenv(_POLICY_TTL_ENV, _DEFAULT_TTL))
         self._tracer = trace.get_tracer(__name__)
@@ -113,7 +131,10 @@ class _PolicyStore:
         with _lock:
             if self._policy is None or (now - self._loaded_at) > self._ttl:
                 self._refresh()
-            return self._policy
+            policy = self._policy
+            if policy is None:  # Defensive invariant: _refresh() must install a policy or raise.
+                raise PolicyError('Policy refresh completed without a compiled policy')
+            return policy
 
     def refresh_now(self) -> None:
         """Force immediate policy reload."""
@@ -122,62 +143,62 @@ class _PolicyStore:
 
     def _refresh(self) -> None:
         """Load and compile policy from sources."""
-        with self._tracer.start_as_current_span("policy.refresh"):
+        with self._tracer.start_as_current_span('policy.refresh'):
             raw = _load_policy_from_env() or _load_policy_from_file()
             if not raw:
                 raw = self._default_policy()
-                logger.warning("No policy found – using safe defaults")
+                logger.warning('No policy found – using safe defaults')
 
             try:
                 compiled = self._compile_policy(raw)
                 self._policy = compiled
                 self._loaded_at = threading.current_thread().ident or 0
-                logger.info("Policy reloaded successfully")
+                logger.info('Policy reloaded successfully')
             except Exception as e:  # pragma: no cover
-                logger.critical(f"Failed to compile policy: {e}", exc_info=True)
-                raise PolicyError("Invalid policy configuration") from e
+                logger.critical(f'Failed to compile policy: {e}', exc_info=True)
+                raise PolicyError('Invalid policy configuration') from e
 
     @staticmethod
-    def _default_policy() -> Dict[str, Any]:
+    def _default_policy() -> dict[str, Any]:
         """Safe, conservative default policy."""
         return {
-            "roles_required": {
-                "ops.*": {"all": ["sre"]},
-                "tickets.*": {"any": ["it.support", "sre"]},
+            'roles_required': {
+                'ops.*': {'all': ['sre']},
+                'tickets.*': {'any': ['it.support', 'sre']},
             },
-            "abac": {},
-            "idp_role_mapping": {
-                "from": ["roles", "groups", "realm_access.roles"],
-                "prefix_strip": [],
-                "lowercase": True,
+            'abac': {},
+            'idp_role_mapping': {
+                'from': ['roles', 'groups', 'realm_access.roles'],
+                'prefix_strip': [],
+                'lowercase': True,
             },
         }
 
     @staticmethod
-    def _compile_policy(raw: Dict[str, Any]) -> CompiledPolicy:
+    def _compile_policy(raw: dict[str, Any]) -> CompiledPolicy:
         """Compile raw JSON into immutable CompiledPolicy."""
-        rr_raw = raw.get("roles_required", {})
-        roles_required: Dict[str, RolesRequired] = {}
+        rr_raw = raw.get('roles_required', {})
+        roles_required: dict[str, RolesRequired] = {}
         for action, req in rr_raw.items():
-            any_set = {str(r) for r in req.get("any", [])} if req.get("any") else None
-            all_set = {str(r) for r in req.get("all", [])} if req.get("all") else None
+            any_set = {str(r) for r in req.get('any', [])} if req.get('any') else None
+            all_set = {str(r) for r in req.get('all', [])} if req.get('all') else None
             roles_required[action] = RolesRequired(any=any_set, all=all_set)
 
-        abac_raw = raw.get("abac", {})
-        abac: Dict[str, List[AbacRule]] = {}
+        abac_raw = raw.get('abac', {})
+        abac: dict[str, list[AbacRule]] = {}
         for action, rules in abac_raw.items():
             compiled_rules = []
             for r in rules:
-                attr = str(r["attr"])
-                eq = r.get("equals")
-                in_set = {str(x) for x in r.get("in", [])} if "in" in r else None
+                attr = str(r['attr'])
+                eq = r.get('equals')
+                in_set = {str(x) for x in r.get('in', [])} if 'in' in r else None
                 compiled_rules.append(AbacRule(attr=attr, equals=eq, in_set=in_set))
             abac[action] = compiled_rules
 
-        mapping_raw = raw.get("idp_role_mapping", {})
-        from_paths = [str(p) for p in mapping_raw.get("from", [])]
-        prefix_strip = [str(p) for p in mapping_raw.get("prefix_strip", [])]
-        lowercase = bool(mapping_raw.get("lowercase", True))
+        mapping_raw = raw.get('idp_role_mapping', {})
+        from_paths = [str(p) for p in mapping_raw.get('from', [])]
+        prefix_strip = [str(p) for p in mapping_raw.get('prefix_strip', [])]
+        lowercase = bool(mapping_raw.get('lowercase', True))
 
         return CompiledPolicy(
             roles_required=roles_required,
@@ -197,11 +218,9 @@ _policy_store = _PolicyStore()
 # --------------------------------------------------------------------------- #
 # Role Helpers
 # --------------------------------------------------------------------------- #
-def _normalize_roles(
-    raw_roles: List[str], mapping: IdpRoleMapping
-) -> List[str]:
+def _normalize_roles(raw_roles: list[str], mapping: IdpRoleMapping) -> list[str]:
     """Normalize raw roles from IdP claims."""
-    out: List[str] = []
+    out: list[str] = []
     strip = mapping.prefix_strip or []
     to_lower = mapping.lowercase
     for s in raw_roles:
@@ -217,7 +236,7 @@ def _normalize_roles(
     return out
 
 
-def get_roles(claims: Optional[Dict[str, Any]]) -> List[str]:
+def get_roles(claims: dict[str, Any] | None) -> list[str]:
     """
     Extract and normalize user roles from JWT claims.
 
@@ -236,54 +255,54 @@ def get_roles(claims: Optional[Dict[str, Any]]) -> List[str]:
         return []
 
     mapping = _policy_store.get().idp_role_mapping
-    raw: List[str] = []
+    raw: list[str] = []
     for path in mapping.from_paths:
         cur = claims
         ok = True
-        for part in path.split("."):
+        for part in path.split('.'):
             if isinstance(cur, dict) and part in cur:
                 cur = cur[part]
             else:
                 ok = False
                 break
-        if ok and isinstance(cur, (list, tuple)):
+        if ok and isinstance(cur, list | tuple):
             raw.extend(str(x) for x in cur)
 
     return _normalize_roles(raw, mapping)
 
 
-def has_role(claims: Optional[Dict[str, Any]], required: str) -> bool:
+def has_role(claims: dict[str, Any] | None, required: str) -> bool:
     """Check if user has a specific role (after normalization)."""
     return required in {r.lower() for r in get_roles(claims)}
 
 
-def require_role(claims: Optional[Dict[str, Any]], required: str) -> None:
+def require_role(claims: dict[str, Any] | None, required: str) -> None:
     """Raise AuthorizationError if role is missing."""
     if not has_role(claims, required):
         raise AuthorizationError(f"Access denied: missing role '{required}'.")
 
 
-def require_any_role(claims: Optional[Dict[str, Any]], candidates: Iterable[str]) -> None:
+def require_any_role(claims: dict[str, Any] | None, candidates: Iterable[str]) -> None:
     """Require at least one role from candidates."""
     have = {r.lower() for r in get_roles(claims)}
     need = {str(c).lower() for c in candidates}
     if not have & need:
-        raise AuthorizationError(f"Access denied: need any of roles {sorted(need)}.")
+        raise AuthorizationError(f'Access denied: need any of roles {sorted(need)}.')
 
 
-def require_all_roles(claims: Optional[Dict[str, Any]], required: Iterable[str]) -> None:
+def require_all_roles(claims: dict[str, Any] | None, required: Iterable[str]) -> None:
     """Require all specified roles."""
     have = {r.lower() for r in get_roles(claims)}
     need = {str(r).lower() for r in required}
     missing = need - have
     if missing:
-        raise AuthorizationError(f"Access denied: missing roles {sorted(missing)}.")
+        raise AuthorizationError(f'Access denied: missing roles {sorted(missing)}.')
 
 
 # --------------------------------------------------------------------------- #
 # ABAC Evaluation
 # --------------------------------------------------------------------------- #
-def _eval_abac_rules(rules: List[AbacRule], attrs: Dict[str, Any]) -> bool:
+def _eval_abac_rules(rules: list[AbacRule], attrs: dict[str, Any]) -> bool:
     """
     Evaluate AND-group of ABAC rules.
 
@@ -307,8 +326,8 @@ def _eval_abac_rules(rules: List[AbacRule], attrs: Dict[str, Any]) -> bool:
 # --------------------------------------------------------------------------- #
 def authorize(
     action: str,
-    claims: Optional[Dict[str, Any]],
-    attrs: Optional[Dict[str, Any]] = None,
+    claims: dict[str, Any] | None,
+    attrs: dict[str, Any] | None = None,
 ) -> None:
     """
     Authorize action using RBAC + ABAC.
@@ -332,15 +351,15 @@ def authorize(
         PolicyError: On malformed policy
     """
     if not action:
-        raise PolicyError("Action must be non-empty string.")
+        raise PolicyError('Action must be non-empty string.')
 
     pol = _policy_store.get()
     user_roles = {r.lower() for r in get_roles(claims)}
 
     # RBAC: match action (support wildcard)
-    matched_rr: Optional[RolesRequired] = None
+    matched_rr: RolesRequired | None = None
     for pattern, rr in pol.roles_required.items():
-        if pattern.endswith(".*"):
+        if pattern.endswith('.*'):
             prefix = pattern[:-2]
             if action.startswith(prefix):
                 matched_rr = rr
@@ -352,17 +371,17 @@ def authorize(
     if matched_rr:
         if matched_rr.all and not matched_rr.all.issubset(user_roles):
             missing = sorted(matched_rr.all - user_roles)
-            raise AuthorizationError(f"Access denied: missing roles {missing}.")
+            raise AuthorizationError(f'Access denied: missing roles {missing}.')
         if matched_rr.any and not user_roles & matched_rr.any:
-            raise AuthorizationError(f"Access denied: need any of roles {sorted(matched_rr.any)}.")
+            raise AuthorizationError(f'Access denied: need any of roles {sorted(matched_rr.any)}.')
 
     # ABAC: match action
     abac_rules = pol.abac.get(action, [])
     if abac_rules:
         if attrs is None:
-            raise AuthorizationError("Access denied: missing contextual attributes for ABAC.")
+            raise AuthorizationError('Access denied: missing contextual attributes for ABAC.')
         if not _eval_abac_rules(abac_rules, attrs):
-            raise AuthorizationError("Access denied: ABAC rules not satisfied.")
+            raise AuthorizationError('Access denied: ABAC rules not satisfied.')
 
 
 # --------------------------------------------------------------------------- #
@@ -370,11 +389,13 @@ def authorize(
 # --------------------------------------------------------------------------- #
 class PolicyError(RuntimeError):
     """Raised when policy is malformed or cannot be loaded."""
+
     pass
 
 
 class AuthorizationError(PermissionError):
     """Raised when authorization fails."""
+
     pass
 
 
@@ -391,6 +412,15 @@ class PolicyFacade:
     def current(self) -> CompiledPolicy:
         """Get current policy snapshot."""
         return _policy_store.get()
+
+    def authorize(
+        self,
+        action: str,
+        claims: dict[str, Any] | None,
+        attrs: dict[str, Any] | None = None,
+    ) -> None:
+        """Authorize through the module-level RBAC/ABAC implementation."""
+        authorize(action, claims, attrs)
 
 
 # Exported singleton

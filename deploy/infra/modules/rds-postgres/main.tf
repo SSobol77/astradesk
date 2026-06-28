@@ -1,10 +1,17 @@
-# SPDX-License-Identifier: Apache-2.0
-# File: modules/rds-postgres/main.tf
-# Description:
-#     Terraform module for creating an AWS RDS Postgres instance for AstraDesk.
-#     Provisions a multi-AZ instance with VPC security group.
-# Author: Siergej Sobolewski
-# Since: 2025-10-22
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: deploy/infra/modules/rds-postgres/main.tf
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Configures the associated AstraDesk component or deployment.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
 module "rds_postgres" {
   source  = "terraform-aws-modules/rds/aws"

@@ -1,3 +1,18 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/admin_api/src/astradesk_admin/main.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/admin_api/src/astradesk_admin/main.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 from __future__ import annotations
 
 import asyncio
@@ -303,7 +318,9 @@ class DataStore:
         )
         self.usage = UsageMetrics(total_requests=18452, cost_usd=128.37, latency_p95_ms=932.4)
         self.recent_errors: List[RecentError] = [
-            RecentError(timestamp=iso_now(), message="Connector timeout: zendesk", trace_id=str(uuid4())),
+            RecentError(
+                timestamp=iso_now(), message="Connector timeout: zendesk", trace_id=str(uuid4())
+            ),
             RecentError(timestamp=iso_now(), message="Flow dry run failure", trace_id=str(uuid4())),
         ]
 
@@ -361,7 +378,9 @@ class DataStore:
 
         dataset_id = str(uuid4())
         self.datasets: Dict[str, Dataset] = {
-            dataset_id: Dataset(id=dataset_id, name="Knowledge Base", type="git", indexing_status="indexed")
+            dataset_id: Dataset(
+                id=dataset_id, name="Knowledge Base", type="git", indexing_status="indexed"
+            )
         }
         self.dataset_schemas: Dict[str, DatasetSchema] = {
             dataset_id: DatasetSchema(
@@ -374,13 +393,17 @@ class DataStore:
         }
         self.dataset_embeddings: Dict[str, List[EmbeddingMetadata]] = {
             dataset_id: [
-                EmbeddingMetadata(id=str(uuid4()), source="knowledge/customers.md", created_at=iso_now())
+                EmbeddingMetadata(
+                    id=str(uuid4()), source="knowledge/customers.md", created_at=iso_now()
+                )
             ]
         }
 
         connector_id = str(uuid4())
         self.connectors: Dict[str, Connector] = {
-            connector_id: Connector(id=connector_id, name="Zendesk", type="zendesk", status="healthy")
+            connector_id: Connector(
+                id=connector_id, name="Zendesk", type="zendesk", status="healthy"
+            )
         }
 
         secret_id = str(uuid4())
@@ -434,7 +457,11 @@ class DataStore:
 
         policy_id = str(uuid4())
         self.policies: Dict[str, Policy] = {
-            policy_id: Policy(id=policy_id, name="Support Analysts", rego_text='package astradesk.authz\nallow = true')
+            policy_id: Policy(
+                id=policy_id,
+                name="Support Analysts",
+                rego_text="package astradesk.authz\nallow = true",
+            )
         }
 
         audit_id = str(uuid4())
@@ -452,13 +479,19 @@ class DataStore:
         self.settings: Dict[str, Dict[str, Setting]] = {
             "platform": {
                 "timezone": Setting(group="platform", key="timezone", value={"tz": "UTC"}),
-                "release_channel": Setting(group="platform", key="release_channel", value={"channel": "stable"}),
+                "release_channel": Setting(
+                    group="platform", key="release_channel", value={"channel": "stable"}
+                ),
             },
             "integrations": {
-                "zendesk": Setting(group="integrations", key="zendesk", value={"subdomain": "astradesk"}),
+                "zendesk": Setting(
+                    group="integrations", key="zendesk", value={"subdomain": "astradesk"}
+                ),
             },
             "localization": {
-                "default_locale": Setting(group="localization", key="default_locale", value={"locale": "en-US"}),
+                "default_locale": Setting(
+                    group="localization", key="default_locale", value={"locale": "en-US"}
+                ),
             },
         }
 
@@ -506,7 +539,9 @@ store = DataStore()
 app = FastAPI(
     title="AstraDesk Admin API",
     description="API for AstraDesk Admin v1.2 - operational and governance panel for agents, data, policies, and audits.",
-    version="0.3.0",
+    # Admin API contract version (semver of the API surface), independent of the
+    # product/package version (0.3.0). Must match openapi/astradesk-admin.v1.yaml.
+    version="1.2.0",
     root_path="/api/admin/v1",
     openapi_url="/openapi.json",
     docs_url="/docs",
@@ -553,7 +588,9 @@ async def create_agent(payload: AgentConfigRequest) -> Agent:
         config=payload.config,
     )
     store.agents[agent_id] = agent
-    store.agent_metrics[agent_id] = AgentMetrics(p95_latency_ms=0.0, p99_latency_ms=0.0, request_count=0)
+    store.agent_metrics[agent_id] = AgentMetrics(
+        p95_latency_ms=0.0, p99_latency_ms=0.0, request_count=0
+    )
     store.agent_io[agent_id] = []
     return agent
 
@@ -573,7 +610,9 @@ async def get_agent(agent_id: str) -> Agent:
 @app.put("/agents/{agent_id}", response_model=Agent, tags=["Agents"])
 async def update_agent(agent_id: str, payload: AgentConfigRequest) -> Agent:
     agent = _get_agent_or_404(agent_id)
-    updated = agent.model_copy(update={"name": payload.name, "config": payload.config, "status": "active"})
+    updated = agent.model_copy(
+        update={"name": payload.name, "config": payload.config, "status": "active"}
+    )
     updated.config = payload.config
     updated.status = "active"
     store.agents[agent_id] = updated
@@ -606,7 +645,9 @@ async def clone_agent(agent_id: str) -> Agent:
     clone_id = str(uuid4())
     clone = agent.model_copy(update={"id": clone_id, "name": f"{agent.name} (clone)", "env": "dev"})
     store.agents[clone_id] = clone
-    store.agent_metrics[clone_id] = store.agent_metrics.get(agent_id, AgentMetrics(p95_latency_ms=0, p99_latency_ms=0, request_count=0))
+    store.agent_metrics[clone_id] = store.agent_metrics.get(
+        agent_id, AgentMetrics(p95_latency_ms=0, p99_latency_ms=0, request_count=0)
+    )
     store.agent_io[clone_id] = store.agent_io.get(agent_id, []).copy()
     return clone
 
@@ -784,7 +825,9 @@ async def list_datasets(limit: int = 25, offset: int = 0) -> List[Dataset]:
     return datasets[offset : offset + limit]
 
 
-@app.post("/datasets", response_model=Dataset, status_code=status.HTTP_201_CREATED, tags=["Datasets"])
+@app.post(
+    "/datasets", response_model=Dataset, status_code=status.HTTP_201_CREATED, tags=["Datasets"]
+)
 async def create_dataset(payload: DatasetCreateRequest) -> Dataset:
     dataset_id = str(uuid4())
     dataset = Dataset(
@@ -820,8 +863,12 @@ async def get_dataset_schema(dataset_id: str) -> DatasetSchema:
     return schema
 
 
-@app.get("/datasets/{dataset_id}/embeddings", response_model=List[EmbeddingMetadata], tags=["Datasets"])
-async def get_dataset_embeddings(dataset_id: str, limit: int = 25, offset: int = 0) -> List[EmbeddingMetadata]:
+@app.get(
+    "/datasets/{dataset_id}/embeddings", response_model=List[EmbeddingMetadata], tags=["Datasets"]
+)
+async def get_dataset_embeddings(
+    dataset_id: str, limit: int = 25, offset: int = 0
+) -> List[EmbeddingMetadata]:
     _get_dataset_or_404(dataset_id)
     embeddings = store.dataset_embeddings.get(dataset_id, [])
     return embeddings[offset : offset + limit]
@@ -849,7 +896,12 @@ async def list_connectors(limit: int = 25, offset: int = 0) -> List[Connector]:
     return connectors[offset : offset + limit]
 
 
-@app.post("/connectors", response_model=Connector, status_code=status.HTTP_201_CREATED, tags=["Tools/Connectors"])
+@app.post(
+    "/connectors",
+    response_model=Connector,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Tools/Connectors"],
+)
 async def create_connector(payload: ConnectorConfigRequest) -> Connector:
     connector_id = str(uuid4())
     connector = Connector(id=connector_id, name=payload.name, type=payload.type, status="healthy")
@@ -865,12 +917,16 @@ async def get_connector(connector_id: str) -> Connector:
 @app.put("/connectors/{connector_id}", response_model=Connector, tags=["Tools/Connectors"])
 async def update_connector(connector_id: str, payload: ConnectorConfigRequest) -> Connector:
     connector = _get_connector_or_404(connector_id)
-    updated = connector.model_copy(update={"name": payload.name, "type": payload.type, "status": "healthy"})
+    updated = connector.model_copy(
+        update={"name": payload.name, "type": payload.type, "status": "healthy"}
+    )
     store.connectors[connector_id] = updated
     return updated
 
 
-@app.delete("/connectors/{connector_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Tools/Connectors"])
+@app.delete(
+    "/connectors/{connector_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Tools/Connectors"]
+)
 async def delete_connector(connector_id: str) -> Response:
     if connector_id not in store.connectors:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Connector not found")
@@ -906,7 +962,12 @@ async def list_secrets(limit: int = 25, offset: int = 0) -> List[SecretMetadata]
     return secrets[offset : offset + limit]
 
 
-@app.post("/secrets", response_model=SecretMetadata, status_code=status.HTTP_201_CREATED, tags=["Keys & Secrets"])
+@app.post(
+    "/secrets",
+    response_model=SecretMetadata,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Keys & Secrets"],
+)
 async def create_secret(payload: SecretCreateRequest) -> SecretMetadata:
     secret_id = str(uuid4())
     metadata = SecretMetadata(
@@ -920,7 +981,9 @@ async def create_secret(payload: SecretCreateRequest) -> SecretMetadata:
     return metadata
 
 
-@app.post("/secrets/{secret_id}:rotate", response_model=SecretCreateRequest, tags=["Keys & Secrets"])
+@app.post(
+    "/secrets/{secret_id}:rotate", response_model=SecretCreateRequest, tags=["Keys & Secrets"]
+)
 async def rotate_secret(secret_id: str) -> SecretCreateRequest:
     secret = _get_secret_or_404(secret_id)
     secret.last_used_at = iso_now()
@@ -928,7 +991,9 @@ async def rotate_secret(secret_id: str) -> SecretCreateRequest:
     return SecretCreateRequest(name=secret.name, value=f"rotated-{uuid4()}", type=secret.type)
 
 
-@app.delete("/secrets/{secret_id}:disable", status_code=status.HTTP_204_NO_CONTENT, tags=["Keys & Secrets"])
+@app.delete(
+    "/secrets/{secret_id}:disable", status_code=status.HTTP_204_NO_CONTENT, tags=["Keys & Secrets"]
+)
 async def disable_secret(secret_id: str) -> Response:
     if secret_id not in store.secrets:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Secret not found")
@@ -989,7 +1054,9 @@ async def stream_runs(
 
 
 @app.get("/logs/export", tags=["Runs & Logs"])
-async def export_logs(format: Literal["json", "ndjson", "csv"], agentId: Optional[str] = None) -> PlainTextResponse:  # noqa: N803
+async def export_logs(
+    format: Literal["json", "ndjson", "csv"], agentId: Optional[str] = None
+) -> PlainTextResponse:  # noqa: N803
     runs = list(store.runs.values())
     if agentId:
         runs = [run for run in runs if run.agent_id == agentId]
@@ -997,7 +1064,9 @@ async def export_logs(format: Literal["json", "ndjson", "csv"], agentId: Optiona
         body = "\n".join(json.dumps(run.model_dump()) for run in runs)
         media_type = "application/x-ndjson"
     elif format == "csv":
-        body = "id,agent_id,status\n" + "\n".join(f"{run.id},{run.agent_id},{run.status}" for run in runs)
+        body = "id,agent_id,status\n" + "\n".join(
+            f"{run.id},{run.agent_id},{run.status}" for run in runs
+        )
         media_type = "text/csv"
     else:
         body = json.dumps([run.model_dump() for run in runs], indent=2)
@@ -1021,7 +1090,9 @@ async def list_jobs(limit: int = 25, offset: int = 0) -> List[Job]:
     return jobs[offset : offset + limit]
 
 
-@app.post("/jobs", response_model=Job, status_code=status.HTTP_201_CREATED, tags=["Jobs & Schedules"])
+@app.post(
+    "/jobs", response_model=Job, status_code=status.HTTP_201_CREATED, tags=["Jobs & Schedules"]
+)
 async def create_job(payload: JobCreateRequest) -> Job:
     job_id = str(uuid4())
     job = Job(
@@ -1107,7 +1178,9 @@ async def list_users(limit: int = 25, offset: int = 0) -> List[User]:
     return users[offset : offset + limit]
 
 
-@app.post("/users", response_model=User, status_code=status.HTTP_201_CREATED, tags=["Users & Roles"])
+@app.post(
+    "/users", response_model=User, status_code=status.HTTP_201_CREATED, tags=["Users & Roles"]
+)
 async def create_user(payload: UserCreateRequest) -> User:
     if any(user.email == payload.email for user in store.users.values()):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
@@ -1165,7 +1238,9 @@ async def list_policies(limit: int = 25, offset: int = 0) -> List[Policy]:
     return policies[offset : offset + limit]
 
 
-@app.post("/policies", response_model=Policy, status_code=status.HTTP_201_CREATED, tags=["Policies"])
+@app.post(
+    "/policies", response_model=Policy, status_code=status.HTTP_201_CREATED, tags=["Policies"]
+)
 async def create_policy(payload: PolicyCreateRequest) -> Policy:
     policy_id = str(uuid4())
     policy = Policy(id=policy_id, name=payload.name, rego_text=payload.rego_text)
@@ -1194,8 +1269,12 @@ async def delete_policy(policy_id: str) -> Response:
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@app.post("/policies/{policy_id}:simulate", response_model=PolicySimulationResult, tags=["Policies"])
-async def simulate_policy(policy_id: str, payload: PolicySimulationRequest) -> PolicySimulationResult:
+@app.post(
+    "/policies/{policy_id}:simulate", response_model=PolicySimulationResult, tags=["Policies"]
+)
+async def simulate_policy(
+    policy_id: str, payload: PolicySimulationRequest
+) -> PolicySimulationResult:
     _get_policy_or_404(policy_id)
     allow = payload.input.get("action") != "deny"
     violations = [] if allow else ["Denied by simulation rule"]
@@ -1275,18 +1354,24 @@ async def export_audit(
 def _get_settings_group_or_404(group: str) -> Dict[str, Setting]:
     settings = store.settings.get(group)
     if settings is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Settings group not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Settings group not found"
+        )
     return settings
 
 
 @app.get("/settings/{group}", response_model=List[Setting], tags=["Settings"])
-async def list_settings(group: Literal["integrations", "localization", "platform"]) -> List[Setting]:
+async def list_settings(
+    group: Literal["integrations", "localization", "platform"],
+) -> List[Setting]:
     settings = _get_settings_group_or_404(group)
     return list(settings.values())
 
 
 @app.put("/settings/{group}", response_model=Setting, tags=["Settings"])
-async def update_setting(group: Literal["integrations", "localization", "platform"], payload: SettingUpdateRequest) -> Setting:
+async def update_setting(
+    group: Literal["integrations", "localization", "platform"], payload: SettingUpdateRequest
+) -> Setting:
     settings = _get_settings_group_or_404(group)
     if payload.key not in settings:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown setting key")
@@ -1304,11 +1389,15 @@ async def list_domain_packs() -> List[DomainPack]:
     return store.domain_packs
 
 
-@app.post("/domain-packs/{name}:install", status_code=status.HTTP_202_ACCEPTED, tags=["Domain Packs"])
+@app.post(
+    "/domain-packs/{name}:install", status_code=status.HTTP_202_ACCEPTED, tags=["Domain Packs"]
+)
 async def install_domain_pack(name: str) -> Dict[str, str]:
     return {"job_id": str(uuid4()), "pack": name}
 
 
-@app.post("/domain-packs/{name}:uninstall", status_code=status.HTTP_202_ACCEPTED, tags=["Domain Packs"])
+@app.post(
+    "/domain-packs/{name}:uninstall", status_code=status.HTTP_202_ACCEPTED, tags=["Domain Packs"]
+)
 async def uninstall_domain_pack(name: str) -> Dict[str, str]:
     return {"job_id": str(uuid4()), "pack": name}

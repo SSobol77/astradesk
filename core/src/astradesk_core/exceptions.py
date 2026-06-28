@@ -1,81 +1,86 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: core/src/astradesk_core/exceptions.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: core/src/astradesk_core/exceptions.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for core/src/astradesk_core/exceptions.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Project: astradesk
-Package: astradesk_core
-
-Description:
-    Central, production-ready exception taxonomy for the AstraDesk platform.
-    Provides a clear hierarchy, standardized error reporting via RFC 7807 Problem
-    Details, and rich diagnostic context.
-
+"""Central, production-ready exception taxonomy for the AstraDesk platform.
+Provides a clear hierarchy, standardized error reporting via RFC 7807 Problem
+Details, and rich diagnostic context.
 """
 
 from __future__ import annotations
 
 import secrets
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class CoreError(Exception):
     """Base exception for all application-specific errors in the AstraDesk ecosystem."""
 
-    def __init__(
-        self, message: str, status_code: int = 500, error_code: Optional[str] = None
-    ) -> None:
+    def __init__(self, message: str, status_code: int = 500, error_code: str | None = None) -> None:
         super().__init__(message)
         self.message = message
         self.status_code = status_code
         self.error_code = error_code or self.__class__.__name__
-        self.error_id = f"err_{secrets.token_hex(8)}"
+        self.error_id = f'err_{secrets.token_hex(8)}'
         self.timestamp = time.time()
 
-    def to_problem_detail(self) -> Dict[str, Any]:
+    def to_problem_detail(self) -> dict[str, Any]:
         """Generates an RFC 7807-compliant Problem Details dictionary."""
         return {
-            "type": f"https://astradesk.com/errors/{self.error_code}",
-            "title": self.error_code,
-            "status": self.status_code,
-            "detail": self.message,
-            "instance": self.error_id,
+            'type': f'https://astradesk.com/errors/{self.error_code}',
+            'title': self.error_code,
+            'status': self.status_code,
+            'detail': self.message,
+            'instance': self.error_id,
         }
 
     def __str__(self) -> str:
-        return f"{self.error_code}: {self.message} (ID: {self.error_id})"
+        return f'{self.error_code}: {self.message} (ID: {self.error_id})'
 
 
 # --- Configuration & State Errors ---
+
 
 class ConfigurationError(CoreError):
     """Raised when a required configuration is missing or invalid."""
 
     def __init__(self, message: str) -> None:
-        super().__init__(message, status_code=500, error_code="ConfigurationError")
+        super().__init__(message, status_code=500, error_code='ConfigurationError')
 
 
 class InvalidStateError(CoreError):
     """Raised when an operation is attempted in an invalid state."""
 
     def __init__(self, message: str) -> None:
-        super().__init__(message, status_code=409, error_code="InvalidStateError")
+        super().__init__(message, status_code=409, error_code='InvalidStateError')
 
 
 # --- Model Gateway Errors ---
 
+
 class ModelGatewayError(CoreError):
     """Base exception for errors in the Model Gateway layer."""
 
-    def __init__(
-        self, message: str, provider: Optional[str] = None, status_code: int = 500
-    ) -> None:
-        super().__init__(message, status_code, error_code="ModelGatewayError")
+    def __init__(self, message: str, provider: str | None = None, status_code: int = 500) -> None:
+        super().__init__(message, status_code, error_code='ModelGatewayError')
         self.provider = provider
 
-    def to_problem_detail(self) -> Dict[str, Any]:
+    def to_problem_detail(self) -> dict[str, Any]:
         problem = super().to_problem_detail()
         if self.provider:
-            problem["provider"] = self.provider
+            problem['provider'] = self.provider
         return problem
 
 
@@ -84,7 +89,7 @@ class ProviderTimeoutError(ModelGatewayError):
 
     def __init__(self, message: str, provider: str) -> None:
         super().__init__(message, provider, status_code=504)
-        self.error_code = "ProviderTimeoutError"
+        self.error_code = 'ProviderTimeoutError'
 
 
 class ProviderOverloadedError(ModelGatewayError):
@@ -92,7 +97,7 @@ class ProviderOverloadedError(ModelGatewayError):
 
     def __init__(self, message: str, provider: str) -> None:
         super().__init__(message, provider, status_code=429)
-        self.error_code = "ProviderOverloadedError"
+        self.error_code = 'ProviderOverloadedError'
 
 
 class ProviderServerError(ModelGatewayError):
@@ -100,7 +105,7 @@ class ProviderServerError(ModelGatewayError):
 
     def __init__(self, message: str, provider: str) -> None:
         super().__init__(message, provider, status_code=502)
-        self.error_code = "ProviderServerError"
+        self.error_code = 'ProviderServerError'
 
 
 class TokenLimitExceededError(ModelGatewayError):
@@ -108,10 +113,11 @@ class TokenLimitExceededError(ModelGatewayError):
 
     def __init__(self, message: str, provider: str) -> None:
         super().__init__(message, provider, status_code=400)
-        self.error_code = "TokenLimitExceededError"
+        self.error_code = 'TokenLimitExceededError'
 
 
 # --- Runtime & Tool Errors ---
+
 
 class ToolNotFoundError(KeyError, CoreError):
     """Raised when a tool is not found in the registry."""
@@ -119,7 +125,7 @@ class ToolNotFoundError(KeyError, CoreError):
     def __init__(self, tool_name: str) -> None:
         message = f"Tool '{tool_name}' not found in registry."
         # Note: CoreError is not called with super() here because of MRO with KeyError
-        CoreError.__init__(self, message, status_code=404, error_code="ToolNotFoundError")
+        CoreError.__init__(self, message, status_code=404, error_code='ToolNotFoundError')
         self.tool_name = tool_name
 
 
@@ -128,4 +134,4 @@ class AuthorizationError(PermissionError, CoreError):
 
     def __init__(self, message: str) -> None:
         # Note: CoreError is not called with super() here because of MRO with PermissionError
-        CoreError.__init__(self, message, status_code=403, error_code="AuthorizationError")
+        CoreError.__init__(self, message, status_code=403, error_code='AuthorizationError')

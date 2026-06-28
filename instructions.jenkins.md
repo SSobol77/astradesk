@@ -1,3 +1,19 @@
+<!--
+SPDX-License-Identifier: GPL-2.0-only
+Project: AstraDesk
+File: instructions.jenkins.md
+Website: https://www.astradesk.dev
+Repository: https://github.com/SSobol77/astradesk
+
+Description: Documents AstraDesk architecture, operation, or component behavior.
+
+Copyright (c) 2026 Siergej Sobolewski
+This file is part of AstraDesk.
+
+AstraDesk is licensed under the GNU General Public License version 2 only.
+See the LICENSE file in the project root for the full license text.
+-->
+
 # AstraDesk — Jenkins Pipeline Guide
 
 This document explains how to run the production Jenkins pipeline defined in
@@ -64,4 +80,3 @@ need overriding per environment (e.g. `HELM_NAMESPACE`, `ADMIN_API_URL`).
 - Terraform state lock issues → verify remote backend configuration.
 - Helm failures due to image tags → ensure `IMAGE_TAG` computed by the script has been pushed to registry.
 - Cosign signing errors → configure `COSIGN_PASSWORD` or use keyless mode if preferred.
-

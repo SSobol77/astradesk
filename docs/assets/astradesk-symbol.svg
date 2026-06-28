@@ -1,4 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+SPDX-License-Identifier: GPL-2.0-only
+Project: AstraDesk
+File: docs/assets/astradesk-symbol.svg
+Website: https://www.astradesk.dev
+Repository: https://github.com/SSobol77/astradesk
+
+Description: Defines AstraDesk visual assets or presentation behavior.
+
+Copyright (c) 2026 Siergej Sobolewski
+This file is part of AstraDesk.
+
+AstraDesk is licensed under the GNU General Public License version 2 only.
+See the LICENSE file in the project root for the full license text.
+-->
+
 <!-- AstraDesk Symbol (standalone) -->
 <svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 120 120" role="img" aria-label="AstraDesk symbol">
   <defs>

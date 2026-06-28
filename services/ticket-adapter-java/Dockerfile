@@ -1,4 +1,19 @@
-FROM gradle:9.2.0-jdk25 AS build
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/ticket-adapter-java/Dockerfile
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Builds the AstraDesk container image for the associated component.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
+FROM gradle:9.2.0-jdk21 AS build
 
 WORKDIR /workspace
 
@@ -15,7 +30,7 @@ COPY services/ticket-adapter-java ./services/ticket-adapter-java
 RUN chmod +x gradlew && \
     ./gradlew :services:ticket-adapter-java:bootJar --no-daemon
 
-FROM eclipse-temurin:25-jre
+FROM eclipse-temurin:21-jre
 WORKDIR /app
 COPY --from=build /workspace/services/ticket-adapter-java/build/libs/*.jar app.jar
 EXPOSE 8081

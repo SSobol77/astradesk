@@ -1,11 +1,19 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/auditor/main.py
-Project: AstraDesk Framework — Mikroserwis Auditor.
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/auditor/main.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/auditor/main.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Author: Siergej Sobolewski
-Since: 2025-10-28
-
-Asynchronous, production-grade microservice responsible solely for **reliably
+"""Asynchronous, production-grade microservice responsible solely for **reliably
 persisting audit events** to Elasticsearch and AWS S3 while consuming from NATS.
 
 Scope & Responsibilities
@@ -73,8 +81,7 @@ Kluczowe cechy i zasady projektowe:
 - **Zarządzanie Cyklem Życia**: Klasa `Auditor` jest asynchronicznym
   menedżerem kontekstu, co zapewnia prawidłową inicjalizację i zamykanie
   wszystkich zasobów (połączeń sieciowych).
-
-"""  # noqa: D205
+"""
 
 from __future__ import annotations
 
@@ -95,18 +102,18 @@ from nats.aio.client import Client as NATSClient
 from python_json_logger import jsonlogger
 
 # --- Konfiguracja ---
-NATS_URL = os.getenv("NATS_URL", "nats://nats:4222")
-AUDIT_SUBJECT = "astradesk.audit"
-S3_BUCKET = os.getenv("S3_BUCKET", "astradesk-audit")
-AWS_REGION = os.getenv("AWS_REGION", "eu-central-1")
-ES_URL = os.getenv("ES_URL", "http://elasticsearch:9200")
-ES_INDEX = os.getenv("ES_INDEX", "astradesk-audit")
-FLUSH_SIZE = int(os.getenv("FLUSH_SIZE", "100"))
-FLUSH_INTERVAL_SEC = int(os.getenv("FLUSH_INTERVAL_SEC", "10"))
+NATS_URL = os.getenv('NATS_URL', 'nats://nats:4222')
+AUDIT_SUBJECT = 'astradesk.audit'
+S3_BUCKET = os.getenv('S3_BUCKET', 'astradesk-audit')
+AWS_REGION = os.getenv('AWS_REGION', 'eu-central-1')
+ES_URL = os.getenv('ES_URL', 'http://elasticsearch:9200')
+ES_INDEX = os.getenv('ES_INDEX', 'astradesk-audit')
+FLUSH_SIZE = int(os.getenv('FLUSH_SIZE', '100'))
+FLUSH_INTERVAL_SEC = int(os.getenv('FLUSH_INTERVAL_SEC', '10'))
 
 # --- Konfiguracja Logowania ---
 logger = logging.getLogger(__name__)
-logger.setLevel(os.getenv("LOG_LEVEL", "INFO"))
+logger.setLevel(os.getenv('LOG_LEVEL', 'INFO'))
 log_handler = logging.StreamHandler()
 formatter = jsonlogger.JsonFormatter('%(asctime)s %(name)s %(levelname)s %(message)s')
 log_handler.setFormatter(formatter)
@@ -134,7 +141,15 @@ class Auditor:
 
     """
 
-    __slots__ = ("_buf", "_lock", "_last_flush_time", "_shutdown_event", "_nc", "_http_client", "_s3_session")
+    __slots__ = (
+        '_buf',
+        '_lock',
+        '_last_flush_time',
+        '_shutdown_event',
+        '_nc',
+        '_http_client',
+        '_s3_session',
+    )
 
     def __init__(self) -> None:
         """Initialize internal state without performing any I/O.
@@ -150,7 +165,7 @@ class Auditor:
         self._http_client: httpx.AsyncClient | None = None
         self._s3_session: aioboto3.Session | None = None
 
-    async def __aenter__(self) -> "Auditor":  # noqa: UP037
+    async def __aenter__(self) -> 'Auditor':  # noqa: UP037
         """Provision network clients (NATS/HTTP/S3) and return a ready instance.
 
         Returns
@@ -158,11 +173,11 @@ class Auditor:
             Self, with active connections and ready to subscribe/flush.
 
         """
-        logger.info("Initializing Auditor resources...")
+        logger.info('Initializing Auditor resources...')
         self._nc = await nats.connect(NATS_URL)
         self._http_client = httpx.AsyncClient(timeout=10.0)
         self._s3_session = aioboto3.Session()
-        logger.info("Auditor resources initialized.")
+        logger.info('Auditor resources initialized.')
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
@@ -171,16 +186,16 @@ class Auditor:
         Always attempts a final flush if the buffer is non-empty, then closes
         NATS and HTTP resources. Errors while closing are logged and suppressed.
         """
-        logger.info("Starting Auditor graceful shutdown...")
+        logger.info('Starting Auditor graceful shutdown...')
         if self._buf:
-            logger.info(f"Flushing final {len(self._buf)} buffered events before exit...")
+            logger.info(f'Flushing final {len(self._buf)} buffered events before exit...')
             await self._flush()
 
         if self._nc:
             await self._nc.close()
         if self._http_client:
             await self._http_client.aclose()
-        logger.info("Auditor shutdown complete.")
+        logger.info('Auditor shutdown complete.')
 
     async def _persist_to_es(self, batch: list[dict[str, Any]]) -> None:
         """Persist a batch to Elasticsearch using the `_bulk` NDJSON API.
@@ -194,29 +209,29 @@ class Auditor:
 
         """
         if not self._http_client:
-            logger.error("HTTP client not initialized; skipping Elasticsearch write.")
+            logger.error('HTTP client not initialized; skipping Elasticsearch write.')
             return
         try:
             ndjson_lines = []
             for doc in batch:
-                ndjson_lines.append(json.dumps({"index": {"_index": ES_INDEX}}))
+                ndjson_lines.append(json.dumps({'index': {'_index': ES_INDEX}}))
                 ndjson_lines.append(json.dumps(doc, ensure_ascii=False))
-            payload = "\n".join(ndjson_lines) + "\n"
+            payload = '\n'.join(ndjson_lines) + '\n'
 
             resp = await self._http_client.post(
-                f"{ES_URL}/_bulk",
+                f'{ES_URL}/_bulk',
                 content=payload,
-                headers={"Content-Type": "application/x-ndjson"},
+                headers={'Content-Type': 'application/x-ndjson'},
             )
             resp.raise_for_status()
-            logger.info(f"Elasticsearch persisted batch size={len(batch)}.")
+            logger.info(f'Elasticsearch persisted batch size={len(batch)}.')
         except httpx.HTTPStatusError as e:
             logger.error(
-                "Elasticsearch HTTP error.",
-                extra={"status_code": e.response.status_code, "response": e.response.text},
+                'Elasticsearch HTTP error.',
+                extra={'status_code': e.response.status_code, 'response': e.response.text},
             )
         except Exception:
-            logger.error("Unexpected error while writing to Elasticsearch.", exc_info=True)
+            logger.error('Unexpected error while writing to Elasticsearch.', exc_info=True)
 
     async def _persist_to_s3(self, batch: list[dict[str, Any]]) -> None:
         """Persist a batch as an NDJSON object in S3.
@@ -229,19 +244,19 @@ class Auditor:
 
         """
         if not self._s3_session:
-            logger.error("aioboto3 session not initialized; skipping S3 write.")
+            logger.error('aioboto3 session not initialized; skipping S3 write.')
             return
         try:
-            async with self._s3_session.client("s3", region_name=AWS_REGION) as s3_client:  # type: ignore[attr-defined]
-                key = f"audit/{int(time.time())}-{len(batch)}.ndjson"
-                body = "\n".join(json.dumps(d, ensure_ascii=False) for d in batch)
+            async with self._s3_session.client('s3', region_name=AWS_REGION) as s3_client:  # type: ignore[attr-defined]
+                key = f'audit/{int(time.time())}-{len(batch)}.ndjson'
+                body = '\n'.join(json.dumps(d, ensure_ascii=False) for d in batch)
 
-                await s3_client.put_object(Bucket=S3_BUCKET, Key=key, Body=body.encode("utf-8"))
-                logger.info(f"S3 persisted batch size={len(batch)} to key={key}.")
+                await s3_client.put_object(Bucket=S3_BUCKET, Key=key, Body=body.encode('utf-8'))
+                logger.info(f'S3 persisted batch size={len(batch)} to key={key}.')
         except BotoCoreError:
-            logger.error("BotoCore error while writing to S3.", exc_info=True)
+            logger.error('BotoCore error while writing to S3.', exc_info=True)
         except Exception:
-            logger.error("Unexpected error while writing to S3.", exc_info=True)
+            logger.error('Unexpected error while writing to S3.', exc_info=True)
 
     async def _flush(self) -> None:
         """Atomically drain the buffer and persist the batch to both sinks.
@@ -257,7 +272,7 @@ class Auditor:
             self._buf = []
             self._last_flush_time = time.monotonic()
 
-        logger.info(f"Flushing batch size={len(batch_to_flush)} to sinks...")
+        logger.info(f'Flushing batch size={len(batch_to_flush)} to sinks...')
         results = await asyncio.gather(
             self._persist_to_es(batch_to_flush),
             self._persist_to_s3(batch_to_flush),
@@ -265,7 +280,7 @@ class Auditor:
         )
         for res in results:
             if isinstance(res, Exception):
-                logger.error("Flush sink raised an exception.", exc_info=res)
+                logger.error('Flush sink raised an exception.', exc_info=res)
 
     async def _message_handler(self, msg: nats.aio.msg.Msg) -> None:
         """Decode a single NATS message and append it to the buffer.
@@ -283,8 +298,8 @@ class Auditor:
                 self._buf.append(data)
         except json.JSONDecodeError:
             logger.warning(
-                "Received invalid JSON from NATS.",
-                extra={"raw_data": msg.data.decode("utf-8", "ignore")},
+                'Received invalid JSON from NATS.',
+                extra={'raw_data': msg.data.decode('utf-8', 'ignore')},
             )
 
     async def _periodic_flush(self) -> None:
@@ -300,7 +315,9 @@ class Auditor:
                 buffer_size = len(self._buf)
                 time_since_flush = time.monotonic() - self._last_flush_time
 
-            if buffer_size >= FLUSH_SIZE or (buffer_size > 0 and time_since_flush >= FLUSH_INTERVAL_SEC):
+            if buffer_size >= FLUSH_SIZE or (
+                buffer_size > 0 and time_since_flush >= FLUSH_INTERVAL_SEC
+            ):
                 await self._flush()
 
     def _handle_shutdown_signal(self, signum: int, frame: FrameType | None) -> None:
@@ -315,7 +332,7 @@ class Auditor:
             frame: Current stack frame (unused).
 
         """
-        logger.info(f"Received signal {signal.Signals(signum).name}; starting graceful shutdown...")
+        logger.info(f'Received signal {signal.Signals(signum).name}; starting graceful shutdown...')
         self._shutdown_event.set()
 
     async def run(self) -> None:
@@ -359,11 +376,11 @@ async def main():
 
             await auditor.run()
     except Exception:
-        logger.critical("Auditor terminated due to an unexpected error.", exc_info=True)
+        logger.critical('Auditor terminated due to an unexpected error.', exc_info=True)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("Application interrupted by user.")
+        logger.info('Application interrupted by user.')

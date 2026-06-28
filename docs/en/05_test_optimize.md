@@ -1,3 +1,19 @@
+<!--
+SPDX-License-Identifier: GPL-2.0-only
+Project: AstraDesk
+File: docs/en/05_test_optimize.md
+Website: https://www.astradesk.dev
+Repository: https://github.com/SSobol77/astradesk
+
+Description: Documents AstraDesk architecture, operation, or component behavior.
+
+Copyright (c) 2026 Siergej Sobolewski
+This file is part of AstraDesk.
+
+AstraDesk is licensed under the GNU General Public License version 2 only.
+See the LICENSE file in the project root for the full license text.
+-->
+
 ![AstraDesk](../assets/astradesk-logo.svg)
 
 # 5. Test & Optimize - Evaluations, LLM-as-a-Judge, Red-Teaming
@@ -283,6 +299,23 @@ jobs:
       - name: Gate: Promotion policy
         run: python scripts/promotion_gate.py .astradesk/promotion.yaml
 ```
+
+<br>
+
+---
+
+### 5.7.1 Coverage reports & dependency caching
+
+The repository CI (`.github/workflows/ci.yml`) collects a coverage report per stack:
+
+| Stack | Command | Output |
+| :--- | :--- | :--- |
+| Python | `uv run pytest --cov=core/src --cov=services/api-gateway/src --cov=packages --cov-report=xml` | `coverage.xml` |
+| Java | `./gradlew test jacocoTestReport` (in `services/ticket-adapter-java/`) | `build/reports/jacoco/test/jacocoTestReport.xml` |
+| JS | `vitest run --coverage` (via `@vitest/coverage-v8`, in `services/admin-portal/`) | `coverage/lcov.info` |
+
+Python dependency caching in CI is provided by `astral-sh/setup-uv` (`enable-cache: true`),
+not by `actions/setup-python` — `setup-python` does not support `cache: 'uv'`.
 
 <br>
 

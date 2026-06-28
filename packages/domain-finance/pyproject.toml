@@ -1,15 +1,25 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
 # File: packages/domain-finance/pyproject.toml
-# Author: Siergej Sobolewski
-# Since: 2025-10-27
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Configures the associated AstraDesk component or deployment.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
 [project]
 name = "astradesk-domain-finance"
 version = "0.3.0"
 description = "Finance domain pack for AstraDesk — forecasting and ERP integration."
 authors = [{ name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com" }]
-license = "Apache-2.0"
-requires-python = ">=3.14"
+license = "GPL-2.0-only"
+requires-python = ">=3.13"
 
 dependencies = [
   "astradesk-core",
@@ -17,6 +27,9 @@ dependencies = [
   "grpcio>=1.66,<2.0",
   "protobuf>=5.0",
 ]
+
+[project.entry-points."astradesk.pack"]
+domain_finance = "domain_finance:Pack"
 
 [project.optional-dependencies]
 dev = [
@@ -31,4 +44,13 @@ requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = {find = {where = ["."]}}
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["domain_finance*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+domain_finance = ["flows/*.yaml", "policies/*.rego", "proto/*.proto"]

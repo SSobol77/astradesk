@@ -1,165 +1,130 @@
-"""
-Lightweight data models with validation tailored for the unit tests.
-"""
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: src/runtime/models.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for src/runtime/models.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
+"""Pydantic v2 compatibility models for legacy ``src.runtime`` imports."""
 
 from __future__ import annotations
 
 import json
 import re
 from enum import Enum
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+from typing import Any
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-_TOOL_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9._-]+$")
-_META_KEY_PATTERN = re.compile(r"^[a-zA-Z0-9_]+$")
+_TOOL_NAME_PATTERN = re.compile(r'^[a-zA-Z0-9._-]+$')
+_META_KEY_PATTERN = re.compile(r'^[a-zA-Z0-9_]+$')
+_MAX_FIELD_JSON_SIZE = 8192
+_MAX_MODEL_SIZE = 32768
 
 
-class AstraDeskBaseModel:
-    """Simplified stand-in for selected Pydantic behaviours."""
+class AstraDeskBaseModel(BaseModel):
+    """Base DTO with strict fields, normalized strings, and a total size bound."""
 
-    _max_json_size = 32768
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
 
-    def _dump(self) -> Dict[str, Any]:
-        raise NotImplementedError
-
-    def _ensure_json_size(self) -> None:
-        blob = json.dumps(self._dump(), ensure_ascii=False)
-        if len(blob.encode("utf-8")) > self._max_json_size:
-            raise ValidationError("Model exceeds max JSON size.")
-
-    def model_dump_json(self) -> str:
-        self._ensure_json_size()
-        return json.dumps(self._dump(), ensure_ascii=False)
+    @model_validator(mode='after')
+    def validate_total_size(self) -> AstraDeskBaseModel:
+        if len(self.model_dump_json().encode('utf-8')) > _MAX_MODEL_SIZE:
+            raise ValueError(f'Model exceeds max size ({_MAX_MODEL_SIZE} bytes).')
+        return self
 
 
 class ToolCall(AstraDeskBaseModel):
-    def __init__(self, *, name: str, arguments: Optional[Dict[str, Any]] = None, **extra: Any):
-        if extra:
-            raise ValidationError(f"Unexpected fields: {sorted(extra.keys())}")
-        self.name = self._validate_name(name.strip())
-        self.arguments = self._validate_arguments(arguments or {})
-        self._ensure_json_size()
+    name: str = Field(min_length=1, max_length=128)
+    arguments: dict[str, Any] = Field(default_factory=dict)
 
-    @staticmethod
-    def _validate_name(value: str) -> str:
-        if not (1 <= len(value) <= 128):
-            raise ValidationError("Tool name must be between 1 and 128 characters.")
+    @field_validator('name')
+    @classmethod
+    def validate_name(cls, value: str) -> str:
         if not _TOOL_NAME_PATTERN.fullmatch(value):
-            raise ValidationError("Tool name contains invalid characters.")
+            raise ValueError("Tool name must contain only letters, digits, '.', '_', '-'.")
         return value
 
-    @staticmethod
-    def _validate_arguments(arguments: Dict[str, Any]) -> Dict[str, Any]:
-        if not isinstance(arguments, dict):
-            raise ValidationError("arguments must be a dictionary.")
-        blob = json.dumps(arguments, ensure_ascii=False)
-        if len(blob.encode("utf-8")) > 8192:
-            raise ValidationError("Tool arguments exceed 8KB.")
-        return arguments
+    @field_validator('arguments', mode='before')
+    @classmethod
+    def default_arguments(cls, value: Any) -> Any:
+        return {} if value is None else value
 
-    def _dump(self) -> Dict[str, Any]:
-        return {"name": self.name, "arguments": self.arguments}
+    @field_validator('arguments')
+    @classmethod
+    def validate_arguments(cls, value: dict[str, Any]) -> dict[str, Any]:
+        try:
+            encoded = json.dumps(value, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+        except (TypeError, ValueError) as exc:
+            raise ValueError('Tool arguments must be JSON serializable.') from exc
+        if len(encoded) > _MAX_FIELD_JSON_SIZE:
+            raise ValueError('Tool arguments exceed 8KB limit.')
+        return value
 
 
 class AgentName(str, Enum):
-    SUPPORT = "support"
-    OPS = "ops"
+    SUPPORT = 'support'
+    OPS = 'ops'
 
 
 class AgentRequest(AstraDeskBaseModel):
-    def __init__(
-        self,
-        *,
-        agent: AgentName,
-        input: str,
-        meta: Optional[Dict[str, Any]] = None,
-        **extra: Any,
-    ):
-        if extra:
-            raise ValidationError(f"Unexpected fields: {sorted(extra.keys())}")
-        if not isinstance(agent, AgentName):
-            raise ValidationError("agent must be an AgentName.")
-        self.agent = agent
+    agent: AgentName
+    input: str = Field(min_length=1, max_length=8192)
+    meta: dict[str, Any] = Field(default_factory=dict)
 
-        cleaned_input = input.strip()
-        if not cleaned_input:
-            raise ValidationError("input must not be empty.")
-        if len(cleaned_input) > 8192:
-            raise ValidationError("input exceeds 8192 characters.")
-        if "<script" in cleaned_input.lower():
-            raise ValidationError("input contains disallowed HTML.")
-        self.input = cleaned_input
+    @field_validator('input')
+    @classmethod
+    def validate_input(cls, value: str) -> str:
+        if '<script' in value.lower():
+            raise ValueError('Input contains disallowed HTML.')
+        return value
 
-        meta = meta or {}
-        if not isinstance(meta, dict):
-            raise ValidationError("meta must be a dictionary.")
-        for key in meta.keys():
+    @field_validator('meta', mode='before')
+    @classmethod
+    def default_meta(cls, value: Any) -> Any:
+        return {} if value is None else value
+
+    @field_validator('meta')
+    @classmethod
+    def validate_meta(cls, value: dict[str, Any]) -> dict[str, Any]:
+        for key in value:
             if not isinstance(key, str) or not _META_KEY_PATTERN.fullmatch(key):
-                raise ValidationError(f"Invalid meta key: {key!r}")
-        self.meta = meta
-        self._ensure_json_size()
-
-    def _dump(self) -> Dict[str, Any]:
-        return {"agent": self.agent.value, "input": self.input, "meta": self.meta}
+                raise ValueError(f'Invalid meta key: {key!r}.')
+        try:
+            encoded = json.dumps(value, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+        except (TypeError, ValueError) as exc:
+            raise ValueError('Meta must be JSON serializable.') from exc
+        if len(encoded) > _MAX_FIELD_JSON_SIZE:
+            raise ValueError('Meta exceeds 8KB limit.')
+        return value
 
 
 class AgentResponse(AstraDeskBaseModel):
-    def __init__(
-        self,
-        *,
-        output: str,
-        reasoning_trace_id: str,
-        invoked_tools: Optional[Sequence[Dict[str, Any] | ToolCall]] = None,
-        errors: Optional[Sequence[str]] = None,
-        **extra: Any,
-    ):
-        if extra:
-            raise ValidationError(f"Unexpected fields: {sorted(extra.keys())}")
+    output: str = Field(min_length=1, max_length=20000)
+    reasoning_trace_id: str = Field(min_length=1, max_length=256)
+    invoked_tools: list[ToolCall] | None = None
+    errors: list[str] | None = Field(default=None, max_length=50)
 
-        output_clean = output.strip()
-        trace_clean = reasoning_trace_id.strip()
-        if not output_clean:
-            raise ValidationError("output must not be empty.")
-        if not trace_clean:
-            raise ValidationError("reasoning_trace_id must not be empty.")
-        if len(output_clean) > 20000:
-            raise ValidationError("output exceeds 20000 characters.")
-        self.output = output_clean
-        self.reasoning_trace_id = trace_clean
+    @field_validator('invoked_tools')
+    @classmethod
+    def normalize_invoked_tools(cls, value: list[ToolCall] | None) -> list[ToolCall] | None:
+        return value or None
 
-        tool_objs: List[ToolCall] = []
-        for item in invoked_tools or []:
-            if isinstance(item, ToolCall):
-                tool_objs.append(item)
-            elif isinstance(item, dict):
-                tool_objs.append(ToolCall(**item))
-            else:
-                raise ValidationError("invoked_tools entries must be ToolCall or dict.")
-        self.invoked_tools = tool_objs if tool_objs else None
-
-        if errors is not None:
-            cleaned_errors: List[str] = []
-            for err in errors:
-                if not isinstance(err, str):
-                    raise ValidationError("errors must be a list of strings.")
-                cleaned = err.strip()
-                if cleaned:
-                    cleaned_errors.append(cleaned)
-            self.errors = cleaned_errors if cleaned_errors else None
-        else:
-            self.errors = None
-        self._ensure_json_size()
-
-    def _dump(self) -> Dict[str, Any]:
-        payload = {
-            "output": self.output,
-            "reasoning_trace_id": self.reasoning_trace_id,
-            "invoked_tools": [tool._dump() for tool in self.invoked_tools] if self.invoked_tools else None,
-            "errors": self.errors,
-        }
-        # Remove None entries to align with expected JSON output.
-        return {k: v for k, v in payload.items() if v is not None}
+    @field_validator('errors')
+    @classmethod
+    def normalize_errors(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        normalized = [error for error in value if error]
+        return normalized or None
 
 
-__all__ = ["ToolCall", "AgentName", "AgentRequest", "AgentResponse"]
+__all__ = ['ToolCall', 'AgentName', 'AgentRequest', 'AgentResponse']

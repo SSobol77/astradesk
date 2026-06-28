@@ -1,33 +1,17 @@
-# SPDX-License-Identifier: Apache-2.0
-# File: .gitlab-ci.yml v2.1 --production-ready--
-# Project: AstraDesk Enterprise AI Agents Framework
-# Description:
-#     Full production GitLab CI/CD pipeline for AstraDesk monorepo (2025 best-practices).
-#     Covers:
-#       • Global cache (uv, npm, gradle) – ultra-fast builds
-#       • Parallel test stages (Python 3.14, Java 25, Node 22) with coverage
-#       • Multi-arch Docker build & push (Buildx + cache + Sigstore)
-#       • Terraform init → validate → plan → apply (S3 backend, AWS creds)
-#       • Config-mgmt dry-run (Ansible/Puppet/Salt)
-#       • Istio mTLS STRICT + cert-manager sync → Admin API (/secrets)
-#       • Helm lint → test → upgrade (autoscaling, DB from TF, OTel)
-#       • Manual approval + Slack notifications
-#     All jobs are idempotent, retry-aware, use explicit variables.
-# Author: Siergej Sobolewski
-# Since: 2025-10-25
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: .gitlab-ci.yml
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
 #
-## UWAGA!!!
-# Wymagane zmienne CI/CD w GitLabie:
-# CI_REGISTRY_IMAGE    - registry.gitlab.com/yourgroup/astradesk
-# TF_STATE_BUCKET      - S3 bucket dla terraform state, Protected
-# KUBE_CONFIG          - Base64-encoded kubeconfig, "File, Protected"
-# ADMIN_API_JWT        - JWT do Admin API, "Masked, Protected"
-# COSIGN_PRIVATE_KEY   - (option) key Sigstore, "File, Protected"
-# SLACK_WEBHOOK_URL    - Webhook do Slacka
-#  --- do SONAR QUBE --
-# SONAR_HOST_URL       - URL do SonarQube (np. https://sonar.astradesk.com), Protected
-# SONAR_TOKEN          - Token do autoryzacji (Project Analysis Token), "Masked, Protected"
-
+# Description: Defines continuous integration and delivery automation for AstraDesk.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
 # ==============================================================================
 # Global Configuration
@@ -70,7 +54,7 @@ default:
 
 test:python:
   stage: test
-  image: python:3.14-slim
+  image: python:3.13-slim
   variables:
     UV_CACHE_DIR: "/uv-cache"
   before_script:
@@ -121,7 +105,7 @@ test:node:
 
 coverage:aggregate:
   stage: coverage
-  image: python:3.14-slim
+  image: python:3.13-slim
   needs: ["test:python", "test:java", "test:node"]
   script:
     - pip install --no-cache-dir coverage

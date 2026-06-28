@@ -1,45 +1,52 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/api-gateway/src/runtime/models.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/runtime/models.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/runtime/models.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Centralized Pydantic v2 data models for AstraDesk API contracts and internal flows.
+"""Centralized Pydantic v2 data models for AstraDesk API contracts and internal flows.
 
 Provides **hardened**, production-grade validation with:
 - Size limits (DoS protection)
 - Regex patterns (XSS/SQLi mitigation)
 - Schema-level constraints
 - OpenAPI v1.2.0 compliance
-
-Author: Siergej Sobolewski
-Since: 2025-10-07
 """
 
 from __future__ import annotations
 
-import regex as re
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+import regex as re
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
     field_validator,
     model_validator,
-    EmailStr,
-    HttpUrl,
 )
 
 # --------------------------------------------------------------------------- #
 # Security Regex Patterns (compiled at import for performance)
 # --------------------------------------------------------------------------- #
 # Tool name: alphanumeric + . _ - (no spaces, no /)
-_TOOL_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9._-]+$")
+_TOOL_NAME_PATTERN = re.compile(r'^[a-zA-Z0-9._-]+$')
 
 # Safe string: no control chars, no excessive whitespace
-_SAFE_STRING_PATTERN = re.compile(r"^[\p{L}\p{N}\p{P}\p{Z}]+$", re.UNICODE)
+_SAFE_STRING_PATTERN = re.compile(r'^[\p{L}\p{N}\p{P}\p{Z}]+$', re.UNICODE)
 
 # XSS-safe: block common script tags
-_XSS_BLOCK_PATTERN = re.compile(r"<(script|iframe|object|embed|link|meta)", re.IGNORECASE)
+_XSS_BLOCK_PATTERN = re.compile(r'<(script|iframe|object|embed|link|meta)', re.IGNORECASE)
 
 # Max JSON string size for any field (8KB)
 _MAX_FIELD_JSON_SIZE = 8192
@@ -63,23 +70,19 @@ class AstraDeskBaseModel(BaseModel):
     """
 
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
         str_strip_whitespace=True,
         populate_by_name=True,
         frozen=True,
         validate_assignment=True,
-        json_encoders={dict: lambda v: v},
     )
 
-    @model_validator(mode="after")
-    def check_total_size(self) -> "AstraDeskBaseModel":
+    @model_validator(mode='after')
+    def check_total_size(self) -> AstraDeskBaseModel:
         """Reject models exceeding total serialized size (DoS protection)."""
-        try:
-            serialized = self.model_dump_json().encode("utf-8")
-            if len(serialized) > _MAX_MODEL_SIZE:
-                raise ValueError(f"Model exceeds max size ({_MAX_MODEL_SIZE} bytes).")
-        except Exception as e:
-            raise ValueError(f"Failed to serialize model for size check: {e}")
+        serialized = self.model_dump_json().encode('utf-8')
+        if len(serialized) > _MAX_MODEL_SIZE:
+            raise ValueError(f'Model exceeds max size ({_MAX_MODEL_SIZE} bytes).')
         return self
 
 
@@ -99,28 +102,34 @@ class ToolCall(AstraDeskBaseModel):
         min_length=1,
         max_length=128,
         description="Unique tool identifier (e.g., 'create_ticket').",
-        examples=["create_ticket", "get_metrics"],
+        examples=['create_ticket', 'get_metrics'],
     )
-    arguments: Dict[str, Any] = Field(
+    arguments: dict[str, Any] = Field(
         default_factory=dict,
-        description="Tool arguments as JSON object.",
-        examples=[{"title": "VPN outage", "body": "Cannot connect"}],
+        description='Tool arguments as JSON object.',
+        examples=[{'title': 'VPN outage', 'body': 'Cannot connect'}],
     )
 
-    @field_validator("name")
+    @field_validator('name')
     @classmethod
     def validate_name_format(cls, v: str) -> str:
         if not _TOOL_NAME_PATTERN.fullmatch(v):
             raise ValueError("Tool name must contain only letters, digits, '.', '_', '-'.")
-        if v.startswith(".") or v.endswith(".") or ".." in v:
+        if v.startswith('.') or v.endswith('.') or '..' in v:
             raise ValueError("Tool name cannot start/end with '.' or contain '..'.")
         return v
 
-    @field_validator("arguments")
+    @field_validator('arguments', mode='before')
     @classmethod
-    def validate_arguments(cls, v: Dict[str, Any]) -> Dict[str, Any]:
-        if len(str(v).encode("utf-8")) > _MAX_FIELD_JSON_SIZE:
-            raise ValueError("Tool arguments exceed 8KB limit.")
+    def default_arguments(cls, v: Any) -> Any:
+        return {} if v is None else v
+
+    @field_validator('arguments')
+    @classmethod
+    def validate_arguments(cls, v: dict[str, Any]) -> dict[str, Any]:
+        if len(str(v).encode('utf-8')) > _MAX_FIELD_JSON_SIZE:
+            raise ValueError('Tool arguments exceed 8KB limit.')
+
         # Recursively validate nested strings
         def _scrub(d):
             for k, val in d.items():
@@ -133,12 +142,13 @@ class ToolCall(AstraDeskBaseModel):
                     _scrub(val)
                 elif isinstance(val, list):
                     for i, item in enumerate(val):
-                        if isinstance(item, (str, dict)):
+                        if isinstance(item, str | dict):
                             if isinstance(item, dict):
                                 _scrub(item)
                             elif isinstance(item, str) and _XSS_BLOCK_PATTERN.search(item):
-                                raise ValueError(f"Invalid content in arguments list[{i}].")
+                                raise ValueError(f'Invalid content in arguments list[{i}].')
             return d
+
         return _scrub(v)
 
 
@@ -147,9 +157,10 @@ class ToolCall(AstraDeskBaseModel):
 # --------------------------------------------------------------------------- #
 class AgentName(str, Enum):
     """Supported agent types (strict enum)."""
-    SUPPORT = "support"
-    OPS = "ops"
-    BILLING = "billing"
+
+    SUPPORT = 'support'
+    OPS = 'ops'
+    BILLING = 'billing'
 
 
 class AgentRequest(AstraDeskBaseModel):
@@ -162,39 +173,39 @@ class AgentRequest(AstraDeskBaseModel):
 
     agent: AgentName = Field(
         ...,
-        description="Target agent.",
+        description='Target agent.',
         examples=[AgentName.SUPPORT],
     )
     input: str = Field(
         ...,
         min_length=1,
         max_length=8192,
-        description="User query in natural language.",
-        examples=["Utwórz ticket dla incydentu VPN"],
+        description='User query in natural language.',
+        examples=['Utwórz ticket dla incydentu VPN'],
     )
-    meta: Dict[str, Any] = Field(
+    meta: dict[str, Any] = Field(
         default_factory=dict,
-        description="Metadata (session_id, user_id, tenant).",
-        examples=[{"user_id": "alice", "session_id": "sess-123"}],
+        description='Metadata (session_id, user_id, tenant).',
+        examples=[{'user_id': 'alice', 'session_id': 'sess-123'}],
     )
 
-    @field_validator("input")
+    @field_validator('input')
     @classmethod
     def validate_input(cls, v: str) -> str:
         if _XSS_BLOCK_PATTERN.search(v):
-            raise ValueError("Input contains blocked HTML tags (XSS protection).")
+            raise ValueError('Input contains blocked HTML tags (XSS protection).')
         if not _SAFE_STRING_PATTERN.match(v):
-            raise ValueError("Input contains invalid characters.")
+            raise ValueError('Input contains invalid characters.')
         return v
 
-    @field_validator("meta")
+    @field_validator('meta')
     @classmethod
-    def validate_meta(cls, v: Dict[str, Any]) -> Dict[str, Any]:
-        if len(str(v).encode("utf-8")) > _MAX_FIELD_JSON_SIZE:
-            raise ValueError("Meta exceeds 8KB limit.")
+    def validate_meta(cls, v: dict[str, Any]) -> dict[str, Any]:
+        if len(str(v).encode('utf-8')) > _MAX_FIELD_JSON_SIZE:
+            raise ValueError('Meta exceeds 8KB limit.')
         # Allow only safe keys: alphanumeric + _
         for k in v.keys():
-            if not isinstance(k, str) or not re.fullmatch(r"[a-zA-Z0-9_]+", k):
+            if not isinstance(k, str) or not re.fullmatch(r'[a-zA-Z0-9_]+', k):
                 raise ValueError(f"Invalid meta key: '{k}'.")
         return v
 
@@ -208,48 +219,48 @@ class AgentResponse(AstraDeskBaseModel):
         ...,
         min_length=1,
         max_length=20000,
-        description="User-facing response.",
-        examples=["Ticket #123 created."],
+        description='User-facing response.',
+        examples=['Ticket #123 created.'],
     )
     reasoning_trace_id: str = Field(
         ...,
         min_length=32,
         max_length=256,
-        description="OTel trace ID.",
-        examples=["trace-b7a3c1e9-f8d2-4e1a-9c3d-8b2f0a1d4e5c"],
+        description='OTel trace ID.',
+        examples=['trace-b7a3c1e9-f8d2-4e1a-9c3d-8b2f0a1d4e5c'],
     )
-    invoked_tools: Optional[List[ToolCall]] = Field(
+    invoked_tools: list[ToolCall] | None = Field(
         default=None,
-        description="Executed tools.",
+        description='Executed tools.',
     )
-    errors: Optional[List[str]] = Field(
+    errors: list[str] | None = Field(
         default=None,
-        description="Non-fatal errors.",
-        max_items=50,
+        description='Non-fatal errors.',
+        max_length=50,
     )
 
-    @field_validator("output")
+    @field_validator('output')
     @classmethod
     def validate_output(cls, v: str) -> str:
         if _XSS_BLOCK_PATTERN.search(v):
-            raise ValueError("Output contains blocked HTML tags.")
+            raise ValueError('Output contains blocked HTML tags.')
         return v
 
-    @field_validator("reasoning_trace_id")
+    @field_validator('reasoning_trace_id')
     @classmethod
     def validate_trace_id(cls, v: str) -> str:
-        if not re.fullmatch(r"[0-9a-fA-F-]+", v):
-            raise ValueError("Invalid trace ID format (hex + hyphen).")
+        if not re.fullmatch(r'[0-9a-fA-F-]+', v):
+            raise ValueError('Invalid trace ID format (hex + hyphen).')
         return v
 
-    @field_validator("errors")
+    @field_validator('errors')
     @classmethod
-    def validate_errors(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+    def validate_errors(cls, v: list[str] | None) -> list[str] | None:
         if v is None:
             return v
         for i, err in enumerate(v):
             if not isinstance(err, str) or len(err) > 1024:
-                raise ValueError(f"Error message at index {i} is invalid or too long.")
+                raise ValueError(f'Error message at index {i} is invalid or too long.')
         return v
 
 
@@ -260,40 +271,40 @@ class RAGSnippet(AstraDeskBaseModel):
     content: str = Field(..., max_length=4000)
     score: float = Field(..., ge=0.0, le=1.0)
     source: str = Field(..., max_length=64)
-    agent_name: Optional[str] = Field(default=None, max_length=64)
+    agent_name: str | None = Field(default=None, max_length=64)
 
-    @field_validator("content")
+    @field_validator('content')
     @classmethod
     def validate_content(cls, v: str) -> str:
         if _XSS_BLOCK_PATTERN.search(v):
-            raise ValueError("RAG snippet contains blocked HTML.")
+            raise ValueError('RAG snippet contains blocked HTML.')
         return v
 
-    @field_validator("source")
+    @field_validator('source')
     @classmethod
     def validate_source(cls, v: str) -> str:
         if not _TOOL_NAME_PATTERN.fullmatch(v):
-            raise ValueError("Invalid source identifier.")
+            raise ValueError('Invalid source identifier.')
         return v
 
 
 class AuditEvent(AstraDeskBaseModel):
     actor: str = Field(..., max_length=256)
     action: str = Field(..., max_length=128)
-    payload: Dict[str, Any] = Field(...)
+    payload: dict[str, Any] = Field(...)
 
-    @field_validator("actor", "action")
+    @field_validator('actor', 'action')
     @classmethod
     def validate_actor_action(cls, v: str) -> str:
         if not _SAFE_STRING_PATTERN.match(v):
-            raise ValueError(f"Invalid characters in {v}.")
+            raise ValueError(f'Invalid characters in {v}.')
         return v
 
-    @field_validator("payload")
+    @field_validator('payload')
     @classmethod
-    def validate_payload(cls, v: Dict[str, Any]) -> Dict[str, Any]:
-        if len(str(v).encode("utf-8")) > _MAX_FIELD_JSON_SIZE:
-            raise ValueError("Audit payload exceeds 8KB.")
+    def validate_payload(cls, v: dict[str, Any]) -> dict[str, Any]:
+        if len(str(v).encode('utf-8')) > _MAX_FIELD_JSON_SIZE:
+            raise ValueError('Audit payload exceeds 8KB.')
         return v
 
 
@@ -303,19 +314,19 @@ class AuditEvent(AstraDeskBaseModel):
 class IntentNode(AstraDeskBaseModel):
     id: str = Field(..., max_length=128)
     action: str = Field(..., max_length=128)
-    arguments: Dict[str, Any] = Field(default_factory=dict)
-    dependencies: List[str] = Field(default_factory=list, max_items=50)
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    dependencies: list[str] = Field(default_factory=list, max_length=50)
 
-    @field_validator("id", "action")
+    @field_validator('id', 'action')
     @classmethod
     def validate_ids(cls, v: str) -> str:
         if not _TOOL_NAME_PATTERN.fullmatch(v):
-            raise ValueError("Invalid node ID or action.")
+            raise ValueError('Invalid node ID or action.')
         return v
 
-    @field_validator("dependencies")
+    @field_validator('dependencies')
     @classmethod
-    def validate_deps(cls, v: List[str]) -> List[str]:
+    def validate_deps(cls, v: list[str]) -> list[str]:
         for dep in v:
             if not _TOOL_NAME_PATTERN.fullmatch(dep):
                 raise ValueError(f"Invalid dependency ID: '{dep}'.")
@@ -323,15 +334,15 @@ class IntentNode(AstraDeskBaseModel):
 
 
 class IntentGraph(AstraDeskBaseModel):
-    nodes: List[IntentNode] = Field(..., min_length=1, max_items=100)
+    nodes: list[IntentNode] = Field(..., min_length=1, max_length=100)
     start_node: str = Field(...)
 
-    @field_validator("start_node")
+    @field_validator('start_node')
     @classmethod
     def validate_start_node(cls, v: str, info) -> str:
-        node_ids = {n.id for n in info.data.get("nodes", [])}
+        node_ids = {n.id for n in info.data.get('nodes', [])}
         if v not in node_ids:
-            raise ValueError("start_node must reference an existing node ID.")
+            raise ValueError('start_node must reference an existing node ID.')
         return v
 
 

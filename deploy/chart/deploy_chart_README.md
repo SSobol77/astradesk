@@ -1,9 +1,20 @@
-# AstraDesk Helm Chart
+<!--
+SPDX-License-Identifier: GPL-2.0-only
+Project: AstraDesk
+File: deploy/chart/deploy_chart_README.md
+Website: https://www.astradesk.dev
+Repository: https://github.com/SSobol77/astradesk
 
-<!-- SPDX-License-Identifier: Apache-2.0 -->
-<!-- Description: README for the Helm chart in deploy/chart/. Covers chart structure, configuration, and deployment for AstraDesk services (api, ticket-adapter, admin-portal, auditor). -->
-<!-- Author: Siergej Sobolewski -->
-<!-- Since: 2025-10-22 -->
+Description: Documents AstraDesk architecture, operation, or component behavior.
+
+Copyright (c) 2026 Siergej Sobolewski
+This file is part of AstraDesk.
+
+AstraDesk is licensed under the GNU General Public License version 2 only.
+See the LICENSE file in the project root for the full license text.
+-->
+
+# AstraDesk Helm Chart
 
 ## Overview
 
@@ -229,4 +240,4 @@ Tests mTLS STRICT and HTTPS connectivity by executing `curl` via Istio proxy to 
 
 ## License
 
-This project is licensed under the Apache License 2.0. See the `LICENSE` file for details.
+This project is licensed under the GNU General Public License version 2 only. See the `LICENSE` file for details.

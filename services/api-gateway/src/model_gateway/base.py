@@ -1,61 +1,76 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/api-gateway/src/model_gateway/base.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/model_gateway/base.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/model_gateway/base.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Project: astradesk
-Pakage: api-gateway
-
-Author: Siergej Sobolewski
-Since: 2025-10-29
-
-Core contracts, types, and helpers for the Model Gateway layer.
+"""Core contracts, types, and helpers for the Model Gateway layer.
 Provides a stable, provider-agnostic interface for chat models (LLMs), a shared error taxonomy,
 message/parameter schemas, streaming primitives, and adapters for common wire formats (e.g., OpenAI-/Anthropic-style messages).
 Integrates self-reflection hook, PyTorch for token estimation, OPA optional governance, and OTel tracing.
-
-"""  # noqa: D205
+"""
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Protocol, Sequence, Tuple, AsyncIterator
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator, Sequence
+from typing import Any, Protocol
 
 import torch  # PyTorch 2.9 for custom tokenizers/estimations
+from opa_client.opa import OpaClient
 from opentelemetry import trace  # AstraOps/OTel
-from opa_client.opa import OpaClient 
 from pydantic import BaseModel  # Pydantic v2.9+ for schemas (OpenAPI v1.2.0 compliant)
 
 logger = logging.getLogger(__name__)
 
 tracer = trace.get_tracer(__name__)
 
+
 class LLMMessage(BaseModel):
     """Minimal chat message unit."""
+
     role: str
     content: str
 
+
 class ChatParams(BaseModel):
     """Normalized generation parameters."""
+
     max_tokens: int = 512
     temperature: float = 0.7
     top_p: float = 1.0
-    stop: Optional[List[str]] = None
-    extra: Dict[str, Any] = {}
+    stop: list[str] | None = None
+    extra: dict[str, Any] = {}
 
-    def normalized(self) -> Dict[str, Any]:
+    def normalized(self) -> dict[str, Any]:
         """Returns normalized dict for provider."""
         return self.model_dump(exclude_unset=True)
 
+
 class Usage(BaseModel):
     """Token usage accounting."""
+
     prompt_tokens: int
     completion_tokens: int
     total_tokens: int
 
+
 class ChatChunk(BaseModel):
     """Streaming chat chunk."""
+
     content: str
-    usage: Optional[Usage] = None
+    usage: Usage | None = None
+
 
 class ModelGatewayError(Exception):
     """Base error for Model Gateway with diagnostics and OTel logging."""
@@ -64,9 +79,9 @@ class ModelGatewayError(Exception):
         self,
         message: str,
         provider: str,
-        status_code: Optional[int] = None,
-        details: Optional[Dict[str, Any]] = None,
-        opa_client: Optional[OpaClient] = None,
+        status_code: int | None = None,
+        details: dict[str, Any] | None = None,
+        opa_client: OpaClient | None = None,
     ) -> None:
         super().__init__(message)
         self.provider = provider
@@ -78,58 +93,74 @@ class ModelGatewayError(Exception):
 
         # Optional OPA policy check (e.g., for rate limits)
         if opa_client:
-            decision = opa_client.check_policy({"error": message}, "astradesk/errors")
-            if not decision["result"]:
-                logger.warning(f"OPA flagged error: {message}")
+            decision = opa_client.check_policy({'error': message}, 'astradesk/errors')
+            if not decision['result']:
+                logger.warning(f'OPA flagged error: {message}')
 
-#------
+
+# ------
 # W pliku services/api-gateway/src/model_gateway/base.py
 # Dodaj po istniejących klasach błędów:
 
+
 class ProviderOverloadedError(ModelGatewayError):
     """Raised when provider is overloaded (rate limits, capacity)."""
-    
+
     @classmethod
-    def from_rate_limit(cls, provider: str, retry_after: int = None) -> "ProviderOverloadedError":
-        detail = f"Provider {provider} is overloaded"
+    def from_rate_limit(
+        cls, provider: str, retry_after: int | None = None
+    ) -> ProviderOverloadedError:
+        detail = f'Provider {provider} is overloaded'
         if retry_after:
-            detail += f", retry after {retry_after}s"
+            detail += f', retry after {retry_after}s'
         return cls(detail, provider=provider)
+
 
 class ProviderServerError(ModelGatewayError):
     """Raised when provider returns server error (5xx)."""
-    
+
     @classmethod
-    def from_status_code(cls, provider: str, status_code: int, response: str = "") -> "ProviderServerError":
+    def from_status_code(
+        cls, provider: str, status_code: int, response: str = ''
+    ) -> ProviderServerError:
         return cls(
-            f"Provider {provider} returned server error {status_code}: {response}",
+            f'Provider {provider} returned server error {status_code}: {response}',
             provider=provider,
-            status_code=status_code
+            status_code=status_code,
         )
 
 
 class ProviderTimeoutError(ModelGatewayError):
     @classmethod
-    def from_httpx_timeout(cls, provider: str, timeout: float, endpoint: str, raw: Exception) -> "ProviderTimeoutError":
-        return cls(f"Timeout after {timeout}s at {endpoint}", provider=provider)
+    def from_httpx_timeout(
+        cls, provider: str, timeout: float, endpoint: str, raw: Exception
+    ) -> ProviderTimeoutError:
+        return cls(f'Timeout after {timeout}s at {endpoint}', provider=provider)
+
 
 class TokenLimitExceededError(ModelGatewayError):
     @classmethod
-    def from_token_count(cls, actual: int, max_allowed: int, provider: str) -> "TokenLimitExceededError":
-        return cls(f"Token limit exceeded: {actual} > {max_allowed}", provider=provider)
+    def from_token_count(
+        cls, actual: int, max_allowed: int, provider: str
+    ) -> TokenLimitExceededError:
+        return cls(f'Token limit exceeded: {actual} > {max_allowed}', provider=provider)
+
 
 class LLMProvider(Protocol):
     """Protocol for LLM providers with chat/stream and reflection."""
 
-    async def chat(self, messages: Sequence[LLMMessage], params: Optional[ChatParams] = None) -> str:
+    async def chat(self, messages: Sequence[LLMMessage], params: ChatParams | None = None) -> str:
         """Generates a full chat response."""
 
-    async def stream(self, messages: Sequence[LLMMessage], params: Optional[ChatParams] = None) -> AsyncIterator[ChatChunk]:
+    def stream(
+        self, messages: Sequence[LLMMessage], params: ChatParams | None = None
+    ) -> AsyncIterator[ChatChunk]:
         """Streams chat response chunks."""
 
     async def reflect(self, query: str, result: str) -> float:
         """Self-reflection: Scores result relevance to query (0.0-1.0)."""
-        raise NotImplementedError("Provider must implement reflect for agentic flows")
+        raise NotImplementedError('Provider must implement reflect for agentic flows')
+
 
 class Tokenizer(ABC):
     """Abstract tokenizer contract."""
@@ -141,6 +172,7 @@ class Tokenizer(ABC):
     @abstractmethod
     def count_chat(self, messages: Sequence[LLMMessage]) -> int:
         """Counts tokens in chat sequence."""
+
 
 class NoopTokenizer(Tokenizer):
     """Noop tokenizer with PyTorch-based heuristic estimation for token count."""
@@ -159,14 +191,17 @@ class NoopTokenizer(Tokenizer):
         """Estimates tokens for chat sequence."""
         return sum(self.count_tokens(m.content) for m in messages)
 
-# Utility adapters (e.g., to_openai_messages)
-def to_openai_messages(messages: Sequence[LLMMessage]) -> List[Dict[str, str]]:
-    """Adapts to OpenAI message format."""
-    return [{"role": m.role, "content": m.content} for m in messages]
 
-def to_anthropic_messages(messages: Sequence[LLMMessage]) -> List[Dict[str, str]]:
+# Utility adapters (e.g., to_openai_messages)
+def to_openai_messages(messages: Sequence[LLMMessage]) -> list[dict[str, str]]:
+    """Adapts to OpenAI message format."""
+    return [{'role': m.role, 'content': m.content} for m in messages]
+
+
+def to_anthropic_messages(messages: Sequence[LLMMessage]) -> list[dict[str, str]]:
     """Adapts to Anthropic message format."""
-    return [{"role": m.role, "content": m.content} for m in messages]
+    return [{'role': m.role, 'content': m.content} for m in messages]
+
 
 def validate_conversation(messages: Sequence[LLMMessage]) -> bool:
     """Validates conversation structure (e.g., alternating roles)."""
@@ -174,12 +209,13 @@ def validate_conversation(messages: Sequence[LLMMessage]) -> bool:
         return False
     roles = [m.role for m in messages]
     # Example validation: starts with user, alternates
-    if roles[0] != "user":
+    if roles[0] != 'user':
         return False
     for i in range(1, len(roles)):
-        if roles[i] == roles[i-1]:
+        if roles[i] == roles[i - 1]:
             return False
     return True
+
 
 async def reflect_relevance(provider: LLMProvider, query: str, context: str) -> float:
     """Utility for self-reflection using provider."""

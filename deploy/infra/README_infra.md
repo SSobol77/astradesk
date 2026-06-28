@@ -1,4 +1,18 @@
-###### SPDX-License-Identifier: Apache-2.0
+<!--
+SPDX-License-Identifier: GPL-2.0-only
+Project: AstraDesk
+File: deploy/infra/README_infra.md
+Website: https://www.astradesk.dev
+Repository: https://github.com/SSobol77/astradesk
+
+Description: Documents AstraDesk architecture, operation, or component behavior.
+
+Copyright (c) 2026 Siergej Sobolewski
+This file is part of AstraDesk.
+
+AstraDesk is licensed under the GNU General Public License version 2 only.
+See the LICENSE file in the project root for the full license text.
+-->
 
 # AWS Infrastructure for AstraDesk
 
@@ -8,7 +22,7 @@ The `infra/` directory contains Terraform configurations for deploying the Astra
 - **Istio**: mTLS and Gateway (`deploy/istio/`).
 - **cert-manager**: TLS certificates (`deploy/istio/certs/`).
 - **Admin API**: `/secrets` for AWS credentials (OpenAPI 3.1.0).
-- **Polyglot Stack**: Python 3.14+ (API), Java 25+ (ticket-adapter), Node.js 22 (admin-portal), Postgres 18+.
+- **Polyglot Stack**: Python 3.13+ (API), Java 25+ (ticket-adapter), Node.js 22 (admin-portal), Postgres 18+.
 - **CI/CD**: Jenkinsfile (`terraform plan/apply`), Makefile (`terraform-init`, `terraform-apply`).
 
 ## Directory Structure
@@ -96,7 +110,7 @@ infra/
 
 6. **Update Makefile**:
    ```makefile
-   # SPDX-License-Identifier: Apache-2.0
+   # SPDX-License-Identifier: GPL-2.0-only
    terraform-init: ## Initialize Terraform
 	terraform -chdir=infra init
 
@@ -176,4 +190,4 @@ istioctl analyze -n astradesk-prod
 
 ## License
 
-Apache-2.0 (see SPDX in files).
+GPL-2.0-only (see SPDX in files).

@@ -1,11 +1,17 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
 # File: deploy/istio/41-virtualservice-astradesk-api.yaml
-# Description:
-#     Maps public host to the astradesk-api service in the cluster.
-#     Routes all HTTP(S) traffic to astradesk-api:8080 via Gateway (40-gateway.yaml).
-#     Compatible with mTLS (20-destinationrule-astradesk-api.yaml) and cert-manager (50-cert-manager-certificate.yaml).
-# Author: Siergej Sobolewski
-# Since: 2025-10-22
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Configures the associated AstraDesk component or deployment.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
 apiVersion: networking.istio.io/v1beta1
 kind: VirtualService

@@ -1,19 +1,17 @@
-/*
- * SPDX-License-Identifier: Apache-2.0
- * File: services/ticket-adapter-java/src/main/java/com/astradesk/ticket/http/TicketController.java
- * Project: AstraDesk Framework — Ticket Adapter
- * Description: REST controller for managing support tickets (create, fetch single, list).
- *              Secured via Spring Security (JWT/OAuth2); selected actuator routes are public.
- * Author: Siergej Sobolewski
- * Since: 2025-10-07
- *
- * Notes (PL):
- *  - Konwencja ścieżek: /api/v1/tickets (POST, GET list, GET by id).
- *  - Walidacja wejścia: DTO z Jakarta Bean Validation (@NotBlank, @Size).
- *  - Błędy: zwracaj RFC 7807 (Problem Details) lub spójny format JSON dla wyjątków.
- *  - Unikaj blokowania: kontroler pod WebFlux — operacje w oparciu o Publisher (Mono/Flux).
- */
-
+// SPDX-License-Identifier: GPL-2.0-only
+// Project: AstraDesk
+// File: services/ticket-adapter-java/src/main/java/com/astradesk/ticket/http/TicketController.java
+// Website: https://www.astradesk.dev
+// Repository: https://github.com/SSobol77/astradesk
+//
+// Description: Implements AstraDesk functionality for services/ticket-adapter-java/src/main/java/com/astradesk/ticket/http/TicketController.java.
+//
+// Copyright (c) 2026 Siergej Sobolewski
+//
+// This file is part of AstraDesk.
+//
+// AstraDesk is licensed under the GNU General Public License version 2 only.
+// See the LICENSE file in the project root for the full license text.
 
 package com.astradesk.ticket.http;
 

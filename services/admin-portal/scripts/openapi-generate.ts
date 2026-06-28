@@ -1,4 +1,19 @@
 #!/usr/bin/env tsx
+// SPDX-License-Identifier: GPL-2.0-only
+// Project: AstraDesk
+// File: services/admin-portal/scripts/openapi-generate.ts
+// Website: https://www.astradesk.dev
+// Repository: https://github.com/SSobol77/astradesk
+//
+// Description: Implements AstraDesk functionality for services/admin-portal/scripts/openapi-generate.ts.
+//
+// Copyright (c) 2026 Siergej Sobolewski
+//
+// This file is part of AstraDesk.
+//
+// AstraDesk is licensed under the GNU General Public License version 2 only.
+// See the LICENSE file in the project root for the full license text.
+
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, statSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve, isAbsolute } from "node:path";

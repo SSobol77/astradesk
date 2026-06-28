@@ -1,10 +1,17 @@
-# SPDX-License-Identifier: Apache-2.0
-# File: salt/astradesk/init.sls
-# Description:
-#     Salt state for deploying AstraDesk with Docker Compose.
-#     Installs Docker, copies repo, fetches mTLS/TLS certs from Admin API, and runs docker compose up.
-# Author: Siergej Sobolewski
-# Since: 2025-10-22
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: deploy/cm/salt/astradesk/init.sls
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Automates AstraDesk development, deployment, or operational tasks.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
 install_docker:
   pkg.installed:

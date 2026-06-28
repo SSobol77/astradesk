@@ -1,3 +1,18 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: .gitignore
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for .gitignore.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 # Python
 __pycache__/
 *.py[cod]
@@ -21,6 +36,11 @@ services/ticket-adapter-java/gradle/wrapper/*.jar
 *.jar
 *.war
 *.ear
+# The Gradle wrapper JARs MUST be committed so `./gradlew` works in CI and on
+# fresh clones. Re-include them despite the broad `*.jar` ignore above.
+# (Negations must come AFTER `*.jar` — the last matching pattern wins.)
+!gradle/wrapper/gradle-wrapper.jar
+!services/ticket-adapter-java/gradle/wrapper/gradle-wrapper.jar
 target/
 astradesk.egg-info/
 # Ignoruj pliki generowane przez IDE i systemy budowania
@@ -101,6 +121,8 @@ coverage/
 junit.xml
 pytest_cache/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 test-results/
 test-output/
 
@@ -135,6 +157,15 @@ temp/
 
 # Old version
 _*.*
+!mcp/__init__.py
+!mcp/src/**/__init__.py
+!packages/domain-support/src/**/__init__.py
+!packages/domain-ops/src/**/__init__.py
+!packages/domain-finance/src/**/__init__.py
+!packages/domain-supply/src/**/__init__.py
+!core/src/**/__init__.py
+!services/api-gateway/src/**/__init__.py
+!services/admin_api/src/**/__init__.py
 
 # Build artifacts
 *.tar.gz
@@ -163,3 +194,15 @@ build/
 
 # Test artifacts
 coverage.xml
+
+# AGENTS
+AGENTS.md
+CLAUDE.md
+CODEX.md
+CURSOR.md
+audit-report.md
+*.txt
+.claude/
+.codex/
+.cursor/
+.gitignore

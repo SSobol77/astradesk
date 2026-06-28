@@ -1,9 +1,20 @@
-# Istio Configuration for AstraDesk
+<!--
+SPDX-License-Identifier: GPL-2.0-only
+Project: AstraDesk
+File: deploy/istio/deploy_istio_README.md
+Website: https://www.astradesk.dev
+Repository: https://github.com/SSobol77/astradesk
 
-<!-- SPDX-License-Identifier: Apache-2.0 -->
-<!-- Description: README for Istio configurations in deploy/istio/. Covers mTLS (STRICT), HTTPS routing, and cert-manager integration for AstraDesk services (api, ticket-adapter, admin-portal, auditor). -->
-<!-- Author: Siergej Sobolewski -->
-<!-- Since: 2025-10-22 -->
+Description: Documents AstraDesk architecture, operation, or component behavior.
+
+Copyright (c) 2026 Siergej Sobolewski
+This file is part of AstraDesk.
+
+AstraDesk is licensed under the GNU General Public License version 2 only.
+See the LICENSE file in the project root for the full license text.
+-->
+
+# Istio Configuration for AstraDesk
 
 ## Overview
 
@@ -21,7 +32,7 @@ The `deploy/istio/` directory contains Istio configurations for the AstraDesk pr
 
 This directory supports the polyglot stack:
 
-- **Python 3.14**: `api` (FastAPI), `auditor`.
+- **Python 3.13+**: `api` (FastAPI), `auditor`.
 
 - **Java 25**: `ticket-adapter`.
 
@@ -127,7 +138,6 @@ deploy/istio/
 
 - **Purpose**: This file, documenting the `deploy/istio/` directory.
 
-
 <br>
 
 ## Setup
@@ -226,7 +236,7 @@ deploy/istio/
 7. **Update Makefile**:
 
    ```makefile
-   # SPDX-License-Identifier: Apache-2.0
+   # SPDX-License-Identifier: GPL-2.0-only
    apply-istio: ## Apply Istio configurations
        kubectl apply -f deploy/istio/
    verify-istio: ## Verify Istio configurations
@@ -250,7 +260,7 @@ deploy/istio/
   - Example:
 
     ```python
-    # SPDX-License-Identifier: Apache-2.0
+    # SPDX-License-Identifier: GPL-2.0-only
     import pytest
     from ..tools.asana_adapter import AsanaAdapter
 
@@ -445,4 +455,4 @@ deploy/istio/
 
 ## License
 
-Licensed under the Apache License 2.0. See the `LICENSE` file for details.
+Licensed under the GNU General Public License version 2 only. See the `LICENSE` file for details.

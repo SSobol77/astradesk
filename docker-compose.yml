@@ -1,13 +1,18 @@
-#SPDX-License-Identifier: Apache-2.0
-# File: docker-compose.yml v.1.3.0
-# Project: AstraDesk Enterprise AI Agents Framework
-# Description:
-#     Defines services for AstraDesk local dev environment.
-#     Includes API, Prometheus, ticket-adapter (Java), admin-portal (Node.js), auditor,
-#     MySQL,Postgres, Redis, NATS, and domain packs (Python, Java, gRPC).
-#     Supports polyglot stack (Python 3.14+, Java 25, Node 22+, Postgres 18).
-# Author: Siergej Sobolewski
-# Since: 2025-11-09
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: docker-compose.yml
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Configures the associated AstraDesk component or deployment.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 services:
   api:
     build: .

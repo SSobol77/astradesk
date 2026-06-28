@@ -1,0 +1,38 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Project: AstraDesk
+// File: packages/domain-supply/src/domain_supply/proto/supply.proto
+// Website: https://www.astradesk.dev
+// Repository: https://github.com/SSobol77/astradesk
+//
+// Description: Defines an AstraDesk service or persistence interface.
+//
+// Copyright (c) 2026 Siergej Sobolewski
+//
+// This file is part of AstraDesk.
+//
+// AstraDesk is licensed under the GNU General Public License version 2 only.
+// See the LICENSE file in the project root for the full license text.
+
+syntax = "proto3";
+
+package astradesk.supply;
+
+option java_package = "com.astradesk.supply.grpc";
+option java_multiple_files = true;
+
+message FetchInventoryRequest {
+  string query = 1;  // SAP query (e.g., "SELECT material, stock FROM MM")
+}
+
+message InventoryItem {
+  string material = 1;
+  int32 stock = 2;
+}
+
+message FetchInventoryResponse {
+  repeated InventoryItem items = 1;
+}
+
+service SupplyService {
+  rpc FetchInventory(FetchInventoryRequest) returns (FetchInventoryResponse) {}
+}

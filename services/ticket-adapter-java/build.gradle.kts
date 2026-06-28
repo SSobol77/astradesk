@@ -1,5 +1,20 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Project: AstraDesk
+// File: services/ticket-adapter-java/build.gradle.kts
+// Website: https://www.astradesk.dev
+// Repository: https://github.com/SSobol77/astradesk
+//
+// Description: Implements AstraDesk functionality for services/ticket-adapter-java/build.gradle.kts.
+//
+// Copyright (c) 2026 Siergej Sobolewski
+//
+// This file is part of AstraDesk.
+//
+// AstraDesk is licensed under the GNU General Public License version 2 only.
+// See the LICENSE file in the project root for the full license text.
+
 /* File: services/ticket-adapter-java/build.gradle.kts
- *  Module: Ticket Adapter (Spring Boot WebFlux + R2DBC MySQL), Gradle 9+, JDK 25.
+ *  Module: Ticket Adapter (Spring Boot WebFlux + R2DBC MySQL), Gradle 9+, JDK 21 LTS.
 */
 
 import org.gradle.jvm.toolchain.JavaLanguageVersion
@@ -8,6 +23,7 @@ import org.springframework.boot.gradle.tasks.run.BootRun
 
 plugins {
     id("java")
+    id("jacoco")                              // test coverage report consumed by CI/Sonar
     id("org.springframework.boot")            // wersja przypięta w root build.gradle.kts
     id("io.spring.dependency-management")     // zarządzanie wersjami zależności przez BOM SB
 }
@@ -18,7 +34,7 @@ description = "AstraDesk Ticket Adapter Service"
 
 java {
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(25))
+        languageVersion.set(JavaLanguageVersion.of(21))
     }
     // Lepsze wsparcie dla refleksji (np. Jackson, Spring Validation)
     withJavadocJar()
@@ -66,6 +82,16 @@ tasks.withType<JavaCompile>().configureEach {
 
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
+    finalizedBy(tasks.named("jacocoTestReport"))
+}
+
+tasks.named<JacocoReport>("jacocoTestReport") {
+    dependsOn(tasks.named("test"))
+    reports {
+        // CI uploads build/reports/jacoco/test/jacocoTestReport.xml (the default path).
+        xml.required.set(true)
+        html.required.set(true)
+    }
 }
 
 tasks.withType<BootJar>().configureEach {

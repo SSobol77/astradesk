@@ -1,3 +1,18 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Project: AstraDesk
+// File: services/ticket-adapter-java/src/main/java/com/astradesk/ticket/service/TicketService.java
+// Website: https://www.astradesk.dev
+// Repository: https://github.com/SSobol77/astradesk
+//
+// Description: Implements AstraDesk functionality for services/ticket-adapter-java/src/main/java/com/astradesk/ticket/service/TicketService.java.
+//
+// Copyright (c) 2026 Siergej Sobolewski
+//
+// This file is part of AstraDesk.
+//
+// AstraDesk is licensed under the GNU General Public License version 2 only.
+// See the LICENSE file in the project root for the full license text.
+
 package com.astradesk.ticket.service;
 
 import java.time.Clock;
@@ -22,13 +37,13 @@ import reactor.core.publisher.Mono;
 /**
  * Application service orchestrating persistence and outbound integrations.
  *
- * <p>Responsibilities:
+ * <p>Responsibilities:</p>
  * <ul>
  *   <li>Persist tickets via {@link TicketRepository}</li>
  *   <li>Open Jira issues to keep the service desk in sync</li>
  *   <li>Push Slack notifications to keep the on-call team informed</li>
  * </ul>
- * The service is reactive end-to-end to avoid blocking Netty threads.</p>
+ * <p>The service is reactive end-to-end to avoid blocking Netty threads.</p>
  */
 @Service
 public class TicketService {

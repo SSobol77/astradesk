@@ -1,23 +1,36 @@
-# SPDX-License-Identifier: Apache-2.0
-# File: mcp/pyproject.toml v2.0.0
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: mcp/pyproject.toml
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Configures the associated AstraDesk component or deployment.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "astradesk-mcp"
 version = "2.0.0"
 description = "AstraDesk Model Context Protocol Gateway"
 readme = "README.md"
-requires-python = ">=3.14"
-license = "Apache-2.0"
+requires-python = ">=3.13"
+license = "GPL-2.0-only"
 keywords = ["ai", "agents", "mcp", "gateway"]
 authors = [
     { name = "Siergej Sobolewski", email = "siergej@astradesk.com" }
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
-    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.13",
     "Framework :: FastAPI",
     "Topic :: Software Development :: Libraries :: Application Frameworks",
     "Topic :: System :: Distributed Computing",
@@ -37,16 +50,7 @@ dependencies = [
     "tenacity>=8.2.3",
     "cryptography>=42.0.0",
     "python-multipart>=0.0.9",
-]
-dependencies = [
-    "fastapi>=0.68.0",
-    "pydantic>=2.0.0",
-    "httpx>=0.23.0",
-    "prometheus-client>=0.14.0",
-    "python-jose>=3.3.0",
     "passlib>=1.7.4",
-    "uvicorn>=0.15.0",
-    "redis>=5.0,<5.1",
     "PyYAML>=6.0",
 ]
 
@@ -57,9 +61,20 @@ test = [
     "httpx>=0.23.0",
 ]
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["src*"]
+[tool.setuptools]
+include-package-data = false
+packages = [
+    "mcp",
+    "mcp.src",
+    "mcp.src.clients",
+    "mcp.src.gateway",
+    "mcp.src.security",
+    "mcp.src.tools",
+]
+package-dir = {mcp = ".", "mcp.src" = "src"}
+
+[tool.setuptools.package-data]
+mcp = ["config*.yaml", "schemas/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

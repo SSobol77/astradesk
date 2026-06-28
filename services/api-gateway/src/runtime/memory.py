@@ -1,13 +1,19 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/api-gateway/src/runtime/memory.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/runtime/memory.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/runtime/memory.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Project: astradesk
-Pakage: api-gateway
-
-Author: Siergej Sobolewski
-Since: 2025-10-29
-
-Memory & audit layer for AstraDesk agents.
+"""Memory & audit layer for AstraDesk agents.
 
 Provides async abstraction over:
   - PostgreSQL 18+ (durable dialogue/audit logs)
@@ -16,24 +22,23 @@ Provides async abstraction over:
 
 Separates critical persistence (Postgres) from non-blocking telemetry (Redis/NATS)
 to protect request latency.
-
 """
 
 from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+from astradesk_core.utils.events import events
 
 import asyncpg
 import redis.asyncio as redis
 
-from astradesk_core.utils.events import events
-
 logger = logging.getLogger(__name__)
 
 # NATS subject for audit events
-AUDIT_SUBJECT: str = "astradesk.audit"
+AUDIT_SUBJECT: str = 'astradesk.audit'
 
 
 class Memory:
@@ -46,7 +51,7 @@ class Memory:
       - Redis ops and NATS publish → log & continue on failure.
     """
 
-    __slots__ = ("pg_pool", "redis")
+    __slots__ = ('pg_pool', 'redis')
 
     def __init__(self, pg_pool: asyncpg.Pool, redis_cli: redis.Redis) -> None:
         """
@@ -57,9 +62,9 @@ class Memory:
             redis_cli: Async Redis client.
         """
         if not isinstance(pg_pool, asyncpg.Pool):
-            raise TypeError("pg_pool must be asyncpg.Pool")
+            raise TypeError('pg_pool must be asyncpg.Pool')
         if not isinstance(redis_cli, redis.Redis):
-            raise TypeError("redis_cli must be redis.asyncio.Redis")
+            raise TypeError('redis_cli must be redis.asyncio.Redis')
 
         self.pg_pool = pg_pool
         self.redis = redis_cli
@@ -72,7 +77,7 @@ class Memory:
         agent: str,
         query: str,
         answer: str,
-        meta: Optional[Dict[str, Any]] = None,
+        meta: dict[str, Any] | None = None,
     ) -> None:
         """
         Persist agent-user exchange with metadata.
@@ -90,9 +95,9 @@ class Memory:
             asyncpg.PostgresError: On DB failure (critical).
         """
         if not all((agent, query, answer)):
-            raise ValueError("agent, query, and answer must be non-empty")
+            raise ValueError('agent, query, and answer must be non-empty')
 
-        meta_json = json.dumps(meta or {}, ensure_ascii=False, separators=(",", ":"))
+        meta_json = json.dumps(meta or {}, ensure_ascii=False, separators=(',', ':'))
 
         try:
             async with self.pg_pool.acquire() as conn:
@@ -116,9 +121,7 @@ class Memory:
     # ----------------------------------------------------------------------- #
     # Ephemeral Working Memory (Redis)
     # ----------------------------------------------------------------------- #
-    async def append_work(
-        self, key: str, value: str, ttl_sec: int = 3600
-    ) -> None:
+    async def append_work(self, key: str, value: str, ttl_sec: int = 3600) -> None:
         """
         Append to a Redis list and set TTL atomically.
 
@@ -131,19 +134,17 @@ class Memory:
             ttl_sec: Time-to-live in seconds.
         """
         if not key or ttl_sec <= 0:
-            raise ValueError("key must be non-empty, ttl_sec > 0")
+            raise ValueError('key must be non-empty, ttl_sec > 0')
 
         try:
             pipe = self.redis.pipeline()
-            pipe.rpush(key, value.encode("utf-8"))
+            pipe.rpush(key, value.encode('utf-8'))
             pipe.expire(key, ttl_sec)
             await pipe.execute()
         except (redis.RedisError, OSError) as e:
-            logger.error(
-                f"Failed to append work to Redis key '{key}': {e}", exc_info=True
-            )
+            logger.error(f"Failed to append work to Redis key '{key}': {e}", exc_info=True)
 
-    async def get_work(self, key: str, count: int = 10) -> List[str]:
+    async def get_work(self, key: str, count: int = 10) -> list[str]:
         """
         Retrieve latest N items from Redis list (without removal).
 
@@ -155,23 +156,19 @@ class Memory:
             List of strings (most recent first), or empty on error.
         """
         if not key or count <= 0:
-            raise ValueError("key must be non-empty, count > 0")
+            raise ValueError('key must be non-empty, count > 0')
 
         try:
             raw = await self.redis.lrange(key, -count, -1)
-            return [item.decode("utf-8") for item in raw]
+            return [item.decode('utf-8') for item in raw]
         except (redis.RedisError, OSError) as e:
-            logger.error(
-                f"Failed to get work from Redis key '{key}': {e}", exc_info=True
-            )
+            logger.error(f"Failed to get work from Redis key '{key}': {e}", exc_info=True)
             return []
 
     # ----------------------------------------------------------------------- #
     # Audit Trail (PostgreSQL + NATS)
     # ----------------------------------------------------------------------- #
-    async def audit(
-        self, actor: str, action: str, payload: Dict[str, Any]
-    ) -> None:
+    async def audit(self, actor: str, action: str, payload: dict[str, Any]) -> None:
         """
         Record audit event: first to PostgreSQL (critical), then NATS (best-effort).
 
@@ -187,11 +184,9 @@ class Memory:
             asyncpg.PostgresError: On PostgreSQL failure.
         """
         if not all((actor, action, payload)):
-            raise ValueError("actor, action, and payload must be non-empty")
+            raise ValueError('actor, action, and payload must be non-empty')
 
-        payload_json = json.dumps(
-            payload, ensure_ascii=False, separators=(",", ":")
-        )
+        payload_json = json.dumps(payload, ensure_ascii=False, separators=(',', ':'))
 
         # 1. Critical: PostgreSQL
         try:
@@ -213,11 +208,11 @@ class Memory:
             raise
 
         # 2. Best-effort: NATS
-        event = {"actor": actor, "action": action, "payload": payload}
+        event = {'actor': actor, 'action': action, 'payload': payload}
         try:
             await events.publish(AUDIT_SUBJECT, event)
         except Exception as e:  # pragma: no cover
             logger.warning(
-                f"Best-effort NATS publish failed (subject={AUDIT_SUBJECT}): {e}",
+                f'Best-effort NATS publish failed (subject={AUDIT_SUBJECT}): {e}',
                 exc_info=True,
             )

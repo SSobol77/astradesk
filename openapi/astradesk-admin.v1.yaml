@@ -1,10 +1,25 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: openapi/astradesk-admin.v1.yaml
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Configures the associated AstraDesk component or deployment.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 # openapi/astradesk-admin.v1.yaml
 # OpenAPI v3
 
 openapi: 3.1.0
 info:
   title: AstraDesk Admin API
-  version: "0.3.0" 
+  version: "1.2.0"
   description: API for AstraDesk Admin v1.2 - operational and governance panel for agents, data, policies, and audits.
   contact:
     name: AstraDesk Operations

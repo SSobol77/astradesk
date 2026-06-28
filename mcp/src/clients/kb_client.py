@@ -1,3 +1,18 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: mcp/src/clients/kb_client.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for mcp/src/clients/kb_client.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 """
 Knowledge Base Client Implementation
 
@@ -5,104 +20,97 @@ This module provides a client for interacting with a knowledge base service thro
 It supports searching for entries and retrieving specific entries by ID.
 """
 
-from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
+from typing import Any
+
 import httpx
 
 
 @dataclass
 class KnowledgeBaseEntry:
     """Knowledge base entry"""
+
     id: str
     title: str
     content: str
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: dict[str, Any] | None = None
 
 
 class KnowledgeBaseClient:
     """Client for interacting with the knowledge base"""
-    
-    def __init__(self, base_url: str, api_key: Optional[str] = None):
+
+    def __init__(self, base_url: str, api_key: str | None = None):
         self.base_url = base_url.rstrip('/')
         self.api_key = api_key
-        
+
         # Setup HTTP client with authentication if provided
-        headers = {"Content-Type": "application/json"}
+        headers = {'Content-Type': 'application/json'}
         if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
-            
+            headers['Authorization'] = f'Bearer {api_key}'
+
         self.http_client = httpx.AsyncClient(headers=headers)
-    
+
     async def search(
-        self,
-        query: str,
-        top_k: int = 5,
-        filters: Optional[Dict[str, Any]] = None
-    ) -> List[KnowledgeBaseEntry]:
+        self, query: str, top_k: int = 5, filters: dict[str, Any] | None = None
+    ) -> list[KnowledgeBaseEntry]:
         """
         Search the knowledge base
-        
+
         Args:
             query: Search query
             top_k: Number of results to return
             filters: Optional filters to apply
-            
+
         Returns:
             List of knowledge base entries
         """
         # Prepare the request payload
-        payload = {
-            "query": query,
-            "top_k": top_k
-        }
-        
+        payload = {'query': query, 'top_k': top_k}
+
         if filters:
-            payload["filters"] = filters
-        
+            payload['filters'] = filters
+
         # Make HTTP request to knowledge base API
-        response = await self.http_client.post(
-            f"{self.base_url}/search",
-            json=payload
-        )
-        
+        response = await self.http_client.post(f'{self.base_url}/search', json=payload)
+
         response.raise_for_status()
         data = response.json()
-        
+
         entries = []
-        for item in data.get("results", []):
-            entries.append(KnowledgeBaseEntry(
-                id=item["id"],
-                title=item["title"],
-                content=item["content"],
-                metadata=item.get("metadata")
-            ))
-            
+        for item in data.get('results', []):
+            entries.append(
+                KnowledgeBaseEntry(
+                    id=item['id'],
+                    title=item['title'],
+                    content=item['content'],
+                    metadata=item.get('metadata'),
+                )
+            )
+
         return entries
-    
-    async def get_entry(self, entry_id: str) -> Optional[KnowledgeBaseEntry]:
+
+    async def get_entry(self, entry_id: str) -> KnowledgeBaseEntry | None:
         """
         Get a specific knowledge base entry
-        
+
         Args:
             entry_id: Entry ID
-            
+
         Returns:
             KnowledgeBaseEntry if found, None otherwise
         """
         try:
             # Make HTTP request to knowledge base API
-            response = await self.http_client.get(
-                f"{self.base_url}/entries/{entry_id}"
-            )
-            
+            response = await self.http_client.get(f'{self.base_url}/entries/{entry_id}')
+
             response.raise_for_status()
             data = response.json()
-            
+
             return KnowledgeBaseEntry(
-                id=data["id"],
-                title=data["title"],
-                content=data["content"],
-                metadata=data.get("metadata")
+                id=data['id'],
+                title=data['title'],
+                content=data['content'],
+                metadata=data.get('metadata'),
             )
         except httpx.HTTPError:
             # Entry not found or other HTTP error

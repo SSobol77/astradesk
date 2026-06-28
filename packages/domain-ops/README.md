@@ -1,8 +1,24 @@
+<!--
+SPDX-License-Identifier: GPL-2.0-only
+Project: AstraDesk
+File: packages/domain-ops/README.md
+Website: https://www.astradesk.dev
+Repository: https://github.com/SSobol77/astradesk
+
+Description: Documents AstraDesk architecture, operation, or component behavior.
+
+Copyright (c) 2026 Siergej Sobolewski
+This file is part of AstraDesk.
+
+AstraDesk is licensed under the GNU General Public License version 2 only.
+See the LICENSE file in the project root for the full license text.
+-->
+
 Oczywiście. Oto w pełni profesjonalny plik `README.md` dla Twojego nowego pakietu `domain-ops`.
 # AstraDesk Domain Pack: Operations (SRE/DevOps)
 
 [![Python Version](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](../../LICENSE)
+[![License](https://img.shields.io/badge/License-GPL--2.0--only-blue.svg)](../../LICENSE)
 [![MCP Server](https://img.shields.io/badge/MCP-Port%208002-green.svg)](http://localhost:8002)
 
 <br>

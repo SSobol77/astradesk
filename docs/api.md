@@ -1,3 +1,19 @@
+<!--
+SPDX-License-Identifier: GPL-2.0-only
+Project: AstraDesk
+File: docs/api.md
+Website: https://www.astradesk.dev
+Repository: https://github.com/SSobol77/astradesk
+
+Description: Documents AstraDesk architecture, operation, or component behavior.
+
+Copyright (c) 2026 Siergej Sobolewski
+This file is part of AstraDesk.
+
+AstraDesk is licensed under the GNU General Public License version 2 only.
+See the LICENSE file in the project root for the full license text.
+-->
+
 # API — AstraDesk Gateway
 
 Dokument opisuje publiczne endpointy API Gateway dla systemu **AstraDesk**.
@@ -82,7 +98,6 @@ Prosty health-check procesu (liveness). **Nie** sprawdza zależności (DB/Redis)
 ```
 
 <br>
-
 
 ### POST `/v1/agents/run`
 
@@ -244,4 +259,3 @@ Odpowiedź:
 
 **Wersja dokumentu:** 1.0.0
 **Kontakt:** zespół AstraDesk DevOps / SRE
-

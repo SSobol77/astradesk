@@ -1,3 +1,19 @@
+<!--
+SPDX-License-Identifier: GPL-2.0-only
+Project: AstraDesk
+File: packages/README.md
+Website: https://www.astradesk.dev
+Repository: https://github.com/SSobol77/astradesk
+
+Description: Documents AstraDesk architecture, operation, or component behavior.
+
+Copyright (c) 2026 Siergej Sobolewski
+This file is part of AstraDesk.
+
+AstraDesk is licensed under the GNU General Public License version 2 only.
+See the LICENSE file in the project root for the full license text.
+-->
+
 # AstraDesk Domain Packs (`packages/`)
 
 ## Overview
@@ -308,7 +324,6 @@ test-packs:   ## Test all domain packs
 
 <br>
 
-
 ### Observability
 
 **Metrics:** OpenTelemetry traces for pack agents/tools (pyproject.toml:opentelemetry).
@@ -341,7 +356,6 @@ test-packs:   ## Test all domain packs
 
 **Tests Failing:** Run pytest --log-cli-level=DEBUG in pack directory.
 
-
 ### Contributing
 
 **To contribute a new pack:**
@@ -358,4 +372,4 @@ test-packs:   ## Test all domain packs
 
 #### License
 
-AstraDesk is licensed under the Apache-2.0 License (see LICENSE).
+AstraDesk is licensed under the GPL-2.0-only License (see LICENSE).

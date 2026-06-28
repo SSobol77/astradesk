@@ -1,22 +1,17 @@
-//SPDX-License-Identifier: Apache-2.0
-// File: Jenkinsfile v2.1 --production-ready--
-// Project: AstraDesk Enterprise AI Agents Framework
-// Description:
-//     Full production Jenkins pipeline for AstraDesk.
-//     Covers:
-//       • Checkout & stash
-//       • Parallel code-analysis + unit/integration tests (Python 3.14, Java 25, Node 22)
-//       • Coverage aggregation & SonarQube scan
-//       • Secrets injection into Admin API (/secrets)
-//       • Terraform (init → validate → plan → apply) with AWS credentials
-//       • Config-management dry-run & full deploy(Ansible / Puppet / Salt)
-//       • Docker multi-arch build + push (with cache, Sigstore signing)
-//       • Istio mTLS STRICT verification + cert-manager secrets sync
-//       • Helm chart lint → test → upgrade (autoscaling, DB endpoints from TF)
-//       • Post-runartifactarchiving, JUnit reports, Slack notifications
-//     All stages are idempotent, retry-aware and use explicit credential IDs.
-// Author: Siergej Sobolewski
-// Since: 2025-11-09
+// SPDX-License-Identifier: GPL-2.0-only
+// Project: AstraDesk
+// File: Jenkinsfile
+// Website: https://www.astradesk.dev
+// Repository: https://github.com/SSobol77/astradesk
+//
+// Description: Defines continuous integration and delivery automation for AstraDesk.
+//
+// Copyright (c) 2026 Siergej Sobolewski
+//
+// This file is part of AstraDesk.
+//
+// AstraDesk is licensed under the GNU General Public License version 2 only.
+// See the LICENSE file in the project root for the full license text.
 
 pipeline {
     agent none
@@ -94,7 +89,7 @@ pipeline {
 
                 // --------------------- Python --------------------- //
                 stage('Python') {
-                    agent { docker { image 'python:3.14-slim' } }
+                    agent { docker { image 'python:3.13-slim' } }
                     environment {
                         UV_CACHE_DIR = '/uv-cache'
                     }
@@ -142,7 +137,7 @@ pipeline {
                 
                 // --------------------- MCP --------------------- //
                 stage('MCP Gateway') {
-                    agent { docker { image 'python:3.14-slim' } }
+                    agent { docker { image 'python:3.13-slim' } }
                     steps {
                         unstash 'source'
                         dir('mcp') {
@@ -286,7 +281,7 @@ pipeline {
             parallel {
 
                 stage('Ansible Dry-Run') {
-                    agent{ docker { image 'python:3.14-slim' } }
+                    agent{ docker { image 'python:3.13-slim' } }
                     steps {
                         unstash 'source'
                         sh 'pip install --no-cache-dir ansible'
@@ -325,7 +320,7 @@ pipeline {
             parallel {
 
                 stage('Ansible Deploy') {
-                    agent { docker { image 'python:3.14-slim' } }
+                    agent { docker { image 'python:3.13-slim' } }
                     steps {
                         unstash 'source'
                         sh 'pip install --no-cache-dir ansible'

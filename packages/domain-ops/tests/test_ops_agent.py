@@ -1,44 +1,50 @@
-# SPDX-License-Identifier: Apache-2.0
-# packages/domain-ops/tests/test_ops_agent.py
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: packages/domain-ops/tests/test_ops_agent.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Verifies AstraDesk behavior for the associated component.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 """Testy jednostkowe dla agenta operacyjnego (OpsAgent).
 
 Ten moduł weryfikuje kluczowe zachowania i strategie `OpsAgent`,
 zapewniając, że jego logika jest zgodna z założeniami projektowymi,
 takimi jak priorytetyzacja akcji i celowe unikanie RAG.
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock
 
 import pytest
-
-from packages.domain_ops.agents.ops import OpsAgent
-from services.api_gateway.src.runtime import (
-    KeywordPlanner,
-    Memory,
-    RAG,
-    ToolRegistry,
-)
+from domain_ops.agents.ops import OpsAgent
 
 
 @pytest.fixture
 def mock_dependencies() -> dict[str, AsyncMock]:
     """Tworzy zestaw mockowanych zależności dla agenta."""
     return {
-        "tools": AsyncMock(spec=ToolRegistry),
-        "memory": AsyncMock(spec=Memory),
-        "planner": AsyncMock(spec=KeywordPlanner),
-        "rag": AsyncMock(spec=RAG),
+        'tools': AsyncMock(),
+        'memory': AsyncMock(),
+        'planner': AsyncMock(),
+        'rag': AsyncMock(),
     }
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "tool_results",
+    'tool_results',
     [
-        pytest.param(["some tool result"], id="with_tool_results"),
-        pytest.param([], id="without_tool_results"),
+        pytest.param(['some tool result'], id='with_tool_results'),
+        pytest.param([], id='without_tool_results'),
     ],
 )
 async def test_ops_agent_strategy_never_uses_rag(
@@ -55,8 +61,8 @@ async def test_ops_agent_strategy_never_uses_rag(
     agent = OpsAgent(**mock_dependencies)
 
     # When: Wywołujemy metodę strategii z różnymi danymi wejściowymi
-    context = await agent._get_contextual_info("test query", tool_results=tool_results)
+    context = await agent._get_contextual_info('test query', tool_results=tool_results)
 
     # Then: Sprawdzamy, czy RAG nie został nigdy wywołany i czy wynik jest poprawny
-    mock_dependencies["rag"].retrieve.assert_not_called()
+    mock_dependencies['rag'].retrieve.assert_not_called()
     assert context == []

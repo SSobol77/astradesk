@@ -1,17 +1,23 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/api-gateway/src/runtime/registry.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/runtime/registry.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/runtime/registry.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Project: AstraDesk Framework
-Package: AstraDesk API Gateway
-
-Description:
-    Thread-safe runtime Tool Registry for AstraDesk agents. Provides deterministic
+"""Thread-safe runtime Tool Registry for AstraDesk agents. Provides deterministic
     registration/lookup/execution of domain tools (actions) with soft RBAC checks,
     metadata (schema, version, description), and dynamic Domain Pack loading via
     entry points (`astradesk.pack`).
 
-Author: Siergej Sobolewski
-Since: 2025-10-28
 
 Overview
 --------
@@ -88,8 +94,7 @@ Notes (PL)
   dostępna, używany jest bezpieczny fallback (parsowanie ról z `claims`).
 - Rejestr nie importuje warstw UI ani transportu — tylko runtime.
 - Błędy pojedynczych Domain Packów nie blokują startu (rejestrowane w logach).
-
-"""  # noqa: D205
+"""
 
 from __future__ import annotations
 
@@ -97,46 +102,39 @@ import asyncio
 import inspect
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from importlib.metadata import entry_points
 from typing import Any
 
 __all__ = [
-    "AuthorizationError",
-    "ToolInfo",
-    "ToolNotFoundError",
-    "ToolRegistrationError",
-    "ToolRegistry",
-    "ToolRegistryError",
-    "load_domain_packs",
+    'AuthorizationError',
+    'ToolInfo',
+    'ToolNotFoundError',
+    'ToolRegistrationError',
+    'ToolRegistry',
+    'ToolRegistryError',
+    'load_domain_packs',
 ]
 
 
-# RBAC: miękka integracja z runtime.policy
-try:
-    from runtime.policy import get_roles, AuthorizationError  # type: ignore  # noqa: I001
-except ImportError:
-    # Jeśli nie ma runtime.policy, użyj fallbacka
-    def get_roles(claims: dict | None) -> list[str]:
-        if not claims:
-            return []
-        roles = claims.get("roles")
-        if isinstance(roles, str):
-            parts = [p.strip() for p in roles.split(",") if p.strip()]
-            return parts or [roles]
-        if isinstance(roles, (list, tuple, set)):
-            return [str(r) for r in roles]
-        return []
+from runtime.policy import get_roles as _policy_get_roles
 
-    class AuthorizationError(PermissionError):
-        pass
+
+class AuthorizationError(PermissionError):
+    """Registry authorization failure with a stable public exception type."""
+
+
+def get_roles(claims: dict[str, Any] | None) -> list[str]:
+    """Extract roles through runtime policy when available, otherwise use the local parser."""
+    return _policy_get_roles(claims)
+
 
 # Logowanie
 _logger = logging.getLogger(__name__)
 
 # Utils
-_TOOL_NAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+_TOOL_NAME_RE = re.compile(r'^[A-Za-z0-9._-]{1,128}$')
 
 
 def _normalize_roles(value: Any) -> list[str]:
@@ -144,14 +142,14 @@ def _normalize_roles(value: Any) -> list[str]:
     if value is None:
         return []
     if isinstance(value, str):
-        parts = [p.strip() for p in value.split(",") if p.strip()]
+        parts = [p.strip() for p in value.split(',') if p.strip()]
         return parts or [value]
-    if isinstance(value, (list, tuple, set)):
+    if isinstance(value, list | tuple | set):
         return [str(v) for v in value]
     return []
 
 
-def load_domain_packs(registry: "ToolRegistry") -> list[tuple[str, Any]]:
+def load_domain_packs(registry: ToolRegistry) -> list[tuple[str, Any]]:
     """Ładuje i rejestruje Domain Packs poprzez entry points (group='astradesk.pack').
 
     Zabezpieczenia:
@@ -164,43 +162,47 @@ def load_domain_packs(registry: "ToolRegistry") -> list[tuple[str, Any]]:
     Returns:
         list[tuple[str, Any]]: lista (nazwa_entry_pointu, obiekt_packa)
     """
-    eps = entry_points()
-    if hasattr(eps, "select"):
-        # Python 3.11+
-        eps = eps.select(group="astradesk.pack")  # type: ignore[assignment]
-    else:
-        # Python =<3.10
-        eps = [ep for ep in eps if getattr(ep, "group", None) == "astradesk.pack"]
+    discovered = entry_points()
+    selected: Iterable[Any]
+    if hasattr(discovered, 'select'):
+        selected = discovered.select(group='astradesk.pack')
+    else:  # pragma: no cover - compatibility with Python <= 3.10
+        selected = (ep for ep in discovered if getattr(ep, 'group', None) == 'astradesk.pack')
 
     loaded: list[tuple[str, Any]] = []
-    for ep in eps:
+    for ep in selected:
         try:
             factory = ep.load()  # type: ignore
             pack = factory()  # preferowana fabryka: klasa/closure zwracająca obiekt packa
             # Konwencja: pack.register() rejestruje agentów/tools/flows w Intent Graph/registry
             pack.register(registry)
-            loaded.append((getattr(ep, "name", "<unknown>"), pack))
-            _logger.info("Loaded domain pack '%s'", getattr(ep, "name", "<unknown>"))
+            loaded.append((getattr(ep, 'name', '<unknown>'), pack))
+            _logger.info("Loaded domain pack '%s'", getattr(ep, 'name', '<unknown>'))
         except Exception as exc:  # nie blokuj całego systemu przez pojedynczy pack
             _logger.exception(
                 "Failed to load/register domain pack '%s': %s",
-                getattr(ep, "name", "<unknown>"),
+                getattr(ep, 'name', '<unknown>'),
                 exc,
             )
     return loaded
+
 
 # Wyjątki specyficzne dla rejestru narzędzi
 class ToolRegistryError(Exception):
     """Baza wyjątków rejestru narzędzi."""
 
+
 class ToolRegistrationError(ToolRegistryError):
     """Błąd podczas rejestracji narzędzia."""
+
 
 class ToolNotFoundError(ToolRegistryError, KeyError):
     """Żądane narzędzie nie istnieje."""
 
+
 # Model metadanych pojedynczego narzędzia
 ToolCallable = Callable[..., Any]
+
 
 @dataclass
 class ToolInfo:
@@ -208,14 +210,15 @@ class ToolInfo:
 
     name: str
     fn: ToolCallable
-    description: str = ""
-    version: str = "1.0.0"
+    description: str = ''
+    version: str = '1.0.0'
     allowed_roles: set[str] = field(default_factory=set)
     schema: dict[str, Any] = field(default_factory=dict)
 
     # Cache techniczny - nie eksponujemy w repr, ustawiany podczas register()
     signature: inspect.Signature | None = field(default=None, repr=False)
     is_coroutine: bool = field(default=False, repr=False)
+
 
 # Rejestr narzędzi
 class ToolRegistry:
@@ -232,8 +235,8 @@ class ToolRegistry:
         name: str,
         fn: ToolCallable,
         *,
-        description: str = "",
-        version: str = "1.0.0",
+        description: str = '',
+        version: str = '1.0.0',
         allowed_roles: set[str] | None = None,
         schema: dict[str, Any] | None = None,
         override: bool = False,
@@ -249,13 +252,13 @@ class ToolRegistry:
                 "Invalid tool name. Allowed chars: letters, digits, '.', '_' and '-'; max 128."
             )
         if not callable(fn):
-            raise ToolRegistrationError("fn must be callable")
+            raise ToolRegistrationError('fn must be callable')
 
         info = ToolInfo(
             name=name,
             fn=fn,
-            description=description or "",
-            version=version or "1.0.0",
+            description=description or '',
+            version=version or '1.0.0',
             allowed_roles=set(allowed_roles or set()),
             schema=dict(schema or {}),
         )
@@ -313,7 +316,7 @@ class ToolRegistry:
         return list(self._tools.keys())
 
     def exists(self, name: str) -> bool:
-        """Czy narzędzie jest zarejestrowane?"""  # noqa: D400
+        """Czy narzędzie jest zarejestrowane?"""
         return name in self._tools
 
     # Wykonanie
@@ -336,9 +339,9 @@ class ToolRegistry:
         """
         info = self.get_info(name)
 
-        #1 RBAC (jeśli skonfigurowano allowed_roles)
+        # 1 RBAC (jeśli skonfigurowano allowed_roles)
         if info.allowed_roles:
-            claims = kwargs.get("claims")
+            claims = kwargs.get('claims')
             roles = set(_normalize_roles(get_roles(claims)))
             if not roles.intersection(info.allowed_roles):
                 needed = sorted(info.allowed_roles)
@@ -352,14 +355,14 @@ class ToolRegistry:
                     f"Access denied: need any of roles {needed} for tool '{name}'."
                 )
 
-        #2 Czyszczenie kwargs:
+        # 2 Czyszczenie kwargs:
         #    'claims' to meta - jeśli funkcja nie przyjmuje 'claims', nie przekazujemy go.
         sig = info.signature
-        if sig is not None and "claims" not in sig.parameters and "claims" in kwargs:
+        if sig is not None and 'claims' not in sig.parameters and 'claims' in kwargs:
             kwargs = dict(kwargs)  # płytka kopia
-            kwargs.pop("claims", None)
+            kwargs.pop('claims', None)
 
-        #3 Uruchomienie narzędzia obsługa sync/async
+        # 3 Uruchomienie narzędzia obsługa sync/async
         if info.is_coroutine:
             try:
                 return await info.fn(**kwargs)

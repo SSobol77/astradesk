@@ -1,3 +1,19 @@
+<!--
+SPDX-License-Identifier: GPL-2.0-only
+Project: AstraDesk
+File: instructions.md
+Website: https://www.astradesk.dev
+Repository: https://github.com/SSobol77/astradesk
+
+Description: Documents AstraDesk architecture, operation, or component behavior.
+
+Copyright (c) 2026 Siergej Sobolewski
+This file is part of AstraDesk.
+
+AstraDesk is licensed under the GNU General Public License version 2 only.
+See the LICENSE file in the project root for the full license text.
+-->
+
 # AstraDesk Runbook
 
 Step‑by‑step guide for bringing the entire AstraDesk stack online on a developer
@@ -10,7 +26,7 @@ supporting services can be tested end‑to‑end.
    - Keep `.env` out of version control.
 
 2. **Install local tooling**
-   - Python 3.14 with [`uv`](https://github.com/astral-sh/uv) (`pip install uv`).
+   - Python 3.13+ with [`uv`](https://github.com/astral-sh/uv).
    - Node.js 22.x + npm.
    - Java JDK 21+ (Gradle wrapper downloads its own distro).
    - Docker Engine + Compose plugin.
@@ -64,4 +80,3 @@ supporting services can be tested end‑to‑end.
 
 See the dedicated guides for alternative orchestrations:
 `instructions.docker-compose.md`, `instructions.makefile.md`, `instructions.jenkins.md`.
-

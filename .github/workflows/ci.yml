@@ -1,5 +1,20 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: .github/workflows/ci.yml
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Defines continuous integration and delivery automation for AstraDesk.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 # CI pipeline for AstraDesk Framework AI.
-# Aligns with pyproject: Python 3.14, project version 0.3.0.
+# Aligns with pyproject: Python 3.13, project version 0.3.0.
 # Runs linting, type-checks, tests with coverage across Python/Java/JS,
 # builds Docker images for smoke, and enforces OpenAPI drift guard.
 # Project: AstraDesk Framework AI
@@ -15,8 +30,8 @@ on:
     branches: [main]
 
 env:
-  PYTHON_VERSION: "3.14"
-  JAVA_VERSION: "25"
+  PYTHON_VERSION: "3.13"
+  JAVA_VERSION: "21"
   NODE_VERSION: "22"
   SONAR_PROJECT_VERSION: "0.3.0" # per pyproject version
 
@@ -27,14 +42,15 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
 
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'uv'
 
       - name: Sync dependencies (locked)
-        run: uv sync --frozen
+        run: uv sync --frozen --extra dev
 
       - name: OpenAPI drift guard
         run: |
@@ -43,12 +59,13 @@ jobs:
 
       - name: Lint & Type Check
         run: |
+          uv run python scripts/license_headers.py --check
           uv run ruff check .
           uv run ruff format --check .
           uv run mypy .
 
       - name: Run Python Tests with Coverage
-        run: uv run pytest -q --cov=core/src --cov=services/api-gateway/src --cov=packages --cov-report=xml
+        run: uv run pytest -q
 
       - name: Build Docker Image (Python)
         run: docker build -t astradesk:ci-python -f Dockerfile .
@@ -77,8 +94,10 @@ jobs:
           ./gradlew test jacocoTestReport --no-daemon
 
       - name: Build Docker Image (Java)
-        working-directory: services/ticket-adapter-java
-        run: docker build -t astradesk:ci-java .
+        # Dockerfile uses repo-root-relative COPY paths (gradlew, settings.gradle.kts,
+        # services/ticket-adapter-java/…), so it must build with the repository root
+        # as the Docker context.
+        run: docker build -f services/ticket-adapter-java/Dockerfile -t astradesk:ci-java .
 
       - name: Upload Java coverage report
         uses: actions/upload-artifact@v4
@@ -111,11 +130,15 @@ jobs:
 
       - name: Build Next.js
         working-directory: services/admin-portal
+        # Build-time placeholder so client-env validation (lib/env.ts) passes during
+        # static page-data collection. Runtime still requires a real value.
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
         run: npm run build
 
       - name: Build Docker Image (JS)
-        working-directory: services/admin-portal
-        run: docker build -t astradesk:ci-js .
+        # Dockerfile copies the portal and the canonical OpenAPI spec from repo-root paths.
+        run: docker build -f services/admin-portal/Dockerfile -t astradesk:ci-js .
 
       - name: Upload JS coverage report
         uses: actions/upload-artifact@v4

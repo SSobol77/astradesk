@@ -1,3 +1,18 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: .github/workflows/gh-pages.yml
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Defines continuous integration and delivery automation for AstraDesk.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 # Build and deploy MkDocs site to GitHub Pages using uv.
 # Uses Redoc with single OpenAPI source (no copies).
 # Project: AstraDesk Framework AI
@@ -37,7 +52,7 @@ jobs:
           enable-cache: true
 
       - name: Install Python (via uv)
-        run: uv python install 3.14
+        run: uv python install 3.13
 
       - name: Build site (MkDocs via uv)
         run: |
