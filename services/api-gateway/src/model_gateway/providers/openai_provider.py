@@ -1,13 +1,19 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/api-gateway/src/model_gateway/providers/openai_provider.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/model_gateway/providers/openai_provider.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/model_gateway/providers/openai_provider.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Project: astradesk
-Pakage: api-gateway
-
-Author: Siergej Sobolewski
-Since: 2025-10-29
-
-OpenAI Chat Completions LLM provider (async) implementing the `LLMProvider` interface.
+"""OpenAI Chat Completions LLM provider (async) implementing the `LLMProvider` interface.
 
 Uses `httpx` for non-blocking calls, supports configurable base URL (OpenAI or Azure-compatible proxy),
 and returns normalized chat outputs based on `LLMMessage` + `ChatParams`.
@@ -29,7 +35,6 @@ Notes (PL):
   - Zaawansowane mapowanie błędów HTTP na wyjątki domenowe
     (np. 429 -> ProviderOverloaded, 5xx -> ProviderServerError).
   - Bezpieczna i wydajna obsługa połączeń i konfiguracji.
-
 """
 
 from __future__ import annotations

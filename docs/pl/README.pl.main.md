@@ -1,3 +1,19 @@
+<!--
+SPDX-License-Identifier: GPL-2.0-only
+Project: AstraDesk
+File: docs/pl/README.pl.main.md
+Website: https://www.astradesk.dev
+Repository: https://github.com/SSobol77/astradesk
+
+Description: Documents AstraDesk architecture, operation, or component behavior.
+
+Copyright (c) 2026 Siergej Sobolewski
+This file is part of AstraDesk.
+
+AstraDesk is licensed under the GNU General Public License version 2 only.
+See the LICENSE file in the project root for the full license text.
+-->
+
 <p align="center">
   <img src="https://astradesk.dev/_next/image?url=%2FAstraDesk_wlogo.png&w=640&q=75" alt="AstraDesk - Enterprise AI Framework" width="560"/>
 </p>
@@ -6,7 +22,7 @@
 
 # AstraDesk - Enterprise AI Framework
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+[![License](https://img.shields.io/badge/License-GPL--2.0--only-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
 [![Python Version](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/downloads/release/python-3130/)
 [![JDK Version](https://img.shields.io/badge/JDK-21-green.svg)](https://openjdk.org/projects/jdk/21/)
 [![Node.js Version](https://img.shields.io/badge/Node.js-22-brightgreen.svg)](https://nodejs.org/en)
@@ -763,7 +779,7 @@ logs-grafana:
 
 ## Licencja
 
-Apache License 2.0. Zobacz [LICENSE](LICENSE) po szczegóły.
+GNU General Public License version 2 only. Zobacz [LICENSE](LICENSE) po szczegóły.
 
 ---
 

@@ -1,3 +1,19 @@
+<!--
+SPDX-License-Identifier: GPL-2.0-only
+Project: AstraDesk
+File: docs/security.md
+Website: https://www.astradesk.dev
+Repository: https://github.com/SSobol77/astradesk
+
+Description: Documents AstraDesk architecture, operation, or component behavior.
+
+Copyright (c) 2026 Siergej Sobolewski
+This file is part of AstraDesk.
+
+AstraDesk is licensed under the GNU General Public License version 2 only.
+See the LICENSE file in the project root for the full license text.
+-->
+
 # Bezpieczeństwo - AstraDesk
 
 Kompletny przewodnik bezpieczeństwa dla architektury, wdrożenia i procesu wytwórczego systemu **AstraDesk**. Dokument obejmuje: model zagrożeń, kontrolę dostępu, ochronę danych, bezpieczeństwo środowisk (Kubernetes + mesh), łańcuch dostaw oprogramowania (SBOM), logowanie/audyt, reagowanie na incydenty oraz zgodność.
@@ -246,7 +262,6 @@ resource "aws_s3_bucket" "audit" {
 - **Seccomp/AppArmor**: profile ograniczające syscalle.  
 - **Capabilities**: drop `ALL`, dodaj tylko wymagane.  
 - **Image policy**: tylko z zaufanego rejestru; podpisy (cosign) rekomendowane.
-
 
 ### Pod (fragment) - securityContext
 

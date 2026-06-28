@@ -1,5 +1,18 @@
-# SPDX-License-Identifier: Apache-2.0
-# File: mcp/pyproject.toml v2.0.0
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: mcp/pyproject.toml
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Configures the associated AstraDesk component or deployment.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 [build-system]
 requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
@@ -10,7 +23,7 @@ version = "2.0.0"
 description = "AstraDesk Model Context Protocol Gateway"
 readme = "README.md"
 requires-python = ">=3.13"
-license = "Apache-2.0"
+license = "GPL-2.0-only"
 keywords = ["ai", "agents", "mcp", "gateway"]
 authors = [
     { name = "Siergej Sobolewski", email = "siergej@astradesk.com" }

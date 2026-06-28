@@ -1,16 +1,17 @@
-/*
- * SPDX-License-Identifier: Apache-2.0
- * File: services/ticket-adapter-java/src/main/java/com/astradesk/ticket/model/Ticket.java
- * Project: AstraDesk Framework — Ticket Adapter
- * Description: Immutable domain model for a support ticket implemented as a Java record.
- * Author: Siergej Sobolewski
- * Since: 2025-10-07
- *
- * Notes (PL):
- *  - Mapowanie Spring Data Relational (@Table, @Id); współpracuje z R2DBC/JDBC.
- *  - Nowe encje zapisuj z id == null — klucz główny generuje baza danych.
- *  - Rozważ walidację (np. @NotBlank) oraz @Version dla optymistycznego blokowania.
- */
+// SPDX-License-Identifier: GPL-2.0-only
+// Project: AstraDesk
+// File: services/ticket-adapter-java/src/main/java/com/astradesk/ticket/model/Ticket.java
+// Website: https://www.astradesk.dev
+// Repository: https://github.com/SSobol77/astradesk
+//
+// Description: Implements AstraDesk functionality for services/ticket-adapter-java/src/main/java/com/astradesk/ticket/model/Ticket.java.
+//
+// Copyright (c) 2026 Siergej Sobolewski
+//
+// This file is part of AstraDesk.
+//
+// AstraDesk is licensed under the GNU General Public License version 2 only.
+// See the LICENSE file in the project root for the full license text.
 
 package com.astradesk.ticket.model;
 

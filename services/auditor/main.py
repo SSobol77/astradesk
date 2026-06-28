@@ -1,11 +1,19 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/auditor/main.py
-Project: AstraDesk Framework — Mikroserwis Auditor.
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/auditor/main.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/auditor/main.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Author: Siergej Sobolewski
-Since: 2025-10-28
-
-Asynchronous, production-grade microservice responsible solely for **reliably
+"""Asynchronous, production-grade microservice responsible solely for **reliably
 persisting audit events** to Elasticsearch and AWS S3 while consuming from NATS.
 
 Scope & Responsibilities
@@ -73,7 +81,6 @@ Kluczowe cechy i zasady projektowe:
 - **Zarządzanie Cyklem Życia**: Klasa `Auditor` jest asynchronicznym
   menedżerem kontekstu, co zapewnia prawidłową inicjalizację i zamykanie
   wszystkich zasobów (połączeń sieciowych).
-
 """
 
 from __future__ import annotations

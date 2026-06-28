@@ -1,11 +1,17 @@
-# SPDX-License-Identifier: Apache-2.0
-# File: main.tf
-# Description:
-#     Main Terraform configuration for AstraDesk infrastructure on AWS.
-#     Defines backend (S3) and modules for VPC, EKS, RDS (Postgres/MySQL), and S3.
-#     Integrates with deploy/istio/, /secrets (Admin API), and polyglot stack (Python 3.14+, Java 25+).
-# Author: Siergej Sobolewski
-# Since: 2025-10-22
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: deploy/infra/main.tf
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Configures the associated AstraDesk component or deployment.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
 terraform {
   required_version = ">= 1.7.0"

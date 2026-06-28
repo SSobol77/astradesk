@@ -1,12 +1,17 @@
-// SPDX-License-Identifier: Apache-2.0
-// File: packages/domain-supply/tools/sap_mm.java
-// Project: AstraDesk Domain Supply Pack
-// Description:
-//     Asynchronous Java client for SAP MM integration via Admin API v1.2.0.
-//     Uses Java 25 virtual threads for non-blocking calls, Jackson for JSON,
-//     Resilience4j for retry, and built-in HttpClient.
-//     No direct SAP calls; all via /api/admin/v1/connectors.
-//     Production-ready with timeouts, error handling (ProblemDetail), and logging.
+// SPDX-License-Identifier: GPL-2.0-only
+// Project: AstraDesk
+// File: packages/domain-supply/tools/SapMmAdapter.java
+// Website: https://www.astradesk.dev
+// Repository: https://github.com/SSobol77/astradesk
+//
+// Description: Implements AstraDesk functionality for packages/domain-supply/tools/SapMmAdapter.java.
+//
+// Copyright (c) 2026 Siergej Sobolewski
+//
+// This file is part of AstraDesk.
+//
+// AstraDesk is licensed under the GNU General Public License version 2 only.
+// See the LICENSE file in the project root for the full license text.
 
 // Author: Siergej Sobolewski
 // Since: 2025-10-16

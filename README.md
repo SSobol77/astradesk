@@ -1,3 +1,19 @@
+<!--
+SPDX-License-Identifier: GPL-2.0-only
+Project: AstraDesk
+File: README.md
+Website: https://www.astradesk.dev
+Repository: https://github.com/SSobol77/astradesk
+
+Description: Documents AstraDesk architecture, operation, or component behavior.
+
+Copyright (c) 2026 Siergej Sobolewski
+This file is part of AstraDesk.
+
+AstraDesk is licensed under the GNU General Public License version 2 only.
+See the LICENSE file in the project root for the full license text.
+-->
+
 <p align="center">
   <img src="docs/assets/AstraDesktop.png" alt="AstraDesk - Enterprise AI Framework" width="560"/>
 </p>
@@ -6,7 +22,7 @@
 
 # AstraDesk - Enterprise AI Agents Framework
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+[![License](https://img.shields.io/badge/License-GPL--2.0--only-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
 [![Python Version](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/downloads/release/python-3130/)
 [![JDK Version](https://img.shields.io/badge/JDK-21-orange.svg)](https://openjdk.org/projects/jdk/21/)
 [![PyTorch Version](https://img.shields.io/badge/PyTorch-2.9-magenta.svg)](https://pytorch.org/projects/pytorch/)
@@ -1075,7 +1091,7 @@ symlink to the canonical spec so the UI never drifts.
 
 ## License
 
-Apache License 2.0. See [LICENSE](LICENSE) for details.
+GNU General Public License version 2 only. See [LICENSE](LICENSE) for details.
 
 ## Contact
 

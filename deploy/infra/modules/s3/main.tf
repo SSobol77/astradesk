@@ -1,10 +1,17 @@
-# SPDX-License-Identifier: Apache-2.0
-# File: modules/s3/main.tf
-# Description:
-#     Terraform module for creating an AWS S3 bucket for AstraDesk artifacts.
-#     Enables versioning and object lock.
-# Author: Siergej Sobolewski
-# Since: 2025-10-22
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: deploy/infra/modules/s3/main.tf
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Configures the associated AstraDesk component or deployment.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
 module "s3_bucket" {
   source  = "terraform-aws-modules/s3-bucket/aws"

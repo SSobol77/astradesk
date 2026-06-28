@@ -1,9 +1,23 @@
-SPDX-License-Identifier: Apache-2.0
+<!--
+SPDX-License-Identifier: GPL-2.0-only
+Project: AstraDesk
+File: packages/domain-support/README.md
+Website: https://www.astradesk.dev
+Repository: https://github.com/SSobol77/astradesk
+
+Description: Documents AstraDesk architecture, operation, or component behavior.
+
+Copyright (c) 2026 Siergej Sobolewski
+This file is part of AstraDesk.
+
+AstraDesk is licensed under the GNU General Public License version 2 only.
+See the LICENSE file in the project root for the full license text.
+-->
 
 # Support Domain Pack
 
 [![Python Version](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](../../LICENSE)
+[![License](https://img.shields.io/badge/License-GPL--2.0--only-blue.svg)](../../LICENSE)
 [![MCP Server](https://img.shields.io/badge/MCP-Port%208001-green.svg)](http://localhost:8001)
 
 ## Overview
@@ -210,7 +224,7 @@ uv run pytest tests -v --cov=.
 Fork, add features/tests, PR with coverage >90%.
 
 ### License
-Apache-2.0 (see SPDX in files).
+GPL-2.0-only (see SPDX in files).
 
 <br>
 
@@ -317,4 +331,3 @@ Apache-2.0 (see SPDX in files).
 4. **Integracja w kodzie** (`tools/slack_adapter.py`):
    - Pobierz token z `/secrets/{id}` w init, użyj w probe (headers: Authorization: Bearer {slack_token}).
    - Handle rate limits (1/sec): Add asyncio.sleep if needed, or use retry with backoff.
-

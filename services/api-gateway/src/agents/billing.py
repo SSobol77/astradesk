@@ -1,13 +1,19 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/api-gateway/src/agents/billing.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/agents/billing.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/agents/billing.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Project: astradesk
-Pakage: api-gateway
-
-Author: Siergej Sobolewski
-Since: 2025-10-30
-
-Production-grade Billing Agent for AstraDesk.
+"""Production-grade Billing Agent for AstraDesk.
 
 Handles invoice queries, payment status, usage reports, and financial RAG.
 Features:
@@ -18,7 +24,6 @@ Features:
 - PyTorch 2.9 embeddings
 - Async-native, hardened validation with retries and timeouts
 - Heuristic-based planning integrated with Intent Graph for dynamic replanning
-
 """
 
 from __future__ import annotations

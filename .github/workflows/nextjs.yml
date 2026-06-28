@@ -1,3 +1,18 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: .github/workflows/nextjs.yml
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Defines continuous integration and delivery automation for AstraDesk.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 # Build and deploy the Admin UI (Next.js) from services/admin-portal to GitHub Pages.
 # Uses Node 22, caches npm, and proper working-directory for AstraDesk.
 # Project: AstraDesk Framework AI

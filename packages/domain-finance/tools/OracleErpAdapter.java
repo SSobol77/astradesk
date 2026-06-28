@@ -1,10 +1,17 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-2.0-only
+// Project: AstraDesk
 // File: packages/domain-finance/tools/OracleErpAdapter.java
-// Project: AstraDesk Domain Finance Pack
-// Description:
-//     Asynchronous Java client for Oracle ERP integration via Admin API v1.2.0.
-//     Used by OracleErpGrpcServer, calls /connectors for data.
-//     Production-ready with Java 25 virtual threads, retry, and logging.
+// Website: https://www.astradesk.dev
+// Repository: https://github.com/SSobol77/astradesk
+//
+// Description: Implements AstraDesk functionality for packages/domain-finance/tools/OracleErpAdapter.java.
+//
+// Copyright (c) 2026 Siergej Sobolewski
+//
+// This file is part of AstraDesk.
+//
+// AstraDesk is licensed under the GNU General Public License version 2 only.
+// See the LICENSE file in the project root for the full license text.
 
 // Author: Siergej Sobolewski
 // Since: 2025-10-16

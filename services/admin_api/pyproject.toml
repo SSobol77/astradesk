@@ -1,3 +1,18 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/admin_api/pyproject.toml
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Configures the associated AstraDesk component or deployment.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 # services/admin_api/pyproject.toml
 [build-system]
 # Hatchling is the build backend
@@ -10,7 +25,7 @@ version = "0.3.0"
 description = "AstraDesk Admin API (FastAPI) — Admin UI backend aligned with AstraDesk platform v0.3.0."
 readme = "README.md"
 requires-python = ">=3.13"
-license = { text = "Apache-2.0" }
+license = { text = "GPL-2.0-only" }
 authors = [{ name = "AstraDesk Team" }]
 
 # Runtime deps (trim/extend as needed)

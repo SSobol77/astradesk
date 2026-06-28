@@ -1,10 +1,17 @@
-# SPDX-License-Identifier: Apache-2.0
-# File: ansible/roles/astradesk_docker/tasks/main.yml
-# Description:
-#     Ansible tasks for deploying AstraDesk with Docker Compose.
-#     Installs Docker, copies repo, applies docker-compose.yml, and handles mTLS/TLS certs from /secrets.
-# Author: Siergej Sobolewski
-# Since: 2025-10-22
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: deploy/cm/ansible/roles/astradesk_docker/tasks/main.yml
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Configures the associated AstraDesk component or deployment.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
 - name: Install Docker
   apt:

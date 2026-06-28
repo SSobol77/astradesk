@@ -1,7 +1,17 @@
-# SPDX-License-Identifier: Apache-2.0
-# File: packages/domain-finance/flows/forecast_mtd.yaml
-# Description: AstraDSL flow for month-to-date financial forecast.
-# Upload via API POST /flows for production integration.
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: packages/domain-finance/src/domain_finance/flows/forecast_mtd.yaml
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Configures the associated AstraDesk component or deployment.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
 flow: finance_forecast_mtd
 version: 2.1

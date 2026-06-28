@@ -1,13 +1,19 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/api-gateway/src/model_gateway/providers/vllm_provider.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/model_gateway/providers/vllm_provider.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/model_gateway/providers/vllm_provider.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Project: astradesk
-Pakage: api-gateway
-
-Author: Siergej Sobolewski
-Since: 2025-10-29
-
-vLLM server LLM provider (async) implementing the `LLMProvider` interface.
+"""vLLM server LLM provider (async) implementing the `LLMProvider` interface.
 
 Talks to an OpenAI-compatible endpoint exposed by vLLM and returns normalized
 chat outputs based on `LLMMessage` + `ChatParams`. Uses a shared `httpx`
@@ -31,7 +37,6 @@ Notes (PL):
   - Zaawansowane mapowanie błędów HTTP (4xx/5xx) na wyjątki domenowe
     (np. ProviderServerError, ProviderTimeout).
   - Wydajne zarządzanie połączeniami HTTP dzięki współdzielonej sesji.
-
 """
 
 from __future__ import annotations

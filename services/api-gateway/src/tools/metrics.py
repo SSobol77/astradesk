@@ -1,21 +1,25 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/api-gateway/src/tools/metrics.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/tools/metrics.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/tools/metrics.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Project: AstraDesk Framework
-Package:  AstraDesk API Gateway
-
-Description:
-    Tool for fetching performance metrics from Prometheus.
+"""Tool for fetching performance metrics from Prometheus.
     Integrates async HTTP, OPA governance, OTel tracing, PII redaction, and RFC 7807 errors.
 
 Env:
     - MONITORING_API_URL
     - ALLOWED_SERVICES
     - WINDOW_RE
-
-Author: Siergej Sobolewski
-Since: 2025-10-30
-
 """
 
 from __future__ import annotations

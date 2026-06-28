@@ -1,11 +1,19 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/api-gateway/src/tools/tickets_proxy.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/tools/tickets_proxy.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/tools/tickets_proxy.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Project: AstraDesk Framework
-Package:  AstraDesk API Gateway
-
-Description:
-    Asynchronous proxy for ticketing system (ticket-adapter-java).
+"""Asynchronous proxy for ticketing system (ticket-adapter-java).
     Supports create_ticket with mTLS authentication, retry mechanisms,
     OPA governance, OpenTelemetry tracing, STUB fallback, and RFC 7807 errors.
     Production-ready with comprehensive error handling and policy enforcement.
@@ -19,9 +27,6 @@ mTLS for Istio:
   - CERT_FILE = "SERVICE_CERT"
   - KEY_FILE = "SERVICE_KEY"
   - CA_FILE = "ROOT_CA"
-
-Author: Siergej Sobolewski
-Since: 2025-10-30
 """
 
 from __future__ import annotations

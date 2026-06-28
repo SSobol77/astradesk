@@ -1,12 +1,20 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: packages/domain-supply/tests/test_replenish.py
-Project: AstraDesk Domain Supply Pack
-Description:
-    Production-level tests for replenishment agent with gRPC integration.
-    Uses respx for API mocking and grpc.aio.testing for gRPC.
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: packages/domain-supply/tests/test_replenish.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Verifies AstraDesk behavior for the associated component.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Author: Siergej Sobolewski
-Since: 2025-10-16
+"""Production-level tests for replenishment agent with gRPC integration.
+Uses respx for API mocking and grpc.aio.testing for gRPC.
 """
 
 import pytest

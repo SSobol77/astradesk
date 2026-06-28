@@ -1,13 +1,19 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/api-gateway/src/gateway/main.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/gateway/main.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/gateway/main.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Project: astradesk
-Pakage: api-gateway
-
-Author: Siergej Sobolewski
-Since: 2025-10-29
-
-Production-ready FastAPI application for the AstraDesk API Gateway.
+"""Production-ready FastAPI application for the AstraDesk API Gateway.
 
 This module sets up the FastAPI application, including:
 - Lifespan management for resource initialization and cleanup.
@@ -15,7 +21,6 @@ This module sets up the FastAPI application, including:
 - The main API endpoint to process agent requests.
 - Centralized error handling.
 - Health check endpoints.
-
 """
 
 from __future__ import annotations

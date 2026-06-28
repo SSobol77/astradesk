@@ -1,3 +1,18 @@
+<!--
+SPDX-License-Identifier: GPL-2.0-only
+Project: AstraDesk
+File: docs/zh-CN/README.zh-CN.main.md
+Website: https://www.astradesk.dev
+Repository: https://github.com/SSobol77/astradesk
+
+Description: Documents AstraDesk architecture, operation, or component behavior.
+
+Copyright (c) 2026 Siergej Sobolewski
+This file is part of AstraDesk.
+
+AstraDesk is licensed under the GNU General Public License version 2 only.
+See the LICENSE file in the project root for the full license text.
+-->
 
 <br>
 <p align="center">
@@ -8,7 +23,7 @@
 
 # AstraDesk - 企业级 AI 框架
 
-[![许可证](https://img.shields.io/badge/许可证-Apache%202.0-yellow.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+[![许可证](https://img.shields.io/badge/许可证-Apache%202.0-yellow.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
 [![Python 版本](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/downloads/release/python-3130/)
 [![JDK 版本](https://img.shields.io/badge/JDK-21-green.svg)](https://openjdk.org/projects/jdk/21/)
 [![Node.js 版本](https://img.shields.io/badge/Node.js-22-brightgreen.svg)](https://nodejs.org/en)
@@ -765,7 +780,7 @@ logs-grafana:
 
 ## 许可证
 
-Apache License 2.0。详情请参见 [LICENSE](LICENSE)。
+GNU General Public License version 2 only。详情请参见 [LICENSE](LICENSE)。
 
 ---
 

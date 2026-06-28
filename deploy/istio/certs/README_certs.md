@@ -1,4 +1,19 @@
-# SPDX-License-Identifier: Apache-2.0
+<!--
+SPDX-License-Identifier: GPL-2.0-only
+Project: AstraDesk
+File: deploy/istio/certs/README_certs.md
+Website: https://www.astradesk.dev
+Repository: https://github.com/SSobol77/astradesk
+
+Description: Documents AstraDesk architecture, operation, or component behavior.
+
+Copyright (c) 2026 Siergej Sobolewski
+This file is part of AstraDesk.
+
+AstraDesk is licensed under the GNU General Public License version 2 only.
+See the LICENSE file in the project root for the full license text.
+-->
+
 # Certificates Configuration for AstraDesk
 
 ## Overview
@@ -79,4 +94,4 @@ Certificates are managed by cert-manager and integrated with Istio (`10-peer-aut
   - Verify JWT: `curl -X GET http://localhost:8080/api/admin/v1/secrets -H "Authorization: Bearer ${JWT}"`.
 
 ## License
-Apache-2.0 (see SPDX in files).
+GPL-2.0-only (see SPDX in files).

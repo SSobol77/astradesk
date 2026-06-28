@@ -1,16 +1,17 @@
-/*
- * SPDX-License-Identifier: Apache-2.0
- * File: services/ticket-adapter-java/src/main/java/com/astradesk/ticket/repo/TicketRepo.java
- * Project: AstraDesk Framework — Ticket Adapter
- * Description: Reactive repository for Ticket entities (Spring Data, non-blocking access).
- * Author: Siergej Sobolewski
- * Since: 2025-10-07
- *
- * Notes (PL):
- *  - Zalecane użycie reaktywnego stosu (np. R2DBC / ReactiveMongo) bez blokowania wątków.
- *  - Definiuj zapytania metodami pochodnymi (query derivation) lub @Query przy złożonych przypadkach.
- *  - Nie mieszaj z blokującymi driverami JDBC w tym samym przepływie.
- */
+// SPDX-License-Identifier: GPL-2.0-only
+// Project: AstraDesk
+// File: services/ticket-adapter-java/src/main/java/com/astradesk/ticket/repo/TicketRepo.java
+// Website: https://www.astradesk.dev
+// Repository: https://github.com/SSobol77/astradesk
+//
+// Description: Implements AstraDesk functionality for services/ticket-adapter-java/src/main/java/com/astradesk/ticket/repo/TicketRepo.java.
+//
+// Copyright (c) 2026 Siergej Sobolewski
+//
+// This file is part of AstraDesk.
+//
+// AstraDesk is licensed under the GNU General Public License version 2 only.
+// See the LICENSE file in the project root for the full license text.
 
 package com.astradesk.ticket.repo;
 

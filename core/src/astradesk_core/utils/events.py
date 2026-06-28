@@ -1,15 +1,19 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: core/src/astradesk_core/utils/events.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: core/src/astradesk_core/utils/events.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for core/src/astradesk_core/utils/events.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Project: astradesk
-Package: astradesk_core
-
-Author: Siergej Sobolewski
-Since: 2025-10-29
-
-Asynchronous NATS publisher stub tailored for unit testing.
-
-"""
+"""Asynchronous NATS publisher stub tailored for unit testing."""
 
 from __future__ import annotations
 

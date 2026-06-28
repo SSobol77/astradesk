@@ -1,7 +1,19 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/api-gateway/src/agents/support.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/agents/support.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/agents/support.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Production-grade Support Agent for AstraDesk.
+"""Production-grade Support Agent for AstraDesk.
 
 Handles technical support queries, ticket management, and knowledge base lookup.
 
@@ -12,10 +24,6 @@ Attributes:
     - OPA governance (RBAC/ABAC)
     - OTel tracing
     - Async-native, hardened validation
-
-Author: Siergej Sobolewski
-Since: 2025-10-30
-
 """
 
 from __future__ import annotations

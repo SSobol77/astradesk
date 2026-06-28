@@ -1,15 +1,20 @@
-# SPDX-License-Identifier: Apache-2.0
-# AstraDesk Development Makefile
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: Makefile
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
 #
-# SPDX-FileContributor: Siergej Sobolewski
+# Description: Automates AstraDesk development, deployment, or operational tasks.
 #
-# Design guidelines
-# - Python 3.13+; default detector prefers python3, falls back to python, with PYTHON_EXEC override.
-# - All test/lint/run targets honor $(PYTHON_EXEC).
-# - Static phony declarations minimize implicit rule confusion.
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
 .ONESHELL:
-.PHONY: help setup install-deps update-deps dev-server quick-test quick-lint test-unit test-integration test-red-team test-harness test test-all lint format format-check docs docs-serve db-migrate db-seed env-check env-update ci docker-up docker-down docker-logs docker-build clean clean-docker clean-all dev stop logs logs-all health build build-prod deploy-local test-docker ci-local
+.PHONY: help setup install-deps update-deps dev-server quick-test quick-lint test-unit test-integration test-red-team test-harness test test-all lint format format-check license-headers license-check docs docs-serve db-migrate db-seed env-check env-update ci docker-up docker-down docker-logs docker-build clean clean-docker clean-all dev stop logs logs-all health build build-prod deploy-local test-docker ci-local
 
 # ------------------------------------------------------------------- #
 # Configurable variables
@@ -137,6 +142,12 @@ format-check: ## Check code formatting without making changes
 	@echo "Checking code formatting..."
 	@$(BLACK) --check .
 	@$(ISORT) --check-only .
+
+license-headers: ## Normalize project-owned license headers and metadata
+	@$(PYTHON_EXEC) scripts/license_headers.py
+
+license-check: ## Verify project-owned license headers and metadata
+	@$(PYTHON_EXEC) scripts/license_headers.py --check
 
 # -------------------------------------------------------------------#
 # Documentation

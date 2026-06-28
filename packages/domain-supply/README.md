@@ -1,9 +1,23 @@
-SPDX-License-Identifier: Apache-2.0
+<!--
+SPDX-License-Identifier: GPL-2.0-only
+Project: AstraDesk
+File: packages/domain-supply/README.md
+Website: https://www.astradesk.dev
+Repository: https://github.com/SSobol77/astradesk
+
+Description: Documents AstraDesk architecture, operation, or component behavior.
+
+Copyright (c) 2026 Siergej Sobolewski
+This file is part of AstraDesk.
+
+AstraDesk is licensed under the GNU General Public License version 2 only.
+See the LICENSE file in the project root for the full license text.
+-->
 
 # Supply Chain Domain Pack
 
 [![Python Version](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](../../LICENSE)
+[![License](https://img.shields.io/badge/License-GPL--2.0--only-blue.svg)](../../LICENSE)
 [![MCP Server](https://img.shields.io/badge/MCP-Port%208004-green.svg)](http://localhost:8004)
 
 ## Overview
@@ -167,4 +181,4 @@ Fork, add features/tests, PR with coverage >90%.
 
 ## License
 
-Apache-2.0 (see SPDX in files).
+GPL-2.0-only (see SPDX in files).
