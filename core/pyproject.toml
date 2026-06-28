@@ -21,7 +21,9 @@ authors = [{ name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com" }]
 license = { text = "GPL-2.0-only" }
 requires-python = ">=3.13"
 
-dependencies = []
+dependencies = [
+    "pyjwt[crypto]>=2.8,<3",
+]
 
 [project.optional-dependencies]
 dev = [
