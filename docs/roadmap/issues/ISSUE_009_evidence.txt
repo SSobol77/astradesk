@@ -1,0 +1,12 @@
+# ISSUE 009 — verification evidence
+Date: 2026-06-28T15:42:03Z
+Toolchain: pyjwt 2.7.0, fastapi 0.138.1, mypy/ruff current
+
+## ruff
+All checks passed!
+
+## mypy
+Success: no issues found in 2 source files
+
+## pytest (14 verifier negative-matrix + 4 FastAPI dependency 401-mapping)
+18 passed, 1 warning in 0.42s

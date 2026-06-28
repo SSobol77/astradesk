@@ -206,3 +206,6 @@ audit-report.md
 .codex/
 .cursor/
 .gitignore
+!docs/roadmap/*
+!docs/roadmap/issues/*.*
+!audit/*

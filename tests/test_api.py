@@ -17,8 +17,16 @@ from fastapi.testclient import TestClient
 from gateway.main import app
 
 
-def test_healthz_ok():
+def test_healthz_ok(monkeypatch):
+    monkeypatch.setenv('AUTH_MODE', 'local-dev')
+    monkeypatch.setenv('ENVIRONMENT', 'dev')
+    monkeypatch.setenv('ASTRADESK_DEV_JWT_SECRET', 'test-only-local-dev-secret')
+    monkeypatch.delenv('OIDC_ISSUER', raising=False)
+    monkeypatch.delenv('OIDC_AUDIENCE', raising=False)
+    monkeypatch.delenv('OIDC_JWKS_URL', raising=False)
+
     with TestClient(app) as c:
         r = c.get('/healthz')
-        assert r.status_code == 200
-        assert r.json()['status'] == 'ok'
+
+    assert r.status_code == 200
+    assert r.json()['status'] == 'ok'

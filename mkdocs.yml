@@ -21,7 +21,7 @@ site_description: "AstraDesk Enterprise AI Agents Framework — Technical Guide 
 site_url: https://astradesk.vercel.app
 repo_url: https://github.com/SSobol77/astradesk
 repo_name: SSobol77/astradesk
-copyright: "© 2025 AstraDesk"
+copyright: "© 2025-2026 AstraDesk"
 
 docs_dir: docs
 
@@ -32,6 +32,8 @@ exclude_docs: |
   pl/README.pl.main.md
   pl/README.pl.md
   zh-CN/README.zh-CN.main.md
+  roadmap/issues/
+  roadmap/engineering_task.md
 
 theme:
   name: material
@@ -89,7 +91,7 @@ plugins:
 
 extra_javascript:
   - https://unpkg.com/mermaid@10/dist/mermaid.min.js
-  - js/mermaid-init.js 
+  - js/mermaid-init.js
 
 extra_css:
   - styles/mermaid-card.css
@@ -100,6 +102,7 @@ watch:
 
 nav:
   - Home: README.md
+  - Roadmap: roadmap/index.md
 
   - Guides (EN):
       - Introduction: en/01_introduction.md
@@ -134,7 +137,6 @@ nav:
 
   - API (Redoc):
       - Admin API v1.2.0 — Reference: api/index.md
-
 
 extra:
   social:
