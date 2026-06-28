@@ -27,33 +27,29 @@ from domain_finance.proto.finance_pb2 import (
 
 
 def _serialize_fetch_sales_request(request: FetchSalesRequest) -> bytes:
-    return json.dumps({"query": request.query}, separators=(",", ":")).encode("utf-8")
+    return json.dumps({'query': request.query}, separators=(',', ':')).encode('utf-8')
 
 
 def _deserialize_fetch_sales_request(payload: bytes) -> FetchSalesRequest:
-    return FetchSalesRequest(**json.loads(payload.decode("utf-8")))
+    return FetchSalesRequest(**json.loads(payload.decode('utf-8')))
 
 
 def _serialize_fetch_sales_response(response: FetchSalesResponse) -> bytes:
     return json.dumps(
-        {
-            "items": [
-                {"revenue": item.revenue, "date": item.date} for item in response.items
-            ]
-        },
-        separators=(",", ":"),
-    ).encode("utf-8")
+        {'items': [{'revenue': item.revenue, 'date': item.date} for item in response.items]},
+        separators=(',', ':'),
+    ).encode('utf-8')
 
 
 def _deserialize_fetch_sales_response(payload: bytes) -> FetchSalesResponse:
-    data = json.loads(payload.decode("utf-8"))
-    return FetchSalesResponse(items=[SalesItem(**item) for item in data["items"]])
+    data = json.loads(payload.decode('utf-8'))
+    return FetchSalesResponse(items=[SalesItem(**item) for item in data['items']])
 
 
 class FinanceServiceStub:
     """Client-side stub used by GrpcOracleErpClient."""
 
-    SERVICE_NAME = "FinanceService"
+    SERVICE_NAME = 'FinanceService'
 
     def __init__(self, channel: grpc.aio.Channel | None = None):
         self._channel = channel
@@ -63,22 +59,20 @@ class FinanceServiceStub:
     ) -> FetchSalesResponse:  # context kept for compatibility
         if self._channel is None:
             raise NotImplementedError(
-                "FinanceServiceStub without channel is intended for server subclassing."
+                'FinanceServiceStub without channel is intended for server subclassing.'
             )
         fetch_sales = self._channel.unary_unary(
-            f"/{self.SERVICE_NAME}/FetchSales",
+            f'/{self.SERVICE_NAME}/FetchSales',
             request_serializer=_serialize_fetch_sales_request,
             response_deserializer=_deserialize_fetch_sales_response,
         )
         return await fetch_sales(request)
 
 
-def add_FinanceServiceServicer_to_server(
-    servicer: Any, server: grpc.aio.Server
-) -> None:
+def add_FinanceServiceServicer_to_server(servicer: Any, server: grpc.aio.Server) -> None:
     """Register an async finance servicer using the public gRPC server API."""
     rpc_method_handlers = {
-        "FetchSales": grpc.unary_unary_rpc_method_handler(
+        'FetchSales': grpc.unary_unary_rpc_method_handler(
             servicer.FetchSales,
             request_deserializer=_deserialize_fetch_sales_request,
             response_serializer=_serialize_fetch_sales_response,
@@ -91,4 +85,4 @@ def add_FinanceServiceServicer_to_server(
     server.add_generic_rpc_handlers((generic_handler,))
 
 
-__all__ = ["FinanceServiceStub", "add_FinanceServiceServicer_to_server"]
+__all__ = ['FinanceServiceStub', 'add_FinanceServiceServicer_to_server']
