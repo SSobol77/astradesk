@@ -25,7 +25,6 @@ This module sets up the FastAPI application, including:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 import uuid
@@ -43,9 +42,8 @@ from agents.base import BaseAgent
 from agents.billing import BillingAgent
 from agents.ops import OpsAgent
 from agents.support import SupportAgent
+from astradesk_core.utils.oidc import Principal
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
 from model_gateway.llm_planner import LLMPlanner
 from model_gateway.router import provider_router
 from opa_client.opa import OpaClient
@@ -60,6 +58,7 @@ import asyncpg
 import redis.asyncio as redis
 
 # AstraDesk imports
+from gateway.auth_dependency import install_verifier, require_authenticated
 from gateway.orchestrator import AgentNotFoundError, AgentOrchestrator, PolicyViolationError
 
 # --- Configuration ---
@@ -76,44 +75,10 @@ _DEFAULT_REDIS_URL = 'redis://localhost:6379/0'
 DATABASE_URL = os.getenv('DATABASE_URL', _DEFAULT_DATABASE_URL)
 REDIS_URL = os.getenv('REDIS_URL', _DEFAULT_REDIS_URL)
 OPA_URL = os.getenv('OPA_URL', 'http://localhost:8181')
-JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'super-secret-key-for-dev')
-JWT_ALGORITHM = os.getenv('JWT_ALGORITHM', 'HS256')
 
 # --- Global State ---
 # Use a dictionary for state to avoid global variables
 app_state: dict[str, Any] = {}
-http_bearer = HTTPBearer(
-    description='Bearer token for authentication with JWT claims.',
-    scheme_name='Bearer',
-)
-
-
-# --- Authentication ---
-async def get_current_user_claims(
-    token: HTTPAuthorizationCredentials = Depends(http_bearer),
-) -> dict[str, Any]:
-    """
-    Dependency to decode and validate JWT, returning user claims.
-    This is a best-practice user loader function.
-    """
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail='Could not validate credentials',
-        headers={'WWW-Authenticate': 'Bearer'},
-    )
-    try:
-        payload = jwt.decode(token.credentials, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
-        if 'sub' not in payload or 'roles' not in payload:
-            raise credentials_exception
-        await asyncio.sleep(0)
-        return payload
-    except JWTError:
-        raise credentials_exception
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='An error occurred while processing credentials.',
-        )
 
 
 # --- Application Lifespan (Startup/Shutdown) ---
@@ -123,6 +88,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     Handles application startup and shutdown events to manage resources.
     """
     logger.info('API Gateway starting up...')
+    install_verifier(app)
 
     # --- Initialize connections ---
     # DATABASE_URL/REDIS_URL always resolve (to real values or safe dummy
@@ -282,7 +248,7 @@ async def proxy_to_admin_service(request: Request) -> Response:
 async def execute_agent(
     agent_request: AgentRequest,
     request: Request,
-    claims: dict[str, Any] = Depends(get_current_user_claims),
+    principal: Principal = Depends(require_authenticated),
 ) -> AgentResponse:
     """
     Main endpoint to run an agent.
@@ -300,7 +266,7 @@ async def execute_agent(
     request_id = request.headers.get('X-Request-ID', str(uuid.uuid4()))
 
     try:
-        response = await orchestrator.run(agent_request, claims, request_id)
+        response = await orchestrator.run(agent_request, dict(principal.claims), request_id)
         return response
     except AgentNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
