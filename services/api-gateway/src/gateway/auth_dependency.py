@@ -1,12 +1,18 @@
 # SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
 # File: services/api-gateway/src/gateway/auth_dependency.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
 #
-# FastAPI binding for the OIDC ingress verifier (ISSUE 009).
+# Description: Implements AstraDesk functionality for services/api-gateway/src/gateway/auth_dependency.py.
 #
-# The verifier is built once at startup (fail-closed) and stored on app.state.
-# This dependency extracts the bearer token, verifies it, and attaches the
-# resulting Principal to request.state for the downstream RBAC choke point
-# (ISSUE 016). It deliberately holds NO verification logic of its own.
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 from __future__ import annotations
 
 from astradesk_core.utils.oidc import (

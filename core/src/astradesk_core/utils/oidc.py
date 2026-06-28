@@ -1,19 +1,18 @@
 # SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
 # File: core/src/astradesk_core/utils/oidc.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
 #
-# OIDC/JWKS access-token verification for AstraDesk ingress (ISSUE 009).
+# Description: Implements AstraDesk functionality for core/src/astradesk_core/utils/oidc.py.
 #
-# Design (contract-first):
-#   INV-OIDC-1  Production startup aborts if OIDC issuer/JWKS/audience config is
-#               absent (fail-closed): build_verifier_from_env() raises.
-#   INV-OIDC-2  Every token is validated for signature (JWKS), iss, aud, exp, and
-#               nbf-if-present before any handler runs.
-#   INV-OIDC-3  The symmetric (HS256) developer path is reachable only when
-#               AUTH_MODE=local-dev AND ENVIRONMENT is not a deployed tier.
-#   INV-OIDC-4  JWKS keys are cached with TTL and re-fetched on a kid miss;
-#               key rotation does not require a restart.
+# Copyright (c) 2026 Siergej Sobolewski
 #
-# This module is transport-agnostic. The FastAPI binding lives in the gateway.
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 from __future__ import annotations
 
 import os

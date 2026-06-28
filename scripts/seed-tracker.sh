@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
 # File: scripts/seed-tracker.sh
-# Purpose: Idempotently seed AstraDesk tracker for the v0.3.1 Safety Core plan.
-#   - additive milestone v0.3.1 (touches no historical milestone)
-#   - labels (track-a/track-b/supply-chain)
-#   - new issues with contract-file references
-#   - retarget OPEN #28 to v0.3.1 (rescope)
-#   - cross-link follow-ups on CLOSED #9/#16/#19 (never reopened)
-#   - track tagging of existing issues
-# Safe to re-run: every create is guarded; comments are posted at most once.
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
 #
-# Requires: gh (authenticated with repo write), jq.
-# This script performs TRACKER writes only. It does NOT touch git history.
+# Description: Automates AstraDesk development, deployment, or operational tasks.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 set -euo pipefail
 
 REPO="${REPO:-SSobol77/astradesk}"

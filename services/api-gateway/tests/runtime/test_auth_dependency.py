@@ -1,10 +1,18 @@
 # SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
 # File: services/api-gateway/tests/runtime/test_auth_dependency.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
 #
-# FastAPI boundary tests for the ingress auth dependency (ISSUE 009).
+# Description: Verifies AstraDesk behavior for the associated component.
 #
-# Proves: a bad/absent token yields 401 and the handler never executes; a valid
-# token reaches the handler and the Principal is attached to request.state.
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 from __future__ import annotations
 
 from astradesk_core.utils.oidc import AuthError, Principal

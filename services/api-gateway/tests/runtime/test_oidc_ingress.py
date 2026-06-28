@@ -1,11 +1,18 @@
 # SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
 # File: services/api-gateway/tests/runtime/test_oidc_ingress.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
 #
-# Negative-test matrix for the OIDC ingress verifier (ISSUE 009).
+# Description: Verifies AstraDesk behavior for the associated component.
 #
-# Proves the identity control fails closed. No network: the JWKS resolver is
-# injected with a deterministic public key. Tokens are minted with a local RSA
-# key so we can exercise each rejection path precisely.
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 from __future__ import annotations
 
 import time
