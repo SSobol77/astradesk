@@ -1,15 +1,20 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/api-gateway/src/model_gateway/guardrails.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/model_gateway/guardrails.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/model_gateway/guardrails.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Project: astradesk
-Pakage: api-gateway
-
-Author: Siergej Sobolewski
-Since: 2025-10-29
-
-Core guardrails for input validation, plan schema enforcement, and output sanitization.
+"""Core guardrails for input validation, plan schema enforcement, and output sanitization.
 Integrates OPA governance, OTel tracing, self-reflection, and PII redaction. Async-native.
-
 """
 
 from __future__ import annotations
@@ -50,9 +55,7 @@ class PlanModel(BaseModel):
     """Pydantic model for full LLM-generated plan."""
 
     steps: list[PlanStepModel] = Field(..., description='Execution steps')
-    reflection_score: float | None = Field(
-        None, ge=0.0, le=1.0, description='Self-reflection score'
-    )
+    reflection_score: float | None = None
 
 
 class ProblemDetail(BaseModel):

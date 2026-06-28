@@ -1,15 +1,23 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/api-gateway/src/runtime/planner.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/runtime/planner.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/runtime/planner.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-
-Configurable, deterministic keyword-based planner for AstraDesk.
+"""Configurable, deterministic keyword-based planner for AstraDesk.
 
 Serves as a lightweight fallback (or primary) when LLM planner is unavailable or
 unnecessary. Maps user queries to structured tool invocations using auditable
 rules and produces readable, formatted responses.
-
-Author: Siergej Sobolewski
-Since: 2025-10-07
 """
 
 from __future__ import annotations
@@ -19,18 +27,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-# Local import – fallback to minimal dataclass if not available
-try:
-    from runtime.models import ToolCall  # type: ignore
-except Exception:  # pragma: no cover
-    from dataclasses import dataclass as _dc
-
-    @_dc(frozen=True)
-    class ToolCall:
-        """Minimal ToolCall fallback."""
-
-        name: str
-        arguments: dict[str, Any]
+from runtime.models import ToolCall
 
 
 # ---------------------------------------------------------------------------
@@ -43,6 +40,13 @@ class KeywordRule:
     keywords: set[str]  # Lowercased trigger words/phrases
     tool_name: str  # Tool identifier (e.g., 'create_ticket')
     arg_factory: Callable[[str], dict[str, Any]]  # Factory to build args from query
+
+
+@dataclass(frozen=True)
+class KeywordPlan:
+    """Plan wrapper used by agent replanning while preserving make_plan's list API."""
+
+    steps: list[ToolCall]
 
 
 # --------------------------------------------------------------------------- #
@@ -139,6 +143,10 @@ class KeywordPlanner:
 
         return []
 
+    async def replan(self, query: str, tool_results: list[str]) -> KeywordPlan:
+        """Re-evaluate the original query after a low-quality tool result."""
+        return KeywordPlan(steps=self.make_plan(query))
+
     # ----------------------------------------------------------------------- #
     # Finalization (Response Composition)
     # ----------------------------------------------------------------------- #
@@ -146,7 +154,7 @@ class KeywordPlanner:
         self,
         query: str,
         tool_results: Any,
-        context: dict[str, Any] | None = None,
+        context: dict[str, Any] | list[str] | None = None,
     ) -> str:
         """
         Compose a user-facing response from tool results and optional RAG context.

@@ -1,7 +1,19 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/api-gateway/src/runtime/rag.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/runtime/rag.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/runtime/rag.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Retrieval-Augmented Generation (RAG) system for AstraDesk.
+"""Retrieval-Augmented Generation (RAG) system for AstraDesk.
 
 Provides hybrid search (keyword BM25 via Redis + semantic embeddings via PGVector)
 with PyTorch 2.9 acceleration, governance via OPA, and optional self-reflection
@@ -9,8 +21,6 @@ for snippet quality. Supports vector DB (PGVector on PostgreSQL 18+) and keyword
 index (Redis 8+).
 
 Attributes:
-  Author: Siergej Sobolewski
-  Since: 2025-10-25
 
 Environment Variables:
   pg_dsn: PG_DSN "PGVector DSN"
@@ -117,7 +127,7 @@ class RAG:
         self.opa_client = opa_client
         self.llm_planner = llm_planner
         self.tracer = trace.get_tracer(__name__)  # OTel tracer
-        self.embedding_cache = {}
+        self.embedding_cache: dict[str, list[float]] = {}
 
         # PyTorch model setup
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -238,7 +248,7 @@ class RAG:
                             self.model.encode(
                                 documents,
                                 convert_to_tensor=True,
-                                device=self.device,
+                                device=str(self.device),
                                 batch_size=32,  # Optymalny batch size
                                 show_progress_bar=False,
                             )
@@ -305,7 +315,7 @@ class RAG:
         else:
             with torch.no_grad():
                 query_embedding = (
-                    self.model.encode(query, convert_to_tensor=True, device=self.device)
+                    self.model.encode(query, convert_to_tensor=True, device=str(self.device))
                     .cpu()
                     .tolist()
                 )
@@ -337,7 +347,9 @@ class RAG:
                 with self.tracer.start_as_current_span('embed_query'):
                     with torch.no_grad():
                         query_embedding = (
-                            self.model.encode(query, convert_to_tensor=True, device=self.device)
+                            self.model.encode(
+                                query, convert_to_tensor=True, device=str(self.device)
+                            )
                             .cpu()
                             .tolist()
                         )
@@ -401,13 +413,12 @@ class RAG:
                     from collections import defaultdict
 
                     scores_by_content: dict[str, dict[str, float]] = defaultdict(dict)
+                    source_by_content: dict[str, str] = {}
                     for cand in bm25_candidates:
                         scores_by_content[cand.content]['bm25'] = cand.score
                     for cand in sem_candidates:
                         scores_by_content[cand.content]['semantic'] = cand.score
-                        scores_by_content[cand.content]['source'] = (
-                            cand.source
-                        )  # Keep semantic source if available
+                        source_by_content[cand.content] = cand.source
 
                     weighted: list[RAGSnippet] = []
                     for content, scores in scores_by_content.items():
@@ -421,7 +432,7 @@ class RAG:
                             RAGSnippet(
                                 content=content,
                                 score=hybrid_score,
-                                source=scores.get('source', 'hybrid'),
+                                source=source_by_content.get(content, 'hybrid'),
                                 agent_name=agent_name,
                             )
                         )
@@ -467,7 +478,10 @@ class RAG:
         user = f'Query: {query}\nContent: {content}'
 
         try:
-            raw = await self.llm_planner.chat(
+            planner = self.llm_planner
+            if planner is None:
+                return 0.5
+            raw = await planner.chat(
                 [
                     {'role': 'system', 'content': system},
                     {'role': 'user', 'content': user},

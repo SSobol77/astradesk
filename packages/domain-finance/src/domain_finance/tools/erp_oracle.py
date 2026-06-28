@@ -1,20 +1,28 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: packages/domain-finance/tools/erp_oracle.py
-Project: AstraDesk Domain Finance Pack
-Description:
-    Asynchronous tool for interacting with Oracle ERP via Admin API v1.2.0.
-    Uses API /connectors for creation and probing, no direct database calls.
-    Production-ready with async HTTP, error handling, and retry.
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: packages/domain-finance/src/domain_finance/tools/erp_oracle.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for packages/domain-finance/src/domain_finance/tools/erp_oracle.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Author: Siergej Sobolewski
-Since: 2025-10-16
+"""Asynchronous tool for interacting with Oracle ERP via Admin API v1.2.0.
+Uses API /connectors for creation and probing, no direct database calls.
+Production-ready with async HTTP, error handling, and retry.
 """
 
 from collections.abc import AsyncIterator
 
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from domain_finance.clients.api import AdminApiClient, ProblemDetail
+from domain_finance.clients.api import AdminApiClient
 
 
 class OracleERPAdapter:
@@ -44,21 +52,15 @@ class OracleERPAdapter:
         try:
             connector = await self.client.create_connector(connector_data)
         except ValueError as e:
-            connectors_resp = await self.client._client.get(
-                '/connectors', params={'name': 'erp_oracle'}
-            )
-            if connectors_resp.status_code == 200 and connectors_resp.json():
-                connector = connectors_resp.json()[0]
+            connectors = await self.client.list_connectors(name='erp_oracle')
+            if connectors:
+                connector = connectors[0]
             else:
                 raise e
 
         # Step 2: Probe with query
         probe_data = {'query': query}
-        probe_resp = await self.client._client.post(
-            f"/connectors/{connector['id']}:probe", json=probe_data
-        )
-        if probe_resp.status_code != 200:
-            raise ValueError(ProblemDetail(**probe_resp.json()))
+        probe_result = await self.client.probe_connector(str(connector['id']), probe_data)
 
-        for item in probe_resp.json()['result']:  # Assume result is list of dicts
+        for item in probe_result['result']:  # Assume result is list of dicts
             yield item

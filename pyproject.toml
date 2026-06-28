@@ -1,7 +1,17 @@
-# SPDX-License-Identifier: Apache-2.0
-# File: pyproject.toml (root)
-# Author: Siergej Sobolewski
-# Since: 2025-10-27
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: pyproject.toml
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Configures the associated AstraDesk component or deployment.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
 [project]
 name = "astradesk"
@@ -9,7 +19,7 @@ version = "0.3.0"
 description = "AstraDesk – Enterprise AI Framework"
 requires-python = ">=3.13"
 authors = [{ name = "Siergej Sobolewski", email = "s.sobolewski@hotmail.com" }]
-license = { text = "Apache-2.0" }
+license = { text = "GPL-2.0-only" }
 
 # Root package is the meta-coordinator of AstraDesk Enterprise AI Agents Framework – runtime deps live in member packages.
 dependencies = [
@@ -34,6 +44,7 @@ dev = [
   "ruff>=0.5.7,<0.6.0",
   "mypy>=1.11,<1.12",
   "types-redis>=4.6.0,<5.0",
+  "types-PyYAML>=6.0.12",
   "pip-audit>=2.7,<3.0",
 ]
 

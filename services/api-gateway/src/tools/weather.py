@@ -1,11 +1,19 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/api-gateway/src/tools/weather.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/tools/weather.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/tools/weather.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Project: AstraDesk Framework
-Package:  AstraDesk API Gateway
-
-Description:
-    Asynchronous tool for fetching current weather from OpenWeatherMap.
+"""Asynchronous tool for fetching current weather from OpenWeatherMap.
     Integrates async HTTP, in-memory cache with TTL, OPA governance,
     OpenTelemetry tracing, and RFC 7807 error handling.
     Production-ready with comprehensive error handling and caching.
@@ -14,10 +22,6 @@ Env:
     - WEATHER_API_KEY
     - OPENWEATHER_API_UR
     - CACHE_TTL_SECONDS
-
-Author: Siergej Sobolewski
-Since: 2025-10-30
-
 """
 
 from __future__ import annotations
@@ -26,7 +30,7 @@ import asyncio
 import logging
 import os
 import time
-from typing import Any, Final, Literal
+from typing import Any, Final, Literal, cast
 
 import httpx
 from model_gateway.guardrails import ProblemDetail
@@ -40,10 +44,10 @@ tracer = trace.get_tracer(__name__)
 WEATHER_API_KEY: Final[str] = os.getenv('WEATHER_API_KEY', '')
 OPENWEATHER_API_URL: Final[str] = 'https://api.openweathermap.org/data/2.5/weather'
 CACHE_TTL_SECONDS: Final[int] = 600  # 10 minutes
-Unit = Literal['metric', 'imperial', 'standard']
+WeatherUnits = Literal['metric', 'imperial', 'standard']
 
 # In-memory cache
-_cache: dict[tuple[str, Unit], tuple[float, dict[str, Any]]] = {}
+_cache: dict[tuple[str, WeatherUnits], tuple[float, dict[str, Any]]] = {}
 _cache_lock = asyncio.Lock()
 
 
@@ -82,11 +86,12 @@ async def get_weather(
             logger.error('WEATHER_API_KEY not configured')
             raise WeatherError('Weather service not configured')
 
-        normalized_unit = unit.lower()
-        if normalized_unit not in ('metric', 'imperial', 'standard'):
+        normalized = unit.lower()
+        if normalized not in ('metric', 'imperial', 'standard'):
             error_msg = f"Invalid unit '{unit}'. Use 'metric', 'imperial', 'standard'."
             logger.warning(error_msg)
             raise WeatherError(error_msg)
+        normalized_unit = cast(WeatherUnits, normalized)
 
         if opa_client:
             decision = await opa_client.check_policy(
@@ -149,7 +154,7 @@ async def get_weather(
             raise WeatherError('Internal error in weather tool')
 
 
-def _format_weather_data(data: dict[str, Any], unit: Unit) -> str:
+def _format_weather_data(data: dict[str, Any], unit: WeatherUnits) -> str:
     """Formats weather API response into human-readable string."""
     try:
         city_name = data['name']

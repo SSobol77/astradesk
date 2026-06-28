@@ -1,20 +1,27 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/api-gateway/src/model_gateway/llm_planner.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/model_gateway/llm_planner.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/model_gateway/llm_planner.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Project: astradesk
-Pakage: api-gateway
-
-Author: Siergej Sobolewski
-Since: 2025-10-29
-
-LLM-driven planner that generates structured execution plans and user summaries.
+"""LLM-driven planner that generates structured execution plans and user summaries.
 Integrates guardrails, OPA, OTel tracing, PII redaction, and self-reflection. Async-native.
-
 """
 
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
+from typing import Any
 
 from opa_client.opa import OpaClient
 from opentelemetry import trace
@@ -53,9 +60,29 @@ class LLMPlanner:
         """Initializes with optional OPA client."""
         self.opa_client = opa_client
         self.tracer = trace.get_tracer(__name__)
+        self._available_tools: list[str] = []
+
+    async def chat(
+        self,
+        messages: Sequence[LLMMessage | dict[str, str]],
+        params: ChatParams | dict[str, Any] | None = None,
+    ) -> str:
+        """Delegate normalized chat requests to the currently routed provider."""
+        normalized_messages = [
+            message
+            if isinstance(message, LLMMessage)
+            else LLMMessage(role=message['role'], content=message['content'])
+            for message in messages
+        ]
+        normalized_params = (
+            params if isinstance(params, ChatParams) else ChatParams.model_validate(params or {})
+        )
+        provider = await provider_router.get_provider()
+        return await provider.chat(normalized_messages, params=normalized_params)
 
     async def make_plan(self, query: str, available_tools: list[str]) -> PlanModel:
         """Generates validated execution plan with reflection."""
+        self._available_tools = list(available_tools)
         with self.tracer.start_as_current_span('llm_planner.make_plan') as span:
             span.set_attribute('query_preview', query[:100])
             span.set_attribute('tool_count', len(available_tools))
@@ -101,6 +128,12 @@ class LLMPlanner:
                 logger.error(f'Plan generation failed: {e}', exc_info=True)
                 span.record_exception(e)
                 return PlanModel(steps=[])
+
+    async def replan(self, query: str, tool_results: list[str]) -> PlanModel:
+        """Generate a revised plan using prior tool results as bounded context."""
+        results = '\n'.join(tool_results[-5:])
+        revised_query = f'{query}\nPrevious tool results:\n{results}'
+        return await self.make_plan(revised_query, self._available_tools)
 
     async def summarize(self, query: str, tool_results: list[str]) -> str:
         """Generates user-friendly summary."""

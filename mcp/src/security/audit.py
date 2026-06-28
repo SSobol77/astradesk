@@ -1,3 +1,18 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: mcp/src/security/audit.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for mcp/src/security/audit.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 """
 MCP Audit Module
 
@@ -22,10 +37,12 @@ from mcp.src.gateway.config import AuditConfig
 class AuditLogger:
     """Audit logger for MCP operations"""
 
-    def __init__(self, config: AuditConfig, redis_client: redis.Redis = None):
+    def __init__(self, config: AuditConfig, redis_client: redis.Redis | None = None):
         self.config = config
         self.redis_client = redis_client
         self.http_client = httpx.AsyncClient()
+        self.sink_type: str
+        self.sink_target: str | None
 
         # Parse sink configuration
         if config.sink.startswith('kafka://'):
@@ -62,7 +79,7 @@ class AuditLogger:
         Returns:
             Audit ID
         """
-        audit_event = {
+        audit_event: dict[str, Any] = {
             'audit_id': self._generate_audit_id(),
             'ts': time.time(),
             'tool': {'name': tool_name, 'side_effect': side_effect},
@@ -80,7 +97,7 @@ class AuditLogger:
 
         await self._send_to_sink(audit_event)
 
-        return audit_event['audit_id']
+        return str(audit_event['audit_id'])
 
     async def log_invocation_failure(
         self, tool_name: str, args_digest: str, error: str, claims: dict[str, Any], side_effect: str
@@ -95,7 +112,7 @@ class AuditLogger:
             claims: User claims from JWT
             side_effect: Side effect class
         """
-        audit_event = {
+        audit_event: dict[str, Any] = {
             'audit_id': self._generate_audit_id(),
             'ts': time.time(),
             'tool': {'name': tool_name, 'side_effect': side_effect},
@@ -127,7 +144,7 @@ class AuditLogger:
         args_str = json.dumps(args, sort_keys=True)
         args_digest = hashlib.sha256(args_str.encode()).hexdigest()
 
-        audit_event = {
+        audit_event: dict[str, Any] = {
             'audit_id': self._generate_audit_id(),
             'ts': time.time(),
             'tool': {'name': tool_name},
@@ -152,7 +169,7 @@ class AuditLogger:
             tool_name: Name of the tool
             claims: User claims from JWT
         """
-        audit_event = {
+        audit_event: dict[str, Any] = {
             'audit_id': self._generate_audit_id(),
             'ts': time.time(),
             'tool': {'name': tool_name},
@@ -178,6 +195,8 @@ class AuditLogger:
             print(f'Audit log: {json.dumps(audit_event, indent=2)}')
         elif self.sink_type == 'http':
             try:
+                if self.sink_target is None:
+                    raise RuntimeError('HTTP audit sink has no target')
                 await self.http_client.post(self.sink_target, json=audit_event, timeout=5.0)
             except Exception as e:
                 print(f'Failed to send audit log to HTTP endpoint: {e}')

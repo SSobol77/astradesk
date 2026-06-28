@@ -1,13 +1,19 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/api-gateway/src/agents/base.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/agents/base.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/agents/base.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Project: astradesk
-Pakage: api-gateway
-
-Author: Siergej Sobolewski
-Since: 2025-10-29
-
-Abstract base class (ABC) and lifecycle contract for all agents.
+"""Abstract base class (ABC) and lifecycle contract for all agents.
 
 Encapsulates the end-to-end execution loop (plan → act → reflect → replan) while
 delegating strategy-specific behavior to subclasses via well-defined hooks.
@@ -20,7 +26,6 @@ Features for Production:
 - Robust JSON parsing in reflection with fallbacks
 - Error retries in planning and execution
 - OTel spans with detailed attributes and events
-
 """
 
 from __future__ import annotations
@@ -211,8 +216,13 @@ class BaseAgent(ABC):
             initial_plan = None
             for attempt in range(PLANNING_RETRY_COUNT + 1):
                 try:
-                    initial_plan = await asyncio.wait_for(
-                        self.planner.make_plan(query), timeout=PLANNING_TIMEOUT_SEC
+                    planned = await asyncio.wait_for(
+                        _maybe_await(self.planner.make_plan(query)), timeout=PLANNING_TIMEOUT_SEC
+                    )
+                    initial_plan = Plan(
+                        steps=[
+                            PlanStep(name=step.name, arguments=step.arguments) for step in planned
+                        ]
                     )
                     break
                 except TimeoutError:
@@ -251,11 +261,11 @@ class BaseAgent(ABC):
                 tool_call = ToolCall(name=step.name, arguments=step.arguments)
 
                 # OPA governance with flexible wrapper
-                opa_payload = {'action': step.name, 'claims': context.get('claims')}
+                raw_claims = context.get('claims')
+                claims = raw_claims if isinstance(raw_claims, dict) else {}
+                opa_payload = {'action': step.name, 'claims': claims}
                 try:
-                    await _authorize(
-                        self.opa_policy, 'tools.invoke', context.get('claims'), opa_payload
-                    )
+                    await _authorize(self.opa_policy, 'tools.invoke', claims, opa_payload)
                 except Exception as e:
                     span.record_exception(e)
                     tool_results.append(f'Authorization error: {e!s}')
@@ -266,9 +276,7 @@ class BaseAgent(ABC):
                 # Execute with timeout
                 try:
                     result = await asyncio.wait_for(
-                        self.tools.execute(
-                            step.name, claims=context.get('claims'), **step.arguments
-                        ),
+                        self.tools.execute(step.name, claims=claims, **step.arguments),
                         timeout=TOOL_TIMEOUT_SEC,
                     )
                 except TimeoutError:

@@ -1,3 +1,18 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: .github/workflows/ci.yml
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Defines continuous integration and delivery automation for AstraDesk.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 # CI pipeline for AstraDesk Framework AI.
 # Aligns with pyproject: Python 3.13, project version 0.3.0.
 # Runs linting, type-checks, tests with coverage across Python/Java/JS,
@@ -44,6 +59,7 @@ jobs:
 
       - name: Lint & Type Check
         run: |
+          uv run python scripts/license_headers.py --check
           uv run ruff check .
           uv run ruff format --check .
           uv run mypy .
@@ -121,8 +137,8 @@ jobs:
         run: npm run build
 
       - name: Build Docker Image (JS)
-        working-directory: services/admin-portal
-        run: docker build -t astradesk:ci-js .
+        # Dockerfile copies the portal and the canonical OpenAPI spec from repo-root paths.
+        run: docker build -f services/admin-portal/Dockerfile -t astradesk:ci-js .
 
       - name: Upload JS coverage report
         uses: actions/upload-artifact@v4

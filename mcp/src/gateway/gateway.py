@@ -1,3 +1,18 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: mcp/src/gateway/gateway.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for mcp/src/gateway/gateway.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 """
 Enhanced MCP Gateway Implementation
 
@@ -16,6 +31,7 @@ from typing import Any
 import httpx
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.responses import Response
+from pydantic import BaseModel
 
 import redis.asyncio as redis
 from mcp.src.exceptions import (
@@ -29,10 +45,18 @@ from mcp.src.security.auth import verify_token
 from mcp.src.security.rbac import check_permissions
 
 
+class InvokeRequest(BaseModel):
+    """Validated JSON body for an MCP tool invocation."""
+
+    tool_name: str
+    args: dict[str, Any]
+    side_effect: str
+
+
 class MCPGateway:
     """MCP Gateway implementation"""
 
-    def __init__(self, config: GatewayConfig, redis_client: redis.Redis = None):
+    def __init__(self, config: GatewayConfig, redis_client: redis.Redis | None = None):
         self.config = config
         self.redis_client = redis_client
         self.app = FastAPI(title='AstraDesk MCP Gateway')
@@ -60,9 +84,7 @@ class MCPGateway:
         resp = generate_latest()
         return Response(resp, media_type=CONTENT_TYPE_LATEST)
 
-    async def invoke_tool(
-        self, request: Request, tool_name: str, args: dict[str, Any], side_effect: str
-    ):
+    async def invoke_tool(self, request: Request, invocation: InvokeRequest):
         """
         Invoke a tool through the MCP Gateway
 
@@ -71,6 +93,10 @@ class MCPGateway:
             args: Tool arguments
             side_effect: Side effect class (read|write|execute)
         """
+        tool_name = invocation.tool_name
+        args = invocation.args
+        side_effect = invocation.side_effect
+
         # Get authorization header
         auth_header = request.headers.get('Authorization')
         if not auth_header:
@@ -213,6 +239,6 @@ class MCPGateway:
 
 
 # Create default gateway instance
-def create_gateway(config: GatewayConfig, redis_client: redis.Redis = None) -> MCPGateway:
+def create_gateway(config: GatewayConfig, redis_client: redis.Redis | None = None) -> MCPGateway:
     """Create MCP Gateway instance"""
     return MCPGateway(config, redis_client)

@@ -1,3 +1,18 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: mcp/tests/test_gateway.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Verifies AstraDesk behavior for the associated component.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 """
 Tests for MCP Gateway
 
@@ -69,30 +84,35 @@ def test_invoke_tool_missing_auth_header(gateway):
 def test_invoke_tool_not_found(gateway):
     """Test invoking non-existent tool"""
     client = TestClient(gateway.app)
-    response = client.post(
-        '/invoke',
-        headers={'Authorization': 'Bearer test-token'},
-        json={'tool_name': 'nonexistent.tool', 'args': {}, 'side_effect': 'read'},
-    )
+    with patch(
+        'mcp.src.gateway.gateway.verify_token',
+        new=AsyncMock(return_value={'sub': 'user-1', 'roles': ['admin']}),
+    ):
+        response = client.post(
+            '/invoke',
+            headers={'Authorization': 'Bearer test-token'},
+            json={'tool_name': 'nonexistent.tool', 'args': {}, 'side_effect': 'read'},
+        )
     assert response.status_code == 404
     assert 'Tool nonexistent.tool not found' in response.json()['detail']
 
 
-def test_invoke_tool_rate_limit_exceeded(gateway):
+def test_invoke_tool_rate_limit_exceeded(gateway_config):
     """Test invoking tool with rate limit exceeded"""
     # Mock Redis client to simulate rate limit exceeded
-    with patch('..src.gateway.gateway.redis') as mock_redis:
-        mock_redis_client = AsyncMock()
-        mock_redis_client.incr.return_value = 1000  # Exceed rate limit
-        gateway_with_redis = MCPGateway(gateway_config(), mock_redis_client)
+    mock_redis_client = AsyncMock()
+    mock_redis_client.incr.return_value = 1000  # Exceed rate limit
+    gateway_with_redis = MCPGateway(gateway_config, mock_redis_client)
 
-        client = TestClient(gateway_with_redis.app)
+    client = TestClient(gateway_with_redis.app)
+    with patch(
+        'mcp.src.gateway.gateway.verify_token',
+        new=AsyncMock(return_value={'sub': 'user-1', 'roles': ['admin']}),
+    ):
         response = client.post(
             '/invoke',
             headers={'Authorization': 'Bearer test-token'},
             json={'tool_name': 'test.tool', 'args': {}, 'side_effect': 'read'},
         )
 
-        # Note: This test might need adjustment based on actual implementation
-        # but it demonstrates the approach
-        assert response.status_code == 429 or response.status_code == 401
+    assert response.status_code == 429

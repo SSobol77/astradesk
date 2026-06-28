@@ -1,17 +1,22 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/api-gateway/src/model_gateway/base.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/model_gateway/base.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/model_gateway/base.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Project: astradesk
-Pakage: api-gateway
-
-Author: Siergej Sobolewski
-Since: 2025-10-29
-
-Core contracts, types, and helpers for the Model Gateway layer.
+"""Core contracts, types, and helpers for the Model Gateway layer.
 Provides a stable, provider-agnostic interface for chat models (LLMs), a shared error taxonomy,
 message/parameter schemas, streaming primitives, and adapters for common wire formats (e.g., OpenAI-/Anthropic-style messages).
 Integrates self-reflection hook, PyTorch for token estimation, OPA optional governance, and OTel tracing.
-
 """
 
 from __future__ import annotations
@@ -147,7 +152,7 @@ class LLMProvider(Protocol):
     async def chat(self, messages: Sequence[LLMMessage], params: ChatParams | None = None) -> str:
         """Generates a full chat response."""
 
-    async def stream(
+    def stream(
         self, messages: Sequence[LLMMessage], params: ChatParams | None = None
     ) -> AsyncIterator[ChatChunk]:
         """Streams chat response chunks."""

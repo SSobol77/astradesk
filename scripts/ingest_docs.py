@@ -1,4 +1,19 @@
 #!/usr/bin/env python
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: scripts/ingest_docs.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for scripts/ingest_docs.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 # scripts/ingest_docs.py
 """
 Production-ready script to ingest documents from the /datasets directory into the RAG knowledge base.
@@ -148,11 +163,11 @@ async def main() -> None:
 
     for file_path in supported_files:
         logging.info(f'  - Processing {file_path.name}...')
-        parser = parser_map.get(file_path.suffix.lower())
-        if not parser:
+        document_parser = parser_map.get(file_path.suffix.lower())
+        if not document_parser:
             continue
 
-        text_content = parser(file_path)
+        text_content = document_parser(file_path)
         if text_content:
             chunks = chunk_text(text_content)
             all_chunks.extend(chunks)

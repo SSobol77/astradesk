@@ -1,3 +1,18 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: mcp/src/security/auth.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for mcp/src/security/auth.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 """
 MCP Authentication Module
 
@@ -16,7 +31,7 @@ from mcp.src.gateway.config import OIDCConfig
 
 
 async def fetch_jwks(
-    jwks_url: str, redis_client: redis.Redis = None, cache_key: str | None = None
+    jwks_url: str, redis_client: redis.Redis | None = None, cache_key: str | None = None
 ) -> dict[str, Any]:
     """
     Fetch JWKS from the given URL with Redis caching
@@ -49,7 +64,7 @@ async def fetch_jwks(
 
 
 async def verify_token(
-    auth_header: str, oidc_config: OIDCConfig, redis_client: redis.Redis = None
+    auth_header: str, oidc_config: OIDCConfig, redis_client: redis.Redis | None = None
 ) -> dict[str, Any]:
     """
     Verify JWT token from authorization header

@@ -1,5 +1,18 @@
-# SPDX-License-Identifier: Apache-2.0
-# services/api-gateway/src/runtime/mind.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/runtime/mind.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/runtime/mind.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 """AstraMind Engine: Meta-controller for LLM routing, intent graph planning, and self-reflection.
 
 Handles dynamic intent graph generation from natural language, provider routing
@@ -15,7 +28,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 import torch  # PyTorch 2.9 for embeddings & reward model
 from opentelemetry import trace  # AstraOps/OTel tracing
@@ -53,7 +66,7 @@ class IntentNode:
     id: str
     action: str
     arguments: dict[str, Any]
-    dependencies: list[str] = None  # Node IDs
+    dependencies: list[str] | None = None  # Node IDs
 
 
 class IntentGraph(BaseModel):
@@ -177,7 +190,10 @@ class AstraMind:
 
         model = RewardModel().to(self.device)
         model.eval()
-        return torch.compile(model, mode='reduce-overhead', fullgraph=True)
+        return cast(
+            torch.nn.Module,
+            torch.compile(model, mode='reduce-overhead', fullgraph=True),
+        )
 
     async def evaluate(
         self,

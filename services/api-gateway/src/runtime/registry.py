@@ -1,17 +1,23 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/api-gateway/src/runtime/registry.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/runtime/registry.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/runtime/registry.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Project: AstraDesk Framework
-Package: AstraDesk API Gateway
-
-Description:
-    Thread-safe runtime Tool Registry for AstraDesk agents. Provides deterministic
+"""Thread-safe runtime Tool Registry for AstraDesk agents. Provides deterministic
     registration/lookup/execution of domain tools (actions) with soft RBAC checks,
     metadata (schema, version, description), and dynamic Domain Pack loading via
     entry points (`astradesk.pack`).
 
-Author: Siergej Sobolewski
-Since: 2025-10-28
 
 Overview
 --------
@@ -88,7 +94,6 @@ Notes (PL)
   dostępna, używany jest bezpieczny fallback (parsowanie ról z `claims`).
 - Rejestr nie importuje warstw UI ani transportu — tylko runtime.
 - Błędy pojedynczych Domain Packów nie blokują startu (rejestrowane w logach).
-
 """
 
 from __future__ import annotations
@@ -97,7 +102,7 @@ import asyncio
 import inspect
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from importlib.metadata import entry_points
 from typing import Any
@@ -113,24 +118,16 @@ __all__ = [
 ]
 
 
-# RBAC: miękka integracja z runtime.policy
-try:
-    from runtime.policy import get_roles, AuthorizationError  # type: ignore  # noqa: I001
-except ImportError:
-    # Jeśli nie ma runtime.policy, użyj fallbacka
-    def get_roles(claims: dict | None) -> list[str]:
-        if not claims:
-            return []
-        roles = claims.get('roles')
-        if isinstance(roles, str):
-            parts = [p.strip() for p in roles.split(',') if p.strip()]
-            return parts or [roles]
-        if isinstance(roles, list | tuple | set):
-            return [str(r) for r in roles]
-        return []
+from runtime.policy import get_roles as _policy_get_roles
 
-    class AuthorizationError(PermissionError):
-        pass
+
+class AuthorizationError(PermissionError):
+    """Registry authorization failure with a stable public exception type."""
+
+
+def get_roles(claims: dict[str, Any] | None) -> list[str]:
+    """Extract roles through runtime policy when available, otherwise use the local parser."""
+    return _policy_get_roles(claims)
 
 
 # Logowanie
@@ -165,16 +162,15 @@ def load_domain_packs(registry: ToolRegistry) -> list[tuple[str, Any]]:
     Returns:
         list[tuple[str, Any]]: lista (nazwa_entry_pointu, obiekt_packa)
     """
-    eps = entry_points()
-    if hasattr(eps, 'select'):
-        # Python 3.11+
-        eps = eps.select(group='astradesk.pack')  # type: ignore[assignment]
-    else:
-        # Python =<3.10
-        eps = [ep for ep in eps if getattr(ep, 'group', None) == 'astradesk.pack']
+    discovered = entry_points()
+    selected: Iterable[Any]
+    if hasattr(discovered, 'select'):
+        selected = discovered.select(group='astradesk.pack')
+    else:  # pragma: no cover - compatibility with Python <= 3.10
+        selected = (ep for ep in discovered if getattr(ep, 'group', None) == 'astradesk.pack')
 
     loaded: list[tuple[str, Any]] = []
-    for ep in eps:
+    for ep in selected:
         try:
             factory = ep.load()  # type: ignore
             pack = factory()  # preferowana fabryka: klasa/closure zwracająca obiekt packa

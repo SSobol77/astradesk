@@ -1,5 +1,18 @@
-# SPDX-License-Identifier: Apache-2.0
-# services/api-gateway/src/runtime/policy.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/runtime/policy.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/runtime/policy.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 """Production-grade RBAC + ABAC policy layer for AstraDesk.
 
 Provides fast, dependency-free authorization checks with TTL-cached, hot-reloadable
@@ -33,7 +46,7 @@ _POLICY_TTL_ENV = 'POLICY_TTL_SECONDS'
 _DEFAULT_TTL = 60  # seconds
 
 # Thread-safe cache with TTL
-_policy_store: _PolicyStore = None  # type: ignore
+_policy_store: _PolicyStore
 _lock = threading.Lock()
 
 
@@ -85,7 +98,7 @@ class IdpRoleMapping:
     """Role normalization config."""
 
     from_paths: list[str]  # e.g., ["roles", "realm_access.roles"]
-    prefix_strip: list[str] = None  # e.g., ["ROLE_"]
+    prefix_strip: list[str] | None = None  # e.g., ["ROLE_"]
     lowercase: bool = True
 
 
@@ -118,7 +131,10 @@ class _PolicyStore:
         with _lock:
             if self._policy is None or (now - self._loaded_at) > self._ttl:
                 self._refresh()
-            return self._policy
+            policy = self._policy
+            if policy is None:  # Defensive invariant: _refresh() must install a policy or raise.
+                raise PolicyError('Policy refresh completed without a compiled policy')
+            return policy
 
     def refresh_now(self) -> None:
         """Force immediate policy reload."""
@@ -396,6 +412,15 @@ class PolicyFacade:
     def current(self) -> CompiledPolicy:
         """Get current policy snapshot."""
         return _policy_store.get()
+
+    def authorize(
+        self,
+        action: str,
+        claims: dict[str, Any] | None,
+        attrs: dict[str, Any] | None = None,
+    ) -> None:
+        """Authorize through the module-level RBAC/ABAC implementation."""
+        authorize(action, claims, attrs)
 
 
 # Exported singleton

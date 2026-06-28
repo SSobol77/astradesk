@@ -1,21 +1,25 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/api-gateway/src/tools/ops_actions.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/tools/ops_actions.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/tools/ops_actions.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Project: AstraDesk Framework
-Package:  AstraDesk API Gateway
-
-Description:
-    Tool for performing operational actions in Kubernetes.
+"""Tool for performing operational actions in Kubernetes.
     Integrates kubernetes-asyncio, OPA, OTel tracing, RBAC, whitelist, and RFC 7807 errors.
 
 Env:
     - KUBERNETES_NAMESPACE
     - ALLOWED_SERVICES
     - REQUIRED_ROLE_RESTART
-
-Author: Siergej Sobolewski
-Since: 2025-10-30
-
 """
 
 from __future__ import annotations
@@ -143,9 +147,9 @@ async def restart_service(
             span.add_event('restart_triggered')
             return f"Restart initiated for service '{service}'."
 
-        except asyncio.TimeoutException:
+        except TimeoutError:
             logger.error(f"Timeout patching deployment '{service}'")
-            span.record_exception(asyncio.TimeoutException())
+            span.record_exception(TimeoutError())
             raise OpsActionError('Timeout during Kubernetes operation')
         except ApiException as e:
             if e.status == 404:

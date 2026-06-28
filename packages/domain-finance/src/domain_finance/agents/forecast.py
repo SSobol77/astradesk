@@ -1,13 +1,21 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: packages/domain-finance/agents/forecast.py
-Project: AstraDesk Domain Finance Pack
-Description:
-    Asynchronous agent for financial forecasting using Prophet library.
-    Integrates with Oracle ERP via gRPC client, and Admin API for agent/run management.
-    Production-ready with async, retry, and error handling.
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: packages/domain-finance/src/domain_finance/agents/forecast.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for packages/domain-finance/src/domain_finance/agents/forecast.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Author: Siergej Sobolewski
-Since: 2025-10-16
+"""Asynchronous agent for financial forecasting using Prophet library.
+Integrates with Oracle ERP via gRPC client, and Admin API for agent/run management.
+Production-ready with async, retry, and error handling.
 """
 
 from __future__ import annotations
@@ -29,7 +37,7 @@ class ForecastResult:
 
 
 async def forecast_financial_data(
-    data: list[dict[str, float]],
+    data: list[dict[str, float | str]],
     api_url: str = 'http://localhost:8080/api/admin/v1',
     token: str = '',
     grpc_url: str = 'localhost:50051',

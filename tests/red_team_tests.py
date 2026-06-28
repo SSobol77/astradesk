@@ -1,4 +1,19 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: tests/red_team_tests.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for tests/red_team_tests.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 """
 Red Team Testing Framework for AstraDesk Security Validation
 
@@ -20,7 +35,7 @@ from typing import Any
 
 import httpx
 import pytest
-from runtime.models import AgentRequest
+from runtime.models import AgentName, AgentRequest
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +221,9 @@ class RedTeamTester:
         try:
             # Prepare request
             request_data = AgentRequest(
-                agent=agent_type, input=attack.payload, meta={'red_team_test': attack.name}
+                agent=AgentName(agent_type),
+                input=attack.payload,
+                meta={'red_team_test': attack.name},
             )
 
             headers = {}
@@ -359,7 +376,7 @@ class RedTeamTester:
         if auth_tokens is None:
             auth_tokens = ['', 'invalid-token', 'limited-user-token', 'admin-token']
 
-        audit_results = {
+        audit_results: dict[str, Any] = {
             'timestamp': time.time(),
             'attack_vectors_tested': 0,
             'attacks_blocked': 0,

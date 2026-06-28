@@ -1,9 +1,26 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: mcp/tests/test_security.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Verifies AstraDesk behavior for the associated component.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 """
 Tests for MCP Security
 
 This module contains tests for the MCP security components,
 including authentication, authorization, and RBAC functionality.
 """
+
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from jose import JWTError
@@ -36,27 +53,34 @@ def user_claims():
     }
 
 
-def test_verify_token_valid(oidc_config):
+@pytest.mark.asyncio
+async def test_verify_token_valid(oidc_config, user_claims):
     """Test token verification with valid token"""
     # This is a simplified test since we're not actually verifying tokens in the mock
     auth_header = 'Bearer test.token'
-    claims = verify_token(auth_header, oidc_config)
+    with (
+        patch('mcp.src.security.auth.fetch_jwks', new=AsyncMock(return_value={'keys': []})),
+        patch('mcp.src.security.auth.jwt.decode', return_value=user_claims),
+    ):
+        claims = await verify_token(auth_header, oidc_config)
     assert 'sub' in claims
     assert 'roles' in claims
 
 
-def test_verify_token_invalid_header(oidc_config):
+@pytest.mark.asyncio
+async def test_verify_token_invalid_header(oidc_config):
     """Test token verification with invalid header"""
     auth_header = 'Invalid test.token'
     with pytest.raises(JWTError):
-        verify_token(auth_header, oidc_config)
+        await verify_token(auth_header, oidc_config)
 
 
-def test_verify_token_missing_header(oidc_config):
+@pytest.mark.asyncio
+async def test_verify_token_missing_header(oidc_config):
     """Test token verification with missing header"""
     auth_header = ''
     with pytest.raises(JWTError):
-        verify_token(auth_header, oidc_config)
+        await verify_token(auth_header, oidc_config)
 
 
 def test_get_required_role():

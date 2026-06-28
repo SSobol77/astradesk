@@ -1,3 +1,18 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: mcp/src/tools/base.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for mcp/src/tools/base.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 """
 MCP Tool Base Classes
 
@@ -24,9 +39,11 @@ class ToolResult(BaseModel):
     """Standard tool result format"""
 
     success: bool = Field(..., description='Whether the tool execution was successful')
-    data: dict[str, Any] | None = Field(None, description='Result data if successful')
-    error: str | None = Field(None, description='Error message if failed')
-    metadata: dict[str, Any] | None = Field(default_factory=dict, description='Additional metadata')
+    data: dict[str, Any] | None = None
+    error: str | None = None
+    metadata: dict[str, Any] | None = Field(
+        default_factory=lambda: {}, description='Additional metadata'
+    )
 
 
 class Tool(ABC):

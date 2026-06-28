@@ -1,4 +1,19 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: tests/integration_tests.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for tests/integration_tests.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 """
 Integration Tests for AstraDesk Gateway ↔ Agent ↔ MCP Flows
 
@@ -18,7 +33,7 @@ from fastapi.testclient import TestClient
 
 # AstraDesk imports
 from gateway.main import app
-from runtime.models import AgentRequest
+from runtime.models import AgentName, AgentRequest
 
 from tests.test_harness import TestResult, TestScenario
 
@@ -181,7 +196,7 @@ class IntegrationTestSuite:
             headers = {'Authorization': 'Bearer valid-test-token'}
             response = self.client.post(
                 '/v1/run',
-                json=AgentRequest(agent='support', input='test query').model_dump(),
+                json=AgentRequest(agent=AgentName.SUPPORT, input='test query').model_dump(),
                 headers=headers,
             )
             # Should not return 401 (might return other errors but auth should pass)
@@ -197,7 +212,7 @@ class IntegrationTestSuite:
         for i in range(10):
             response = self.client.post(
                 '/v1/run',
-                json=AgentRequest(agent='support', input=f'test query {i}').model_dump(),
+                json=AgentRequest(agent=AgentName.SUPPORT, input=f'test query {i}').model_dump(),
                 headers=headers,
             )
             if response.status_code == 429:
@@ -207,7 +222,7 @@ class IntegrationTestSuite:
 
     async def run_full_integration_test(self) -> dict[str, Any]:
         """Run complete integration test suite"""
-        results = {
+        results: dict[str, Any] = {
             'gateway_health': await self.test_gateway_health(),
             'mcp_connectivity': await self.test_mcp_server_connectivity(),
             'authentication': await self.test_authentication_flow(),

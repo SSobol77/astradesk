@@ -1,9 +1,24 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: packages/domain-support/src/domain_support/clients/api.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for packages/domain-support/src/domain_support/clients/api.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
+
 """Support domain Admin API shim built on the respx stub."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from respx import dispatch
 
@@ -28,7 +43,7 @@ class AdminApiClient:
             path = '/' + path
         return path
 
-    async def _request(self, method: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+    async def _request(self, method: str, path: str, payload: dict[str, Any]) -> Any:
         route = self._normalize_path(path)
         response = dispatch(method, route, payload)
         if response.status_code >= 400:
@@ -37,11 +52,26 @@ class AdminApiClient:
         return response.json() or {}
 
     async def create_agent(self, agent_data: dict[str, Any]) -> dict[str, Any]:
-        return await self._request('POST', '/agents', agent_data)
+        return cast(dict[str, Any], await self._request('POST', '/agents', agent_data))
 
     async def test_agent(self, agent_id: str, input_data: dict[str, Any]) -> str:
         data = await self._request('POST', f'/agents/{agent_id}:test', input_data)
         return data.get('run_id', '')
 
     async def get_run(self, run_id: str) -> dict[str, Any]:
-        return await self._request('GET', f'/runs/{run_id}', {})
+        return cast(dict[str, Any], await self._request('GET', f'/runs/{run_id}', {}))
+
+    async def create_connector(self, connector_data: dict[str, Any]) -> dict[str, Any]:
+        return cast(dict[str, Any], await self._request('POST', '/connectors', connector_data))
+
+    async def list_connectors(self, name: str | None = None) -> list[dict[str, Any]]:
+        data = await self._request('GET', '/connectors', {'name': name} if name else {})
+        return [item for item in data if isinstance(item, dict)] if isinstance(data, list) else []
+
+    async def probe_connector(
+        self, connector_id: str, probe_data: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        return cast(
+            dict[str, Any],
+            await self._request('POST', f'/connectors/{connector_id}:probe', probe_data or {}),
+        )

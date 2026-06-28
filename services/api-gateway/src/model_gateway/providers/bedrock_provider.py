@@ -1,13 +1,19 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/api-gateway/src/model_gateway/providers/bedrock_provider.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/model_gateway/providers/bedrock_provider.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/model_gateway/providers/bedrock_provider.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Project: astradesk
-Pakage: api-gateway
-
-Author: Siergej Sobolewski
-Since: 2025-10-29
-
-AWS Bedrock Runtime LLM provider (async) implementing the `LLMProvider` interface.
+"""AWS Bedrock Runtime LLM provider (async) implementing the `LLMProvider` interface.
 
 Integrates Bedrock-hosted models (e.g., Anthropic Claude, Meta Llama) with non-blocking I/O via `aioboto3`,
 providing consistent chat semantics, robust error mapping, and configurable timeouts/regions.
@@ -39,7 +45,6 @@ Notes (PL):
     co umożliwia inteligentne zarządzanie błędami i strategiami retry.
   - Bezpieczeństwo i wydajność: Dba o prawidłowe zarządzanie zasobami
     (klient AWS) i konfigurację (timeouty, region).
-
 """
 
 from __future__ import annotations
@@ -84,7 +89,7 @@ class BedrockProvider(LLMProvider):
 
     def __init__(self) -> None:
         self._session = aioboto3.Session()
-        self._model_id = BEDROCK_MODEL_ID
+        self._model_id = BEDROCK_MODEL_ID or ''
         self._region = BEDROCK_REGION
 
     async def aclose(self) -> None:

@@ -1,17 +1,22 @@
-# SPDX-License-Identifier: Apache-2.0
-"""File: services/api-gateway/src/gateway/orchestrator.py
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: services/api-gateway/src/gateway/orchestrator.py
+# Website: https://www.astradesk.dev
+# Repository: https://github.com/SSobol77/astradesk
+#
+# Description: Implements AstraDesk functionality for services/api-gateway/src/gateway/orchestrator.py.
+#
+# Copyright (c) 2026 Siergej Sobolewski
+#
+# This file is part of AstraDesk.
+#
+# AstraDesk is licensed under the GNU General Public License version 2 only.
+# See the LICENSE file in the project root for the full license text.
 
-Project: astradesk
-Pakage: api-gateway
-
-Author: Siergej Sobolewski
-Since: 2025-10-29
-
-Business logic layer for agent orchestration: agent selection, planner choice (LLM vs. keyword),
+"""Business logic layer for agent orchestration: agent selection, planner choice (LLM vs. keyword),
 tool execution with governance, fallback handling, Intent Graph with self-reflection, and final response assembly.
 
 **Pure domain layer** - no FastAPI/HTTP dependencies. Fully testable, async-native, OTel-traced.
-
 """
 
 from __future__ import annotations
@@ -19,10 +24,12 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import networkx as nx  # Intent Graph
 from agents.base import BaseAgent
+from model_gateway.guardrails import PlanModel
+from model_gateway.llm_planner import LLMPlanner
 from opa_client.opa import OpaClient  # Governance
 from opentelemetry import trace  # AstraOps/OTel
 from runtime.memory import Memory
@@ -31,13 +38,6 @@ from runtime.registry import ToolRegistry
 
 import asyncpg
 import redis.asyncio as redis
-
-# --- Type-only imports for LLMPlanner (avoid runtime dependency) ---
-if TYPE_CHECKING:
-    from model_gateway.llm_planner import LLMPlan, LLMPlanner
-else:
-    LLMPlanner = None
-    LLMPlan = None
 
 logger = logging.getLogger(__name__)
 
@@ -134,12 +134,12 @@ class AgentOrchestrator:
         self, req: AgentRequest, context: dict[str, Any], memory: Memory, request_id: str
     ) -> AgentResponse | None:
         """Attempts execution using LLMPlanner with Intent Graph and self-reflection."""
-        if not LLMPlan or not self.llm_planner:
+        if not self.llm_planner:
             return None
 
         with self.tracer.start_as_current_span('llm_planner.make_plan') as span:
             try:
-                llm_plan: LLMPlan = await asyncio.wait_for(
+                llm_plan: PlanModel = await asyncio.wait_for(
                     self.llm_planner.make_plan(req.input, available_tools=self.tools.names()),
                     timeout=15.0,
                 )
@@ -218,7 +218,7 @@ class AgentOrchestrator:
         return AgentResponse(
             output=output,
             reasoning_trace_id=request_id,
-            invoked_tools=[tool.model_dump() for tool in invoked_tools],
+            invoked_tools=invoked_tools,
         )
 
     async def _run_fallback_path(
@@ -236,7 +236,7 @@ class AgentOrchestrator:
         return AgentResponse(
             output=output,
             reasoning_trace_id=request_id,
-            invoked_tools=[tool.model_dump() for tool in invoked_tools],
+            invoked_tools=invoked_tools,
         )
 
     async def _reflect_step(self, query: str, result: str, request_id: str) -> float:
