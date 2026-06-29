@@ -38,6 +38,7 @@ from typing import Any
 import networkx as nx
 from model_gateway.llm_planner import LLMPlanner
 from opentelemetry import trace
+from runtime.authz import approval_from_mapping
 from runtime.memory import Memory
 from runtime.models import ToolCall
 from runtime.planner import KeywordPlanner
@@ -267,6 +268,8 @@ class OpsAgent(BaseAgent):
         """Executes the ops agent workflow with specialized planning and finalization."""
         context = context or {}
         claims = context.get('claims', {})
+        roles = context.get('roles', ())  # normalized roles for the RBAC choke point
+        approval_id = approval_from_mapping(context)  # change-record for write/execute
         user_id = claims.get('user_id', 'unknown')
 
         with self.tracer.start_as_current_span('ops.run') as span:
@@ -314,7 +317,13 @@ class OpsAgent(BaseAgent):
 
                 try:
                     result = await asyncio.wait_for(
-                        self.tools.execute(step.name, claims=claims, **step.arguments),
+                        self.tools.execute(
+                            step.name,
+                            roles=roles,
+                            approval_id=approval_id,
+                            claims=claims,
+                            **step.arguments,
+                        ),
                         timeout=TOOL_TIMEOUT_SEC,
                     )
                 except TimeoutError:

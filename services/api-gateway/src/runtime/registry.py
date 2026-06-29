@@ -14,17 +14,22 @@
 # See the LICENSE file in the project root for the full license text.
 
 """Thread-safe runtime Tool Registry for AstraDesk agents. Provides deterministic
-    registration/lookup/execution of domain tools (actions) with soft RBAC checks,
-    metadata (schema, version, description), and dynamic Domain Pack loading via
-    entry points (`astradesk.pack`).
+    registration/lookup/execution of domain tools (actions) and is the single RBAC
+    choke point (ISSUE 016), with metadata (side_effect, allowed_roles, schema,
+    version, description) and dynamic Domain Pack loading via entry points
+    (`astradesk.pack`).
 
 
 Overview
 --------
-- Metadata-first design: each tool is described by `ToolInfo` (name, version,
-  description, allowed_roles, schema), enabling auditability and UI introspection.
-- Soft RBAC: verifies caller's roles (from `claims`) against `allowed_roles`
-  using `runtime.policy.get_roles` when available (with a safe local fallback).
+- Metadata-first design: each tool is described by `ToolInfo` (name, side_effect,
+  allowed_roles, requires_approval, version, description, schema), enabling
+  auditability and UI introspection.
+- Fail-closed RBAC choke point: `execute()` authorizes every invocation through
+  `runtime.authz.authorize_tool` from *normalized roles* (never raw IdP claims),
+  so the LLM-planned and keyword-fallback paths enforce identically
+  (`INV-DUAL-PATH`). `side_effect` is mandatory at registration; a `write`/
+  `execute` tool without `allowed_roles` is rejected at registration (fail fast).
 - Unified execution: async callables awaited directly; sync callables executed
   via `asyncio.to_thread`, with exceptions logged and re-raised.
 - Domain Packs: discoverable through `importlib.metadata.entry_points(group="astradesk.pack")`;
@@ -33,14 +38,15 @@ Overview
 Responsibilities
 ----------------
 - Registration API:
-  * `register(name, fn, *, description, version, allowed_roles, schema, override)`
+  * `register(name, fn, *, side_effect, description, version, allowed_roles,
+    requires_approval, schema, override)`
   * `unregister(name)`
 - Read/Query API:
-  * `get(name)`, `get_info(name)`, `exists(name)`, `names()`
+  * `get(name)`, `get_info(name)`, `exists(name)`, `names()`, `infos()`
 - Execution:
-  * `execute(name, **kwargs)` — performs RBAC check (if configured), strips
-    meta-kwargs (e.g., `claims`) when not accepted by the callable’s signature,
-    then runs async/sync accordingly.
+  * `execute(name, *, roles=None, approval_id=None, **kwargs)` — authorizes via
+    the shared RBAC choke point (fail-closed), strips meta-kwargs (e.g., `claims`)
+    when not accepted by the callable’s signature, then runs async/sync.
 - Domain Packs:
   * `load_domain_packs()` — discovers and initializes packs; errors of individual
     packs are logged but do not block startup.
@@ -109,6 +115,8 @@ from typing import Any
 
 __all__ = [
     'AuthorizationError',
+    'RbacDenied',
+    'SideEffect',
     'ToolInfo',
     'ToolNotFoundError',
     'ToolRegistrationError',
@@ -118,35 +126,26 @@ __all__ = [
 ]
 
 
-from runtime.policy import get_roles as _policy_get_roles
-
-
-class AuthorizationError(PermissionError):
-    """Registry authorization failure with a stable public exception type."""
-
-
-def get_roles(claims: dict[str, Any] | None) -> list[str]:
-    """Extract roles through runtime policy when available, otherwise use the local parser."""
-    return _policy_get_roles(claims)
-
+from runtime.authz import (
+    APPROVAL_FIELDS,
+    AuthorizationError,
+    RbacDenied,
+    SideEffect,
+    approval_from_mapping,
+    authorize_tool,
+    coerce_side_effect,
+    roles_from_claims,
+    validate_tool_metadata,
+)
+from runtime.authz import (
+    SIDE_EFFECTING as _SIDE_EFFECTING,
+)
 
 # Logowanie
 _logger = logging.getLogger(__name__)
 
 # Utils
 _TOOL_NAME_RE = re.compile(r'^[A-Za-z0-9._-]{1,128}$')
-
-
-def _normalize_roles(value: Any) -> list[str]:
-    """Ujednolica kształt ról do list[str]. Akceptuje str (CSV), list/tuple/set."""
-    if value is None:
-        return []
-    if isinstance(value, str):
-        parts = [p.strip() for p in value.split(',') if p.strip()]
-        return parts or [value]
-    if isinstance(value, list | tuple | set):
-        return [str(v) for v in value]
-    return []
 
 
 def load_domain_packs(registry: ToolRegistry) -> list[tuple[str, Any]]:
@@ -206,13 +205,20 @@ ToolCallable = Callable[..., Any]
 
 @dataclass
 class ToolInfo:
-    """Metadane zarejestrowanego narzędzia runtime."""
+    """Metadane zarejestrowanego narzędzia runtime.
+
+    ``side_effect`` and ``allowed_roles`` are the source of truth for the RBAC
+    choke point (ISSUE 016). ``side_effect`` is mandatory at registration; a
+    ``write``/``execute`` tool must also carry a non-empty ``allowed_roles``.
+    """
 
     name: str
     fn: ToolCallable
+    side_effect: SideEffect
     description: str = ''
     version: str = '1.0.0'
     allowed_roles: set[str] = field(default_factory=set)
+    requires_approval: bool = False
     schema: dict[str, Any] = field(default_factory=dict)
 
     # Cache techniczny - nie eksponujemy w repr, ustawiany podczas register()
@@ -235,16 +241,29 @@ class ToolRegistry:
         name: str,
         fn: ToolCallable,
         *,
+        side_effect: SideEffect | str | None = None,
         description: str = '',
         version: str = '1.0.0',
         allowed_roles: set[str] | None = None,
+        requires_approval: bool = False,
         schema: dict[str, Any] | None = None,
         override: bool = False,
     ) -> None:
         """Rejestruje narzędzie; użyj override=True aby zastąpić istniejące.
 
+        RBAC metadata (ISSUE 016):
+            ``side_effect`` is mandatory and must be one of ``read``/``write``/
+            ``execute``. A ``write``/``execute`` tool must declare a non-empty
+            ``allowed_roles`` set, and approval enforcement is forced on for it
+            (``requires_approval`` is set by invariant regardless of the argument)
+            so a side-effecting tool can never be registered in a way that bypasses
+            the approval/change-record gate (``INV-RBAC-4``). All invariants are
+            enforced here so a mis-declared tool fails fast at boot, not at the
+            first unauthorized call (``INV-FAIL-CLOSED``).
+
         Raises:
-            ToolRegistrationError: niepoprawna nazwa/funkcja lub konflikt bez override.
+            ToolRegistrationError: niepoprawna nazwa/funkcja, brakujące lub
+                niepoprawne metadane RBAC, lub konflikt bez override.
 
         """
         if not name or not _TOOL_NAME_RE.fullmatch(name):
@@ -254,12 +273,25 @@ class ToolRegistry:
         if not callable(fn):
             raise ToolRegistrationError('fn must be callable')
 
+        roles = set(allowed_roles or set())
+        try:
+            effect = coerce_side_effect(side_effect)
+            validate_tool_metadata(name, effect, roles)
+        except ValueError as exc:
+            raise ToolRegistrationError(str(exc)) from exc
+
+        # Side-effecting tools always require an approval/change record (INV-RBAC-4);
+        # the flag can only ever be strengthened, never relaxed, at registration.
+        effective_requires_approval = bool(requires_approval) or effect in _SIDE_EFFECTING
+
         info = ToolInfo(
             name=name,
             fn=fn,
+            side_effect=effect,
             description=description or '',
             version=version or '1.0.0',
-            allowed_roles=set(allowed_roles or set()),
+            allowed_roles=roles,
+            requires_approval=effective_requires_approval,
             schema=dict(schema or {}),
         )
 
@@ -315,52 +347,87 @@ class ToolRegistry:
         """Lista nazw zarejestrowanych narzędzi."""
         return list(self._tools.keys())
 
+    def infos(self) -> list[ToolInfo]:
+        """Snapshot of all registered tool metadata (for boot-time invariants)."""
+        return list(self._tools.values())
+
     def exists(self, name: str) -> bool:
         """Czy narzędzie jest zarejestrowane?"""
         return name in self._tools
 
     # Wykonanie
-    async def execute(self, name: str, **kwargs: Any) -> Any:
-        """Uruchamia narzędzie z przekazanymi argumentami.
+    async def execute(
+        self,
+        name: str,
+        *,
+        roles: Iterable[str] | None = None,
+        approval_id: str | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        """Uruchamia narzędzie — jedyny punkt egzekwowania RBAC (ISSUE 016).
 
-        RBAC:
-            Jeśli ToolInfo.allowed_roles nie jest puste, wymagamy co najmniej jednej
-            roli wspólnej z rolami wyciągniętymi z `claims` (np. z JWT).
+        This is the single authorization choke point that both the LLM-planned
+        and keyword-fallback paths traverse (``INV-DUAL-PATH``). The decision is
+        delegated to :func:`runtime.authz.authorize_tool` and made from
+        *normalized roles only*.
+
+        Args:
+            roles: The principal's normalized roles. When ``None`` (legacy
+                callers) they are derived from ``claims`` via the compatibility
+                adapter; RBAC never inspects raw IdP claim shapes directly.
+            approval_id: Optional explicit approval/change-record id. When not
+                given, one is resolved from the invocation arguments / context via
+                the accepted fields (``approval_id``/``change_record``/
+                ``change_record_id``). ``write``/``execute`` tools are denied
+                (``APPROVAL_REQUIRED``) before execution if none is present
+                (``INV-RBAC-4``).
 
         Sync/Async:
             - Funkcje asynchroniczne awaitujemy bezpośrednio.
             - Funkcje synchroniczne odpalamy w wątku (`asyncio.to_thread`).
 
         Raises:
-            AuthorizationError: brak wymaganej roli.
+            RbacDenied: gdy wywołanie nie jest autoryzowane (przed wykonaniem fn).
             ToolNotFoundError: gdy narzędzie nie istnieje.
             Dowolny wyjątek biznesowy narzędzia (przepuszczamy, ale logujemy).
 
         """
         info = self.get_info(name)
 
-        # 1 RBAC (jeśli skonfigurowano allowed_roles)
-        if info.allowed_roles:
-            claims = kwargs.get('claims')
-            roles = set(_normalize_roles(get_roles(claims)))
-            if not roles.intersection(info.allowed_roles):
-                needed = sorted(info.allowed_roles)
-                _logger.warning(
-                    "RBAC deny: tool='%s' user_roles=%s need_any=%s",
-                    name,
-                    sorted(roles),
-                    needed,
-                )
-                raise AuthorizationError(
-                    f"Access denied: need any of roles {needed} for tool '{name}'."
-                )
+        # 1 RBAC choke point (shared by every execution path; fail-closed).
+        effective_roles = roles_from_claims(kwargs.get('claims')) if roles is None else roles
+        # Approval/change-record id may arrive explicitly or in the invocation
+        # arguments/context; the explicit value takes precedence.
+        effective_approval_id = approval_id or approval_from_mapping(kwargs)
+        try:
+            authorize_tool(
+                tool=name,
+                side_effect=info.side_effect,
+                allowed_roles=info.allowed_roles,
+                roles=effective_roles,
+                requires_approval=info.requires_approval,
+                approval_id=effective_approval_id,
+            )
+        except RbacDenied as exc:
+            _logger.warning(
+                "RBAC deny: tool='%s' reason=%s need_any=%s",
+                name,
+                exc.reason.value,
+                list(exc.needed_roles),
+            )
+            raise
 
-        # 2 Czyszczenie kwargs:
-        #    'claims' to meta - jeśli funkcja nie przyjmuje 'claims', nie przekazujemy go.
+        # 2 Czyszczenie kwargs: meta keys ('claims' and the approval fields) are
+        #    stripped when the callable does not declare them, so they never leak
+        #    into business tool signatures.
         sig = info.signature
-        if sig is not None and 'claims' not in sig.parameters and 'claims' in kwargs:
-            kwargs = dict(kwargs)  # płytka kopia
-            kwargs.pop('claims', None)
+        if sig is not None:
+            meta_keys = [k for k in ('claims', *APPROVAL_FIELDS) if k in kwargs]
+            to_strip = [k for k in meta_keys if k not in sig.parameters]
+            if to_strip:
+                kwargs = dict(kwargs)  # płytka kopia
+                for key in to_strip:
+                    kwargs.pop(key, None)
 
         # 3 Uruchomienie narzędzia obsługa sync/async
         if info.is_coroutine:

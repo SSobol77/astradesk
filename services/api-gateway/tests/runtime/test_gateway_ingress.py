@@ -54,11 +54,17 @@ class _RecordingVerifier:
 class _RecordingOrchestrator:
     def __init__(self) -> None:
         self.calls: list[tuple[AgentRequest, dict[str, Any], str]] = []
+        self.roles: list[tuple[str, ...]] = []
 
     async def run(
-        self, request: AgentRequest, claims: dict[str, Any], request_id: str
+        self,
+        request: AgentRequest,
+        claims: dict[str, Any],
+        request_id: str,
+        roles: tuple[str, ...] = (),
     ) -> AgentResponse:
         self.calls.append((request, claims, request_id))
+        self.roles.append(tuple(roles))
         return AgentResponse(
             output='Ingress accepted the authenticated request.',
             reasoning_trace_id=request_id,
@@ -130,6 +136,9 @@ def test_authenticated_request_reaches_handler_with_verified_claims(
     assert request.agent.value == 'support'
     assert claims == dict(_PRINCIPAL.claims)
     assert request_id == _REQUEST_ID
+    # Normalized roles from the verified principal are forwarded to the
+    # orchestrator and feed the RBAC choke point (ISSUE 016).
+    assert orchestrator.roles == [tuple(_PRINCIPAL.roles)]
 
 
 def test_healthz_remains_public_and_bypasses_verifier(
