@@ -41,6 +41,7 @@ import networkx as nx  # For Intent Graph (DiGraph with nodes/edges)
 from model_gateway.llm_planner import LLMPlanner
 from opentelemetry import trace  # AstraOps/OTel tracing
 from pydantic import BaseModel
+from runtime.authz import approval_from_mapping
 from runtime.memory import Memory
 from runtime.models import ToolCall
 from runtime.planner import KeywordPlanner
@@ -263,6 +264,10 @@ class BaseAgent(ABC):
                 # OPA governance with flexible wrapper
                 raw_claims = context.get('claims')
                 claims = raw_claims if isinstance(raw_claims, dict) else {}
+                # Normalized roles + approval id for the RBAC choke point
+                # (same as the LLM path; write/execute deny without approval).
+                roles = context.get('roles', ())
+                approval_id = approval_from_mapping(context)
                 opa_payload = {'action': step.name, 'claims': claims}
                 try:
                     await _authorize(self.opa_policy, 'tools.invoke', claims, opa_payload)
@@ -276,7 +281,13 @@ class BaseAgent(ABC):
                 # Execute with timeout
                 try:
                     result = await asyncio.wait_for(
-                        self.tools.execute(step.name, claims=claims, **step.arguments),
+                        self.tools.execute(
+                            step.name,
+                            roles=roles,
+                            approval_id=approval_id,
+                            claims=claims,
+                            **step.arguments,
+                        ),
                         timeout=TOOL_TIMEOUT_SEC,
                     )
                 except TimeoutError:

@@ -47,6 +47,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from model_gateway.llm_planner import LLMPlanner
 from model_gateway.router import provider_router
 from opa_client.opa import OpaClient
+from runtime.authz import SideEffect, enforce_registration_invariants
 from runtime.memory import Memory
 from runtime.models import AgentRequest, AgentResponse
 from runtime.planner import KeywordPlanner
@@ -108,18 +109,39 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # --- Initialize core components ---
     tool_registry = ToolRegistry()
-    # Register built-in tools
+    # Register built-in tools with mandatory RBAC metadata (ISSUE 016).
+    # side_effect + allowed_roles are the source of truth for the choke point;
+    # the OIDC layer normalizes identity/roles, RBAC authorizes from those roles.
     await tool_registry.register(
-        'get_metrics', metrics.get_metrics, description='Get service performance metrics.'
+        'get_metrics',
+        metrics.get_metrics,
+        side_effect=SideEffect.READ,
+        description='Get service performance metrics.',
     )
     await tool_registry.register(
-        'restart_service', ops_actions.restart_service, description='Restart a service deployment.'
+        'restart_service',
+        ops_actions.restart_service,
+        side_effect=SideEffect.EXECUTE,
+        allowed_roles={'sre'},
+        description='Restart a service deployment.',
     )
     await tool_registry.register(
-        'create_ticket', tickets_proxy.create_ticket, description='Create a support ticket.'
+        'create_ticket',
+        tickets_proxy.create_ticket,
+        side_effect=SideEffect.WRITE,
+        allowed_roles={'it.support', 'sre'},
+        description='Create a support ticket.',
     )
-    # Discover and load tools from external domain packs
+    # Discover and load tools from external domain packs.
     load_domain_packs(tool_registry)
+
+    # Boot-time RBAC invariant: abort startup if any registered tool lacks
+    # side_effect metadata or any side-effecting tool lacks allowed_roles
+    # (fail-closed; catch at boot, not at the first unauthorized call).
+    enforce_registration_invariants(
+        (info.name, info.side_effect, info.allowed_roles, info.requires_approval)
+        for info in tool_registry.infos()
+    )
 
     # llm_planner = LLMPlanner(opa_client=opa_client)
     # rag = RAG(pg_pool=pg_pool, llm_planner=llm_planner)
@@ -266,7 +288,12 @@ async def execute_agent(
     request_id = request.headers.get('X-Request-ID', str(uuid.uuid4()))
 
     try:
-        response = await orchestrator.run(agent_request, dict(principal.claims), request_id)
+        response = await orchestrator.run(
+            agent_request,
+            dict(principal.claims),
+            request_id,
+            roles=tuple(principal.roles),
+        )
         return response
     except AgentNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
