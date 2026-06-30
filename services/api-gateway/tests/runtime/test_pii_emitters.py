@@ -21,7 +21,7 @@ assert raw user input never reaches a span attribute or a model payload.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 from unittest.mock import MagicMock
 
 import pytest
@@ -50,7 +50,7 @@ class _RecordingSpan:
     def __enter__(self) -> _RecordingSpan:
         return self
 
-    def __exit__(self, *_a: Any) -> bool:
+    def __exit__(self, *_a: Any) -> Literal[False]:
         return False
 
 
