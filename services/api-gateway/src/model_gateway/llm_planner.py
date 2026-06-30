@@ -23,6 +23,7 @@ import logging
 from collections.abc import Sequence
 from typing import Any
 
+from astradesk_core.redaction import safe_preview
 from opa_client.opa import OpaClient
 from opentelemetry import trace
 
@@ -67,12 +68,23 @@ class LLMPlanner:
         messages: Sequence[LLMMessage | dict[str, str]],
         params: ChatParams | dict[str, Any] | None = None,
     ) -> str:
-        """Delegate normalized chat requests to the currently routed provider."""
+        """Delegate normalized chat requests to the currently routed provider.
+
+        This is the shared model-egress boundary for reflection/scoring calls
+        made across the runtime (agents, orchestrator, RAG). Message content is
+        redacted here so raw user input cannot reach the external model by a
+        call site forgetting to redact (``INV-PII-1``/``INV-PII-4``). Redaction
+        is idempotent, so already-redacted planner prompts are unaffected.
+        """
         normalized_messages = [
             message
             if isinstance(message, LLMMessage)
             else LLMMessage(role=message['role'], content=message['content'])
             for message in messages
+        ]
+        normalized_messages = [
+            LLMMessage(role=message.role, content=redact_sensitive(message.content))
+            for message in normalized_messages
         ]
         normalized_params = (
             params if isinstance(params, ChatParams) else ChatParams.model_validate(params or {})
@@ -84,10 +96,11 @@ class LLMPlanner:
         """Generates validated execution plan with reflection."""
         self._available_tools = list(available_tools)
         with self.tracer.start_as_current_span('llm_planner.make_plan') as span:
-            span.set_attribute('query_preview', query[:100])
-            span.set_attribute('tool_count', len(available_tools))
-
+            # Classify + redact BEFORE any preview reaches the span; the preview
+            # is taken from redacted text, never the raw query (INV-PII-1).
             safe_query = redact_sensitive(query)
+            span.set_attribute('query_preview', safe_preview(query, 100))
+            span.set_attribute('tool_count', len(available_tools))
             if not await is_safe_input(safe_query, self.opa_client):
                 span.add_event('unsafe_input_blocked')
                 return PlanModel(steps=[])
@@ -115,7 +128,9 @@ class LLMPlanner:
                 raw_response = await provider.chat(messages, params=params)
                 plan = await validate_plan_json(raw_response, self.opa_client)
 
-                score = await reflect_plan_quality(plan, query, provider)
+                # Pass the redacted query: reflection prompts go straight to
+                # provider.chat (bypassing the redaction in this.chat).
+                score = await reflect_plan_quality(plan, safe_query, provider)
                 span.set_attribute('reflection_score', score)
 
                 if score < 0.7:

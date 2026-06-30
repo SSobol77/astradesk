@@ -35,6 +35,7 @@ from opentelemetry import trace  # AstraOps/OTel
 from runtime.authz import approval_from_mapping
 from runtime.memory import Memory
 from runtime.models import AgentRequest, AgentResponse, ToolCall
+from runtime.pii import attach_classification, safe_preview
 from runtime.registry import ToolRegistry
 
 import asyncpg
@@ -121,15 +122,21 @@ class AgentOrchestrator:
             PolicyViolationError: If OPA denies access.
         """
         with self.tracer.start_as_current_span('orchestrator.run') as span:
+            # Ingress boundary: classify the raw input once and propagate the
+            # classification with the request (INV-PII-2). Only a redacted,
+            # bounded preview reaches the span (INV-PII-1/INV-PII-4).
+            classification = attach_classification(req.input)
             span.set_attribute('request_id', request_id)
             span.set_attribute('agent', req.agent.value)
-            span.set_attribute('input_preview', req.input[:100])
+            span.set_attribute('input_preview', safe_preview(req.input, 100))
+            span.set_attribute('input_classification', sorted(classification))
 
             context = {
                 **req.meta,
                 'claims': claims,
                 'roles': tuple(roles),
                 'request_id': request_id,
+                'data_classification': sorted(classification),
             }
             memory = Memory(self.pg_pool, self.redis)
 
