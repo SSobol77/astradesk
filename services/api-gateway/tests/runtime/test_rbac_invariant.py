@@ -114,7 +114,7 @@ async def test_side_effect_tool_missing_allowed_roles_is_rejected_at_registratio
 
     with pytest.raises(ToolRegistrationError):
         await registry.register(
-            'restart_service', spy, side_effect=SideEffect.WRITE, allowed_roles=set()
+            'restart_service', spy.as_tool(), side_effect=SideEffect.WRITE, allowed_roles=set()
         )
 
 
