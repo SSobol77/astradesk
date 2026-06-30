@@ -63,7 +63,7 @@ async def _register_side_effect_tool(
     spy: _Spy,
     *,
     name: str = 'restart_service',
-    side_effect: SideEffect = SideEffect.EXECUTE,
+    side_effect: SideEffect = SideEffect.WRITE,
     allowed_roles: set[str] | None = None,
 ) -> None:
     await registry.register(
@@ -71,7 +71,6 @@ async def _register_side_effect_tool(
         spy.as_tool(),
         side_effect=side_effect,
         allowed_roles=allowed_roles if allowed_roles is not None else {'sre'},
-        description='side-effecting test tool',
     )
 
 
@@ -115,7 +114,7 @@ async def test_side_effect_tool_missing_allowed_roles_is_rejected_at_registratio
 
     with pytest.raises(ToolRegistrationError):
         await registry.register(
-            'restart_service', spy, side_effect=SideEffect.WRITE, allowed_roles=set()
+            'restart_service', spy.as_tool(), side_effect=SideEffect.WRITE, allowed_roles=set()
         )
 
 
@@ -158,7 +157,10 @@ async def test_read_only_tool_without_roles_executes() -> None:
     registry = ToolRegistry()
     spy = _Spy()
     await registry.register(
-        'get_metrics', spy.as_tool(), side_effect=SideEffect.READ, description='read-only'
+        'get_metrics',
+        spy.as_tool(),
+        side_effect=SideEffect.READ,
+        description='read-only',
     )
 
     result = await registry.execute('get_metrics', roles=(), service='webapp')
