@@ -34,6 +34,13 @@ dependencies = [
     "rank-bm25>=0.2.2",
     "regex>=2025.10.23",
     "python-dotenv>=1.2.1",
+    # mcp/ (the reusable MCP Gateway library) is exercised by root-level test
+    # runs (`uv run pytest ... mcp/tests`) but is not a `[tool.uv.workspace]`
+    # member, so its own mcp/pyproject.toml dependencies are not resolved
+    # into this environment. python-jose is mcp/src/security/auth.py's OIDC
+    # verifier for that separate bounded context (unrelated to the api-gateway
+    # ingress verifier in astradesk_core.utils.oidc, which uses pyjwt).
+    "python-jose[cryptography]>=3.3.0,<3.4.0",
 ]
 
 [project.optional-dependencies]

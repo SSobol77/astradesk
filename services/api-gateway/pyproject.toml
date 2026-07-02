@@ -43,8 +43,8 @@ dependencies = [
   "tenacity>=9.0,<10.0",
 
   # Zależności bezpieczeństwa
-  "python-jose[cryptography]>=3.3.0,<3.4.0",
-  "jwcrypto>=1.5.6,<1.6.0",
+  # OIDC/JWT verification is provided by astradesk-core (pyjwt[crypto]);
+  # no second JWT library here (ISSUE 009 — single auth stack).
   "kubernetes-asyncio>=20.0,<21.0",
 
   # Zależności AI / ML
