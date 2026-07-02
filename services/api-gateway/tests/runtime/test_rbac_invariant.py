@@ -24,6 +24,8 @@ that an unauthorized side-effect call is denied identically in every cell.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from runtime.authz import (
     AuthorizationError,
@@ -178,7 +180,7 @@ async def _invoke_as_agent_path(
     roles: tuple[str, ...],
     *,
     approval_id: str | None = None,
-    **args: object,
+    **args: Any,
 ) -> object:
     """Mirror the exact call both runtime paths make to the choke point.
 

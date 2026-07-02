@@ -455,7 +455,7 @@ async def _invoke_as_agent_path(
     roles: tuple[str, ...],
     *,
     approval_id: str | None = None,
-    **args: object,
+    **args: Any,
 ) -> object:
     """Mirror the exact call both runtime paths make to the choke point (see
     ``test_rbac_invariant.py::_invoke_as_agent_path``)."""
