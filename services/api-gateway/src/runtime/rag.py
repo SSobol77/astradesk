@@ -36,6 +36,7 @@ import os
 from typing import Any, Protocol
 
 import torch  # PyTorch 2.9 for embeddings and torch.compile
+from astradesk_core.redaction import safe_preview  # Emitter-boundary redaction
 from opa_client.opa import OpaClient  # OPA for governance
 from opentelemetry import trace  # AstraOps/OTel tracing
 from pydantic import BaseModel, ValidationError  # Pydantic v2.9+ for models
@@ -327,7 +328,10 @@ class RAG:
         k = k or self.config.k
 
         with self.tracer.start_as_current_span('rag.retrieve') as span:
-            span.set_attribute('query', query)
+            # The raw query is used in-memory for embedding/BM25, but must be
+            # redacted before it becomes a span attribute (INV-PII-1). RAG
+            # query traces are a named leak surface in ISSUES_NEW-04.
+            span.set_attribute('query_preview', safe_preview(query, 100))
             span.set_attribute('agent_name', agent_name)
             span.set_attribute('k', k)
             span.set_attribute('use_reflection', use_reflection)

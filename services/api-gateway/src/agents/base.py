@@ -44,6 +44,7 @@ from pydantic import BaseModel
 from runtime.authz import approval_from_mapping
 from runtime.memory import Memory
 from runtime.models import ToolCall
+from runtime.pii import safe_preview
 from runtime.planner import KeywordPlanner
 from runtime.policy import policy as opa_policy
 from runtime.rag import RAG
@@ -211,7 +212,9 @@ class BaseAgent(ABC):
         """
         with self.tracer.start_as_current_span('agent_run') as span:
             span.set_attribute('agent_name', self.agent_name)
-            span.set_attribute('query', query)
+            # Raw user query must be redacted before reaching the span
+            # (INV-PII-1/INV-PII-4).
+            span.set_attribute('query_preview', safe_preview(query, 100))
 
             # Generate initial plan with retries
             initial_plan = None

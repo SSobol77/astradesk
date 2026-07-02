@@ -24,6 +24,7 @@ import logging
 import re
 from typing import Any
 
+from astradesk_core.redaction import redact_text, safe_preview
 from opa_client.opa import OpaClient
 from opentelemetry import trace
 from pydantic import BaseModel, Field, ValidationError
@@ -68,10 +69,14 @@ class ProblemDetail(BaseModel):
 
 
 def redact_sensitive(text: str) -> str:
-    """Redacts PII from text before logging."""
-    text = re.sub(r'\b[\w.-]+@[\w.-]+\.\w+\b', '[EMAIL]', text)
-    text = re.sub(r'\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b', '[IP]', text)
-    return text
+    """Redacts PII/secrets from text before logging or egress.
+
+    Delegates to the shared, fail-closed redactor in
+    :mod:`astradesk_core.redaction` so emails, tokens, secret assignments, API
+    keys, private-key markers, IPs, and card/SSN shapes are all covered by one
+    deterministic boundary (``INV-NO-RAW-EGRESS``).
+    """
+    return redact_text(text)
 
 
 async def is_safe_input(
@@ -80,8 +85,10 @@ async def is_safe_input(
 ) -> bool:
     """Checks if input is safe. Async for policy checks."""
     with tracer.start_as_current_span('guardrails.is_safe_input') as span:
-        span.set_attribute('input_preview', text[:50])
         safe_text = redact_sensitive(text)
+        # Preview is derived from the redacted text and bounded; raw input must
+        # never reach the span (INV-PII-1/INV-PII-4).
+        span.set_attribute('input_preview', safe_preview(text, 50))
         normalized = ' '.join(safe_text.lower().split())
 
         if opa_client:

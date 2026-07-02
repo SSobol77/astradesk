@@ -31,6 +31,7 @@ import re
 from typing import Final
 
 import httpx
+from astradesk_core.redaction import safe_preview
 from model_gateway.guardrails import ProblemDetail
 from opa_client.opa import OpaClient
 from opentelemetry import trace
@@ -72,7 +73,9 @@ async def _prom_query(
 ) -> float | None:
     """Executes a single PromQL query with tracing."""
     with tracer.start_as_current_span(f'prometheus.query.{metric_name}') as span:
-        span.set_attribute('query', query)
+        # The PromQL string can embed user-influenced fragments; redact before
+        # it reaches the span (INV-PII-1/INV-PII-4).
+        span.set_attribute('query_preview', safe_preview(query, 120))
         span.set_attribute('service', redact_service_name(service))
 
         try:
@@ -99,7 +102,9 @@ async def metrics(
 ) -> str:
     """Fetches service metrics from Prometheus with full governance and observability."""
     with tracer.start_as_current_span('tool.metrics') as span:
-        span.set_attribute('service', service)
+        # Only allow-listed service names are emitted verbatim; anything else
+        # is redacted before reaching the span (shared boundary, INV-PII-4).
+        span.set_attribute('service', redact_service_name(service))
         span.set_attribute('window', window)
 
         if service not in ALLOWED_SERVICES:

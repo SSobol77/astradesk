@@ -41,6 +41,7 @@ from opentelemetry import trace
 from runtime.authz import approval_from_mapping
 from runtime.memory import Memory
 from runtime.models import ToolCall
+from runtime.pii import safe_preview
 from runtime.planner import KeywordPlanner
 from runtime.policy import policy as opa_policy
 from runtime.rag import RAG, RAGSnippet
@@ -281,7 +282,8 @@ class SupportAgent(BaseAgent):
         user_id = claims.get('user_id', 'unknown')
 
         with self.tracer.start_as_current_span('support.run') as span:
-            span.set_attribute('query', query[:100])
+            # Redact before the preview reaches the span (INV-PII-1).
+            span.set_attribute('query_preview', safe_preview(query, 100))
             span.set_attribute('user_id', user_id)
 
             try:
