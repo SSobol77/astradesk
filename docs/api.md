@@ -252,6 +252,7 @@ Odpowiedź:
 
 * **Readiness (503):** podczas startu API może zwrócić `503` do czasu inicjalizacji połączeń (Postgres/Redis/RAG/Registry).
 * **Audyt:** każde wywołanie agenta jest logowane (Postgres) i emitowane jako event (NATS) — zapis do S3/Elastic realizuje subskrybent „auditor”.
+* **Audyt narzędzi side-effect (ISSUE 019):** każda próba wywołania narzędzia `write`/`execute` przez `ToolRegistry.execute` — dozwolona, odrzucona przez RBAC lub zakończona błędem — jest trwale zapisywana przez skonfigurowany `AuditWriter` (`services/api-gateway/src/runtime/audit.py`), niezależnie od tego, czy krok pochodzi z planera LLM czy ścieżki fallback. Podgląd argumentów jest redagowany współdzielonym mechanizmem NEW-04. Ustawienie `AUDIT_LOG_PATH` włącza trwały zapis do pliku JSON-Lines. **Na wdrożonych warstwach** (`ENVIRONMENT` ∈ `production`/`prod`/`staging`/`stage`; `production` jest wartością domyślną, gdy `ENVIRONMENT` nie jest ustawione) brak `AUDIT_LOG_PATH` przerywa start serwisu (`AuditConfigError`) — audyt nie może po cichu spaść do trybu nietrwałego. Poza warstwami wdrożeniowymi (np. lokalny dev/test z `ENVIRONMENT=dev`) writer in-proces jest dozwolony, z ostrzeżeniem w logu.
 * **Rate limiting:** (opcjonalnie) może zwrócić `429` z nagłówkiem `Retry-After`.
 * **Observability:** zalecane OTel + Prometheus/Grafana, logi w Loki; `reasoning_trace_id` umożliwia korelację.
 

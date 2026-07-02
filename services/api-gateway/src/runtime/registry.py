@@ -114,6 +114,7 @@ from importlib.metadata import entry_points
 from typing import Any
 
 __all__ = [
+    'AuditWriteError',
     'AuthorizationError',
     'RbacDenied',
     'SideEffect',
@@ -126,6 +127,20 @@ __all__ = [
 ]
 
 
+from runtime.audit import (
+    AuditDecision,
+    AuditEvent,
+    AuditWriteError,
+    AuditWriter,
+    ClockFn,
+    EventIdFn,
+    InMemoryAuditWriter,
+    build_args_preview,
+    default_clock,
+    default_event_id,
+    principal_from_claims,
+    tenant_from_claims,
+)
 from runtime.authz import (
     APPROVAL_FIELDS,
     AuthorizationError,
@@ -134,6 +149,7 @@ from runtime.authz import (
     approval_from_mapping,
     authorize_tool,
     coerce_side_effect,
+    normalize_roles,
     roles_from_claims,
     validate_tool_metadata,
 )
@@ -230,10 +246,32 @@ class ToolInfo:
 class ToolRegistry:
     """Prosty, bezpieczny wątkowo rejestr narzędzi dla runtime."""
 
-    def __init__(self) -> None:
-        """Inicjalizacja klasa."""
+    def __init__(
+        self,
+        *,
+        audit_writer: AuditWriter | None = None,
+        audit_event_id: EventIdFn = default_event_id,
+        audit_clock: ClockFn = default_clock,
+    ) -> None:
+        """Inicjalizacja klasa.
+
+        Args:
+            audit_writer: Durable(-compatible) sink for side-effect audit
+                events (ISSUE 019). Defaults to :class:`InMemoryAuditWriter`,
+                which never raises, so existing callers/tests that do not
+                configure a sink keep working unchanged. Production wiring
+                should inject a durable writer (e.g. ``FileAuditWriter``).
+            audit_event_id: Injectable event-id generator (``INV-AUDIT-7``);
+                override in tests for deterministic ids.
+            audit_clock: Injectable UTC clock (``INV-AUDIT-7``); override in
+                tests for deterministic timestamps.
+
+        """
         self._tools: dict[str, ToolInfo] = {}
         self._lock = asyncio.Lock()
+        self._audit_writer: AuditWriter = audit_writer or InMemoryAuditWriter()
+        self._audit_event_id = audit_event_id
+        self._audit_clock = audit_clock
 
     # Mutacje
     async def register(
@@ -355,6 +393,99 @@ class ToolRegistry:
         """Czy narzędzie jest zarejestrowane?"""
         return name in self._tools
 
+    async def _emit_audit(
+        self,
+        *,
+        tool: str,
+        side_effect: SideEffect,
+        decision: AuditDecision,
+        roles: tuple[str, ...],
+        trace_id: str | None,
+        request_id: str | None,
+        tenant_id: str | None,
+        principal_id: str | None,
+        approval_id: str | None,
+        args_preview: dict[str, Any],
+        reason: str | None = None,
+        error_type: str | None = None,
+        fail_closed: bool,
+    ) -> None:
+        """Durably record one audit event (ISSUE 019); fail-closed when asked.
+
+        ``fail_closed`` gates whether a writer failure is escalated into
+        :class:`AuditWriteError` (``INV-AUDIT-5``, ``write``/``execute`` only)
+        or merely logged and swallowed (best-effort, used for the post-execution
+        error record so a tool's real exception is never masked by an audit
+        write problem).
+        """
+        event = AuditEvent(
+            event_id=self._audit_event_id(),
+            timestamp=self._audit_clock(),
+            tool=tool,
+            side_effect=side_effect,
+            decision=decision,
+            roles=roles,
+            trace_id=trace_id,
+            request_id=request_id,
+            tenant_id=tenant_id,
+            principal_id=principal_id,
+            reason=reason,
+            approval_id=approval_id,
+            args_preview=args_preview,
+            error_type=error_type,
+        )
+        try:
+            await self._audit_writer.write(event)
+        except Exception as exc:
+            _logger.critical(
+                "Audit write failed: tool='%s' decision=%s writer=%s: %s",
+                tool,
+                decision.value,
+                type(self._audit_writer).__name__,
+                type(exc).__name__,
+            )
+            if fail_closed:
+                raise AuditWriteError(tool) from exc
+
+    @staticmethod
+    def _strip_meta_kwargs(kwargs: dict[str, Any], sig: inspect.Signature | None) -> dict[str, Any]:
+        """Strip ``claims``/approval meta keys the callable does not declare."""
+        if sig is None:
+            return kwargs
+        meta_keys = [k for k in ('claims', *APPROVAL_FIELDS) if k in kwargs]
+        to_strip = [k for k in meta_keys if k not in sig.parameters]
+        if not to_strip:
+            return kwargs
+        kwargs = dict(kwargs)  # płytka kopia
+        for key in to_strip:
+            kwargs.pop(key, None)
+        return kwargs
+
+    async def _invoke_tool(
+        self,
+        name: str,
+        info: ToolInfo,
+        kwargs: dict[str, Any],
+        *,
+        is_side_effecting: bool,
+        emit: Callable[..., Any],
+    ) -> Any:
+        """Run the tool's callable (sync/async) and audit an ``ERROR`` outcome.
+
+        A writer failure here is best-effort (``fail_closed=False``): the
+        tool's own exception is what the caller needs to see, so an audit
+        write problem is logged but never masks it.
+        """
+        try:
+            if info.is_coroutine:
+                return await info.fn(**kwargs)
+            return await asyncio.to_thread(info.fn, **kwargs)
+        except Exception as exc:  # logujemy, nie maskujemy
+            _logger.exception("Tool '%s' failed: %s", name, exc)
+            if is_side_effecting:
+                await emit(AuditDecision.ERROR, error_type=type(exc).__name__, fail_closed=False)
+            raise
+
     # Wykonanie
     async def execute(
         self,
@@ -362,14 +493,24 @@ class ToolRegistry:
         *,
         roles: Iterable[str] | None = None,
         approval_id: str | None = None,
+        trace_id: str | None = None,
+        request_id: str | None = None,
+        tenant_id: str | None = None,
+        principal_id: str | None = None,
         **kwargs: Any,
     ) -> Any:
-        """Uruchamia narzędzie — jedyny punkt egzekwowania RBAC (ISSUE 016).
+        """Uruchamia narzędzie — jedyny punkt egzekwowania RBAC (ISSUE 016)
+        i durable audytu dla narzędzi side-effecting (ISSUE 019).
 
         This is the single authorization choke point that both the LLM-planned
         and keyword-fallback paths traverse (``INV-DUAL-PATH``). The decision is
         delegated to :func:`runtime.authz.authorize_tool` and made from
-        *normalized roles only*.
+        *normalized roles only*. For ``write``/``execute`` tools, every attempt
+        — denied, allowed, or erroring — is durably recorded through the
+        configured :class:`~runtime.audit.AuditWriter` before the caller
+        observes the outcome (``INV-AUDIT-1``/``INV-AUDIT-2``). ``read`` tools
+        never touch the audit writer, so a broken sink can never block a read
+        (``INV-AUDIT-6``).
 
         Args:
             roles: The principal's normalized roles. When ``None`` (legacy
@@ -381,6 +522,14 @@ class ToolRegistry:
                 ``change_record_id``). ``write``/``execute`` tools are denied
                 (``APPROVAL_REQUIRED``) before execution if none is present
                 (``INV-RBAC-4``).
+            trace_id: Optional OTel/request trace id, recorded on the audit
+                event for incident correlation when supplied (``INV-AUDIT-4``).
+            request_id: Optional request correlation id, recorded on the audit
+                event when supplied.
+            tenant_id: Optional explicit tenant id. When not given, derived
+                from ``claims`` (``tenant``/``tenant_id``) if present.
+            principal_id: Optional explicit safe subject id. When not given,
+                derived from ``claims['sub']`` if present.
 
         Sync/Async:
             - Funkcje asynchroniczne awaitujemy bezpośrednio.
@@ -389,16 +538,49 @@ class ToolRegistry:
         Raises:
             RbacDenied: gdy wywołanie nie jest autoryzowane (przed wykonaniem fn).
             ToolNotFoundError: gdy narzędzie nie istnieje.
+            AuditWriteError: gdy audyt narzędzia side-effecting nie mógł zostać
+                trwale zapisany (``write``/``execute`` fail-closed, ISSUE 019).
             Dowolny wyjątek biznesowy narzędzia (przepuszczamy, ale logujemy).
 
         """
         info = self.get_info(name)
+        is_side_effecting = info.side_effect in _SIDE_EFFECTING
 
         # 1 RBAC choke point (shared by every execution path; fail-closed).
         effective_roles = roles_from_claims(kwargs.get('claims')) if roles is None else roles
         # Approval/change-record id may arrive explicitly or in the invocation
         # arguments/context; the explicit value takes precedence.
         effective_approval_id = approval_id or approval_from_mapping(kwargs)
+
+        # Audit correlation data (ISSUE 019) is captured once, from the
+        # original invocation kwargs, *before* any RBAC decision or meta-kwarg
+        # stripping — so DENIED/ALLOWED/ERROR events for the same call always
+        # report identical roles/principal/tenant/args_preview regardless of
+        # what the tool's own signature does with ``claims``. Only computed
+        # for side-effecting tools; the read-tool path never touches this.
+        audit_fields: dict[str, Any] = {}
+        if is_side_effecting:
+            claims = kwargs.get('claims')
+            audit_fields = {
+                'roles': tuple(sorted(normalize_roles(effective_roles))),
+                'tenant_id': tenant_id or tenant_from_claims(claims),
+                'principal_id': principal_id or principal_from_claims(claims),
+                'args_preview': build_args_preview(kwargs),
+            }
+
+        async def _emit(decision: AuditDecision, *, fail_closed: bool, **overrides: Any) -> None:
+            await self._emit_audit(
+                tool=name,
+                side_effect=info.side_effect,
+                decision=decision,
+                trace_id=trace_id,
+                request_id=request_id,
+                approval_id=effective_approval_id,
+                fail_closed=fail_closed,
+                **audit_fields,
+                **overrides,
+            )
+
         try:
             authorize_tool(
                 tool=name,
@@ -415,30 +597,23 @@ class ToolRegistry:
                 exc.reason.value,
                 list(exc.needed_roles),
             )
+            if is_side_effecting:
+                await _emit(AuditDecision.DENIED, reason=exc.reason.value, fail_closed=True)
             raise
 
         # 2 Czyszczenie kwargs: meta keys ('claims' and the approval fields) are
         #    stripped when the callable does not declare them, so they never leak
         #    into business tool signatures.
-        sig = info.signature
-        if sig is not None:
-            meta_keys = [k for k in ('claims', *APPROVAL_FIELDS) if k in kwargs]
-            to_strip = [k for k in meta_keys if k not in sig.parameters]
-            if to_strip:
-                kwargs = dict(kwargs)  # płytka kopia
-                for key in to_strip:
-                    kwargs.pop(key, None)
+        kwargs = self._strip_meta_kwargs(kwargs, info.signature)
+
+        # 2b Fail-closed pre-execution audit for authorized side-effecting
+        #    attempts (INV-AUDIT-5): the durable ALLOWED record is written
+        #    *before* the tool runs. If the writer fails, the tool function is
+        #    never invoked and AuditWriteError propagates instead.
+        if is_side_effecting:
+            await _emit(AuditDecision.ALLOWED, fail_closed=True)
 
         # 3 Uruchomienie narzędzia obsługa sync/async
-        if info.is_coroutine:
-            try:
-                return await info.fn(**kwargs)
-            except Exception as exc:  # logujemy, nie maskujemy
-                _logger.exception("Async tool '%s' failed: %s", name, exc)
-                raise
-        else:
-            try:
-                return await asyncio.to_thread(info.fn, **kwargs)
-            except Exception as exc:
-                _logger.exception("Sync tool '%s' failed: %s", name, exc)
-                raise
+        return await self._invoke_tool(
+            name, info, kwargs, is_side_effecting=is_side_effecting, emit=_emit
+        )
