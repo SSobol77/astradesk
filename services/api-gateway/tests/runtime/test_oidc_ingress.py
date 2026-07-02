@@ -148,6 +148,16 @@ def test_unknown_kid_denied(verifier, rsa_keypair):
     assert e.value.code == 'invalid_token'
 
 
+def test_bad_signature_error_does_not_embed_raw_token(verifier, rsa_keypair):
+    """AuthError must never carry the raw token text (INV-OIDC-8)."""
+    other = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    token = _mint(other)
+    with pytest.raises(AuthError) as e:
+        verifier.verify(token)
+    assert token not in str(e.value)
+    assert token not in e.value.message
+
+
 def test_subjectless_token_denied(verifier, rsa_keypair):
     private, _ = rsa_keypair
     with pytest.raises(AuthError) as e:
@@ -197,6 +207,19 @@ def test_missing_prod_config_aborts(monkeypatch):
 def test_local_dev_refused_on_deployed_tier(monkeypatch):
     monkeypatch.setenv('AUTH_MODE', 'local-dev')
     monkeypatch.setenv('ENVIRONMENT', 'production')
+    with pytest.raises(AuthConfigError):
+        build_verifier_from_env()
+
+
+def test_unset_environment_defaults_to_deployed_safe(monkeypatch):
+    """ENVIRONMENT absent entirely must behave like ENVIRONMENT=production.
+
+    Unset is the common real-world case (a forgotten/omitted variable), not
+    just an explicit 'production' value, so local-dev must be refused here
+    too (INV-OIDC-2 / INV-OIDC-6 safe default).
+    """
+    monkeypatch.delenv('ENVIRONMENT', raising=False)
+    monkeypatch.setenv('AUTH_MODE', 'local-dev')
     with pytest.raises(AuthConfigError):
         build_verifier_from_env()
 

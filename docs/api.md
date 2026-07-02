@@ -80,6 +80,18 @@ Przykład: `restart_service` wymaga roli `sre`.
 
 > Brak/niepoprawny token - `401 Unauthorized`.
 
+**Weryfikacja tokenu (ISSUE 009):** ingress API Gateway (`astradesk_core.utils.oidc`,
+podłączony w `gateway.auth_dependency.install_verifier()` podczas startu, przed
+inicjalizacją DB/Redis/RAG) weryfikuje podpis przez JWKS, `iss`, `aud`, `exp`,
+`nbf` (jeśli obecne) oraz dopuszczalne algorytmy (`OIDC_ALGORITHMS`, domyślnie
+`RS256`). **Na wdrożonych warstwach** (`ENVIRONMENT` ∈ `production`/`prod`/
+`staging`/`stage`; domyślnie `production`, gdy `ENVIRONMENT` nie jest ustawione)
+brak `OIDC_ISSUER`/`OIDC_AUDIENCE`/`OIDC_JWKS_URL` przerywa start serwisu
+(`AuthConfigError`) — bez fallbacku do słabszego weryfikatora. Tryb
+`AUTH_MODE=local-dev` (symetryczny HS256, `ASTRADESK_DEV_JWT_SECRET`) jest
+jedyną, jawnie nazwaną wygodą lokalną/dev/test/CI i jest odrzucany przy
+starcie na wdrożonej warstwie.
+
 <br>
 
 ---
