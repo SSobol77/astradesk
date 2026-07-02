@@ -399,6 +399,7 @@ make setup
 - **OIDC_ISSUER**: OIDC issuer (e.g. `https://your-issuer.com/`).
 - **OIDC_AUDIENCE**: JWT audience.
 - **OIDC_JWKS_URL**: JWKS URL (e.g. `https://your-issuer.com/.well-known/jwks.json`).
+- **AUDIT_LOG_PATH**: append-only JSON-Lines path for the durable side-effect tool audit trail (ISSUE 019). **Required** when `ENVIRONMENT` is a deployed tier (`production`/`prod`/`staging`/`stage` — `ENVIRONMENT` defaults to `production` when unset): the gateway refuses to start without it (`AuditConfigError`). Outside a deployed tier (e.g. local dev/tests with `ENVIRONMENT=dev`), leaving it unset falls back to a non-durable in-process writer with a startup warning.
 
 Full list in `.env.example`.
 
@@ -1073,7 +1074,7 @@ symlink to the canonical spec so the UI never drifts.
 - **Auth**: OIDC/JWT with JWKS.
 - **RBAC**: Per tool, based on claims.
 - **mTLS**: STRICT via Istio.
-- **Audit**: Logged to Postgres + NATS publish.
+- **Audit**: Logged to Postgres + NATS publish. Every `write`/`execute` tool attempt (allowed, denied, or errored) is additionally recorded through a durable `AuditWriter` at the `ToolRegistry.execute` choke point, on both the LLM-planned and keyword-fallback paths. Deployed tiers (`production`/`prod`/`staging`/`stage`) fail closed at startup without `AUDIT_LOG_PATH`; local/dev/test may fall back to a non-durable in-process writer.
 - **Policies**: Allow-lists in tools, proxy retries.
 
 ## Roadmap

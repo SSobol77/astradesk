@@ -47,6 +47,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from model_gateway.llm_planner import LLMPlanner
 from model_gateway.router import provider_router
 from opa_client.opa import OpaClient
+from runtime.audit import AuditWriter, FileAuditWriter, InMemoryAuditWriter
 from runtime.authz import SideEffect, enforce_registration_invariants
 from runtime.memory import Memory
 from runtime.models import AgentRequest, AgentResponse
@@ -82,6 +83,52 @@ OPA_URL = os.getenv('OPA_URL', 'http://localhost:8181')
 app_state: dict[str, Any] = {}
 
 
+class AuditConfigError(RuntimeError):
+    """Raised at startup when a deployed tier lacks a durable audit sink.
+
+    Mirrors :class:`astradesk_core.utils.oidc.AuthConfigError`: absence of a
+    required security/evidence dependency must abort startup, not silently
+    downgrade to a weaker mode (``INV-FAIL-CLOSED`` / ``INV-LOCAL-MODE-EXPLICIT``,
+    ISSUE 019).
+    """
+
+
+# Tiers considered "deployed" for the audit fail-closed check below — the same
+# values as astradesk_core.utils.oidc's deployed-tier check, kept local rather
+# than importing that module's private constant for an unrelated concern.
+_AUDIT_DEPLOYED_TIERS = frozenset({'production', 'prod', 'staging', 'stage'})
+
+
+def _resolve_audit_writer() -> AuditWriter:
+    """Select the durable audit sink for side-effecting tools (ISSUE 019).
+
+    ``AUDIT_LOG_PATH`` set: always used — an append-only JSON-Lines file,
+    regardless of tier. Unset: allowed only outside a deployed tier.
+    ``ENVIRONMENT`` defaults to ``'production'`` when unset, the same
+    fail-closed default used by
+    :func:`astradesk_core.utils.oidc.build_verifier_from_env`, so a deployed
+    environment can never silently start with a non-durable sink for
+    ``write``/``execute`` tools — it aborts startup instead
+    (``INV-AUDIT-5``/``INV-FAIL-CLOSED``). The error message names only the
+    tier and the missing variable, never a secret.
+    """
+    audit_log_path = os.getenv('AUDIT_LOG_PATH', '').strip()
+    if audit_log_path:
+        return FileAuditWriter(audit_log_path)
+
+    environment = os.getenv('ENVIRONMENT', 'production').strip().lower()
+    if environment in _AUDIT_DEPLOYED_TIERS:
+        raise AuditConfigError(
+            f"AUDIT_LOG_PATH is required on tier '{environment}': refusing to "
+            'start without a durable audit sink for write/execute tools.'
+        )
+    logger.warning(
+        'AUDIT_LOG_PATH not set; using in-process audit writer '
+        '(events do not survive a restart). Do not use this in production.'
+    )
+    return InMemoryAuditWriter()
+
+
 # --- Application Lifespan (Startup/Shutdown) ---
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -90,6 +137,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     logger.info('API Gateway starting up...')
     install_verifier(app)
+    # Fail-closed before any external resource is touched (ISSUE 019): a
+    # deployed tier without a durable audit sink must never start, mirroring
+    # how the OIDC verifier above already aborts before DB/Redis are touched.
+    audit_writer = _resolve_audit_writer()
 
     # --- Initialize connections ---
     # DATABASE_URL/REDIS_URL always resolve (to real values or safe dummy
@@ -108,7 +159,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     opa_client = OpaClient(url=OPA_URL)
 
     # --- Initialize core components ---
-    tool_registry = ToolRegistry()
+    # audit_writer was already resolved fail-closed above, before any
+    # external resource was touched.
+    tool_registry = ToolRegistry(audit_writer=audit_writer)
     # Register built-in tools with mandatory RBAC metadata (ISSUE 016).
     # side_effect + allowed_roles are the source of truth for the choke point;
     # the OIDC layer normalizes identity/roles, RBAC authorizes from those roles.
