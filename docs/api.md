@@ -80,6 +80,18 @@ Przykład: `restart_service` wymaga roli `sre`.
 
 > Brak/niepoprawny token - `401 Unauthorized`.
 
+**Weryfikacja tokenu (ISSUE 009):** ingress API Gateway (`astradesk_core.utils.oidc`,
+podłączony w `gateway.auth_dependency.install_verifier()` podczas startu, przed
+inicjalizacją DB/Redis/RAG) weryfikuje podpis przez JWKS, `iss`, `aud`, `exp`,
+`nbf` (jeśli obecne) oraz dopuszczalne algorytmy (`OIDC_ALGORITHMS`, domyślnie
+`RS256`). **Na wdrożonych warstwach** (`ENVIRONMENT` ∈ `production`/`prod`/
+`staging`/`stage`; domyślnie `production`, gdy `ENVIRONMENT` nie jest ustawione)
+brak `OIDC_ISSUER`/`OIDC_AUDIENCE`/`OIDC_JWKS_URL` przerywa start serwisu
+(`AuthConfigError`) — bez fallbacku do słabszego weryfikatora. Tryb
+`AUTH_MODE=local-dev` (symetryczny HS256, `ASTRADESK_DEV_JWT_SECRET`) jest
+jedyną, jawnie nazwaną wygodą lokalną/dev/test/CI i jest odrzucany przy
+starcie na wdrożonej warstwie.
+
 <br>
 
 ---
@@ -252,6 +264,7 @@ Odpowiedź:
 
 * **Readiness (503):** podczas startu API może zwrócić `503` do czasu inicjalizacji połączeń (Postgres/Redis/RAG/Registry).
 * **Audyt:** każde wywołanie agenta jest logowane (Postgres) i emitowane jako event (NATS) — zapis do S3/Elastic realizuje subskrybent „auditor”.
+* **Audyt narzędzi side-effect (ISSUE 019):** każda próba wywołania narzędzia `write`/`execute` przez `ToolRegistry.execute` — dozwolona, odrzucona przez RBAC lub zakończona błędem — jest trwale zapisywana przez skonfigurowany `AuditWriter` (`services/api-gateway/src/runtime/audit.py`), niezależnie od tego, czy krok pochodzi z planera LLM czy ścieżki fallback. Podgląd argumentów jest redagowany współdzielonym mechanizmem NEW-04. Ustawienie `AUDIT_LOG_PATH` włącza trwały zapis do pliku JSON-Lines. **Na wdrożonych warstwach** (`ENVIRONMENT` ∈ `production`/`prod`/`staging`/`stage`; `production` jest wartością domyślną, gdy `ENVIRONMENT` nie jest ustawione) brak `AUDIT_LOG_PATH` przerywa start serwisu (`AuditConfigError`) — audyt nie może po cichu spaść do trybu nietrwałego. Poza warstwami wdrożeniowymi (np. lokalny dev/test z `ENVIRONMENT=dev`) writer in-proces jest dozwolony, z ostrzeżeniem w logu.
 * **Rate limiting:** (opcjonalnie) może zwrócić `429` z nagłówkiem `Retry-After`.
 * **Observability:** zalecane OTel + Prometheus/Grafana, logi w Loki; `reasoning_trace_id` umożliwia korelację.
 

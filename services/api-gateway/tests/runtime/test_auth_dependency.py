@@ -82,3 +82,14 @@ def test_valid_token_reaches_handler_and_attaches_principal():
     assert resp.status_code == 200
     body = resp.json()
     assert body == {'handler_ran': True, 'sub': 'user-1', 'attached': 'user-1'}
+
+
+def test_401_response_never_echoes_raw_token():
+    """A rejected token must never appear in the response body or headers (INV-OIDC-8)."""
+    secret_token = 'raw-secret-jwt-value-should-never-leak'
+    bad = _FakeVerifier(error=AuthError('invalid_token', f'rejected: {secret_token}'))
+    client = TestClient(_make_app(bad))
+    resp = client.get('/protected', headers={'Authorization': f'Bearer {secret_token}'})
+    assert resp.status_code == 401
+    assert secret_token not in resp.text
+    assert secret_token not in str(resp.headers)

@@ -82,7 +82,9 @@ async def restart_service(
 ) -> str:
     """Restarts a Kubernetes Deployment using rollout restart with full governance."""
     with tracer.start_as_current_span('tool.ops.restart_service') as span:
-        span.set_attribute('service', service)
+        # Emit only allow-listed service names verbatim; redact otherwise so an
+        # unexpected/user-influenced value never reaches the span (INV-PII-4).
+        span.set_attribute('service', redact_service_name(service))
         span.set_attribute('namespace', KUBERNETES_NAMESPACE)
 
         logger.info(f"Restart request for service: '{service}'")

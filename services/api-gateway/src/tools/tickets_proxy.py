@@ -37,6 +37,7 @@ import uuid
 from typing import Any
 
 import httpx
+from astradesk_core.redaction import safe_preview
 from httpx import ConnectError, ConnectTimeout, HTTPStatusError, PoolTimeout, ReadTimeout
 from model_gateway.guardrails import ProblemDetail
 from opa_client.opa import OpaClient
@@ -91,7 +92,13 @@ def _stub_ticket(title: str, description: str) -> str:
 
 
 def redact_ticket_title(title: str) -> str:
-    return title[:30] + '...' if len(title) > 30 else title
+    """Redact PII/secrets from a ticket title, then bound its length.
+
+    Redaction runs through the shared boundary first (so emails/tokens in a
+    title never reach a span), then the result is truncated for brevity.
+    """
+    redacted = safe_preview(title, 10_000)
+    return redacted[:30] + '...' if len(redacted) > 30 else redacted
 
 
 class TicketsError(Exception):
