@@ -16,7 +16,9 @@
 services:
   api:
     build: .
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
       UV_EXTRA_INDEX_URL: "https://download.pytorch.org/whl/cu121"
       UV_INDEX_STRATEGY: "unsafe-best-match"
@@ -42,7 +44,9 @@ services:
     build:
       context: .
       dockerfile: services/admin_api/Dockerfile
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     ports:
       - "8001:8001"
     volumes:
@@ -70,7 +74,9 @@ services:
 
   ticket-adapter:
     build: services/ticket-adapter-java
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     ports:
       - "8082:8081"
     depends_on:
@@ -79,7 +85,9 @@ services:
 
   admin:
     build: services/admin-portal
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     ports:
       - "3000:3000"
     depends_on:
@@ -88,7 +96,9 @@ services:
 
   auditor:
     build: ./services/auditor
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     depends_on:
       nats:
         condition: service_healthy
@@ -96,7 +106,9 @@ services:
 
   mcp:
     build: mcp
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     ports:
       - "8002:8000"
     depends_on:
@@ -212,7 +224,7 @@ services:
       - nats
     environment:
       API_URL: http://api:8000/api/admin/v1
-      API_TOKEN: "${API_TOKEN}"
+      API_TOKEN: "${API_TOKEN:-}"
 
   domain-finance:
     build: packages/domain-finance
@@ -220,7 +232,7 @@ services:
       - api
     environment:
       API_URL: http://api:8000/api/admin/v1
-      API_TOKEN: "${API_TOKEN}"
+      API_TOKEN: "${API_TOKEN:-}"
 
   domain-finance-java:
     build: packages/domain-finance
@@ -229,7 +241,7 @@ services:
       - api
     environment:
       API_URL: http://api:8000/api/admin/v1
-      API_TOKEN: "${API_TOKEN}"
+      API_TOKEN: "${API_TOKEN:-}"
 
   domain-finance-grpc:
     build: packages/domain-finance
@@ -239,7 +251,7 @@ services:
       - api
     environment:
       API_URL: http://api:8000/api/admin/v1
-      API_TOKEN: "${API_TOKEN}"
+      API_TOKEN: "${API_TOKEN:-}"
 
   domain-supply:
     build: packages/domain-supply
@@ -247,7 +259,7 @@ services:
       - api
     environment:
       API_URL: http://api:8000/api/admin/v1
-      API_TOKEN: "${API_TOKEN}"
+      API_TOKEN: "${API_TOKEN:-}"
 
   domain-supply-java:
     build: packages/domain-supply
@@ -256,7 +268,7 @@ services:
       - api
     environment:
       API_URL: http://api:8000/api/admin/v1
-      API_TOKEN: "${API_TOKEN}"
+      API_TOKEN: "${API_TOKEN:-}"
 
   domain-supply-grpc:
     build: packages/domain-supply
@@ -266,7 +278,7 @@ services:
       - api
     environment:
       API_URL: http://api:8000/api/admin/v1
-      API_TOKEN: "${API_TOKEN}"
+      API_TOKEN: "${API_TOKEN:-}"
 
 volumes:
   postgres_data:
