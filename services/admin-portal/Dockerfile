@@ -16,12 +16,14 @@
 ARG NEXT_PUBLIC_API_BASE_URL="http://localhost:8080/api/admin/v1"
 ARG NEXT_PUBLIC_SIMULATION_MODE="false"
 
-FROM node:22-alpine AS deps
+# node:22-alpine (pinned by digest)
+FROM node@sha256:16e22a550f3863206a3f701448c45f7912c6896a62de43add43bb9c86130c3e2 AS deps
 WORKDIR /app
-COPY services/admin-portal/package.json services/admin-portal/package-lock.json* ./
-RUN npm install && npm cache clean --force
+COPY services/admin-portal/package.json services/admin-portal/package-lock.json ./
+RUN npm ci && npm cache clean --force
 
-FROM node:22-alpine AS build
+# node:22-alpine (pinned by digest)
+FROM node@sha256:16e22a550f3863206a3f701448c45f7912c6896a62de43add43bb9c86130c3e2 AS build
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 ARG NEXT_PUBLIC_API_BASE_URL
@@ -33,7 +35,8 @@ COPY services/admin-portal/ ./
 COPY openapi/astradesk-admin.v1.yaml ./OpenAPI.yaml
 RUN npm run build
 
-FROM node:22-alpine AS runner
+# node:22-alpine (pinned by digest)
+FROM node@sha256:16e22a550f3863206a3f701448c45f7912c6896a62de43add43bb9c86130c3e2 AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -45,6 +48,12 @@ COPY --from=build /app/.next/standalone ./standalone
 COPY --from=build /app/.next/static ./standalone/.next/static
 COPY --from=build /app/public ./standalone/public
 COPY services/admin-portal/package.json ./standalone/package.json
+
+# Fixed numeric non-root UID/GID (INV-BUILD-3). The official node:22-alpine
+# image already ships a `node` user/group at 1000:1000; reuse it explicitly.
+RUN chown -R 1000:1000 /app/standalone
+
 WORKDIR /app/standalone
+USER 1000:1000
 EXPOSE 3000
 CMD ["node", "server.js"]

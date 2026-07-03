@@ -13,47 +13,73 @@
 # AstraDesk is licensed under the GNU General Public License version 2 only.
 # See the LICENSE file in the project root for the full license text.
 
-FROM python:3.11-slim
+# Build context is the repository root (uv workspace root); see docker-compose.dev.yml.
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+# uv 0.11.24 (pinned by digest; no pip install path)
+FROM ghcr.io/astral-sh/uv@sha256:99ea34acedc870ba4ad11a1f540a1c04267c9f30aadc465a94406f52dfda2c36 AS uv
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+# --- Builder Stage ---
+# python:3.13-slim (pinned by digest)
+FROM python@sha256:eb43ff125d8d58d7449dcba7d336c23bcac412f526d861db493b9994d8010280 AS builder
 
-# Create non-root user
-RUN groupadd -r astradesk && useradd -r -g astradesk astradesk
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_CACHE_DIR="/uv-cache"
 
-# Set work directory
 WORKDIR /app
 
-# Copy requirements
-COPY packages/domain-finance/requirements.txt .
+COPY --from=uv /uv /uvx /usr/local/bin/
 
-# Install Python dependencies
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copy application code
-COPY packages/domain-finance/ ./
+# uv workspace manifest + lock, plus every member (uv validates the whole
+# workspace graph against uv.lock even when syncing a single --package).
+COPY pyproject.toml uv.lock ./
+COPY core ./core
+COPY services/api-gateway ./services/api-gateway
+COPY services/auditor ./services/auditor
+COPY services/admin_api ./services/admin_api
+COPY packages/ ./packages/
 
-# Change ownership to non-root user
-RUN chown -R astradesk:astradesk /app
+RUN --mount=type=cache,target=/uv-cache \
+    uv sync --frozen --no-dev --package astradesk-domain-finance
 
-# Switch to non-root user
-USER astradesk
+# --- Runtime Stage ---
+# python:3.13-slim (pinned by digest; must match the builder stage above)
+FROM python@sha256:eb43ff125d8d58d7449dcba7d336c23bcac412f526d861db493b9994d8010280 AS runtime
 
-# Health check
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_LINK_MODE=copy
+
+WORKDIR /app
+
+# curl is required by the HEALTHCHECK below. Fixed numeric non-root UID/GID
+# (INV-BUILD-3) created here since it does not depend on the app files below.
+RUN apt-get update && apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/* && \
+    groupadd -g 10001 astradesk && \
+    useradd -u 10001 -g 10001 -M -s /usr/sbin/nologin astradesk
+
+# Copy virtual env from builder
+COPY --from=builder /app/.venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Copy application code. `core` must also be present: astradesk-core is
+# installed as an editable workspace member pointing back to /app/core/src.
+COPY packages/domain-finance /app/packages/domain-finance
+COPY core /app/core
+
+RUN chown -R 10001:10001 /app
+
+USER 10001:10001
+
+# Health check (mcp_server.py binds this port internally)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:8003/health || exit 1
 
-# Expose port
-EXPOSE 8000
+EXPOSE 8003
 
-# Start application
-CMD ["python", "tools/mcp_server.py"]
+CMD ["python", "-m", "domain_finance.tools.mcp_server"]

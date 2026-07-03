@@ -13,12 +13,12 @@
 # AstraDesk is licensed under the GNU General Public License version 2 only.
 # See the LICENSE file in the project root for the full license text.
 
-version: '3.8'
-
 services:
-  # PostgreSQL Database
+  # PostgreSQL Database (pgvector/pgvector:pg18, pinned by digest — same
+  # engine baseline as docker-compose.yml's `db`; migrations/0001_init_pgvector.sql
+  # requires the `vector` extension, which vanilla postgres:*-alpine lacks).
   postgres:
-    image: postgres:17-alpine
+    image: pgvector/pgvector@sha256:212765b63c1462883de295c4c415edcd22191b8d8d46853e86ad05d4b577a4cb
     environment:
       POSTGRES_DB: astradesk
       POSTGRES_USER: astradesk
@@ -26,7 +26,11 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # pg18+ images store data under a version-specific subdirectory of
+      # /var/lib/postgresql itself (pg_ctlcluster-compatible layout) — mounting
+      # at the old .../data path leaves the volume "unused" and the container
+      # exits at startup. See https://github.com/docker-library/postgres/pull/1259.
+      - postgres_data:/var/lib/postgresql
       - ./migrations:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U astradesk"]
@@ -34,9 +38,9 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis Cache
+  # Redis Cache (redis:8.2.2, pinned by digest — matches docker-compose.yml baseline)
   redis:
-    image: redis:8-alpine
+    image: redis@sha256:4521b581dbddea6e7d81f8fe95ede93f5648aaa66a9dacd581611bf6fe7527bd
     ports:
       - "6379:6379"
     command: redis-server --appendonly yes
@@ -48,9 +52,10 @@ services:
       timeout: 5s
       retries: 5
 
-  # NATS Message Queue
+  # NATS Message Queue (nats:2.12.1-alpine, pinned by digest — matches
+  # docker-compose.yml baseline)
   nats:
-    image: nats:2.10-alpine
+    image: nats@sha256:b3f2bd84176ae7bd0afa9c48a00f06d7d0818ff4aaee898e4172e0b8340e5816
     ports:
       - "4222:4222"
       - "8222:8222"
@@ -61,9 +66,10 @@ services:
       timeout: 5s
       retries: 5
 
-  # Prometheus Monitoring
+  # Prometheus Monitoring (prom/prometheus:v3.7.1, pinned by digest — matches
+  # docker-compose.yml baseline)
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus@sha256:ff7e389acbe064a4823212a500393d40a28a8f362e4b05cbf6742a9a3ef736b2
     ports:
       - "9090:9090"
     volumes:
@@ -77,9 +83,11 @@ services:
       - '--storage.tsdb.retention.time=200h'
       - '--web.enable-lifecycle'
 
-  # Grafana Dashboard
+  # Grafana Dashboard — dev-only UI helper, out of the runtime-critical path;
+  # pinned to grafana:13.0.3 by digest for hygiene even though the invariant
+  # only requires this for runtime-critical services.
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana@sha256:1a345428a36270f5fb9add69fea71450a5843c15266c99359d6d380470ab19c9
     ports:
       - "3000:3000"
     environment:
@@ -122,81 +130,87 @@ services:
       retries: 3
     command: ["uvicorn", "services.api_gateway.src.gateway.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
-  # MCP Support Server
+  # MCP Support Server (mcp_server.py binds :8001 internally, see
+  # packages/domain-support/src/domain_support/tools/mcp_server.py)
   mcp-support:
     build:
       context: .
       dockerfile: packages/domain-support/Dockerfile
     ports:
-      - "8001:8000"
+      - "8001:8001"
     environment:
       - LOG_LEVEL=INFO
       - ENVIRONMENT=development
     volumes:
       - ./packages/domain-support:/app
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  # MCP Ops Server
+  # MCP Ops Server (mcp_server.py binds :8002 internally, see
+  # packages/domain-ops/src/domain_ops/tools/mcp_server.py)
   mcp-ops:
     build:
       context: .
       dockerfile: packages/domain-ops/Dockerfile
     ports:
-      - "8002:8000"
+      - "8002:8002"
     environment:
       - LOG_LEVEL=INFO
       - ENVIRONMENT=development
     volumes:
       - ./packages/domain-ops:/app
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  # MCP Finance Server
+  # MCP Finance Server (mcp_server.py binds :8003 internally, see
+  # packages/domain-finance/src/domain_finance/tools/mcp_server.py)
   mcp-finance:
     build:
       context: .
       dockerfile: packages/domain-finance/Dockerfile
     ports:
-      - "8003:8000"
+      - "8003:8003"
     environment:
       - LOG_LEVEL=INFO
       - ENVIRONMENT=development
     volumes:
       - ./packages/domain-finance:/app
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  # MCP Supply Chain Server
+  # MCP Supply Chain Server (mcp_server.py binds :8004 internally, see
+  # packages/domain-supply/src/domain_supply/tools/mcp_server.py)
   mcp-supply:
     build:
       context: .
       dockerfile: packages/domain-supply/Dockerfile
     ports:
-      - "8004:8000"
+      - "8004:8004"
     environment:
       - LOG_LEVEL=INFO
       - ENVIRONMENT=development
     volumes:
       - ./packages/domain-supply:/app
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  # Development Database Admin (pgAdmin)
+  # Development Database Admin (pgAdmin) — dev-only UI helper, out of the
+  # runtime-critical path; pinned by digest for hygiene even though the
+  # invariant only requires this for runtime-critical services.
   pgadmin:
-    image: dpage/pgadmin4:latest
+    image: dpage/pgadmin4@sha256:40fa840c5bb7c8463957f1255b01283732c2d8c9396a956d180f8e6c296753b3
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@astradesk.dev
       PGADMIN_DEFAULT_PASSWORD: admin
@@ -207,9 +221,11 @@ services:
     volumes:
       - pgadmin_data:/var/lib/pgadmin
 
-  # Redis Commander (Web UI for Redis)
+  # Redis Commander (Web UI for Redis) — dev-only UI helper, out of the
+  # runtime-critical path; pinned by digest for hygiene even though the
+  # invariant only requires this for runtime-critical services.
   redis-commander:
-    image: rediscommander/redis-commander:latest
+    image: rediscommander/redis-commander@sha256:19cd0c49f418779fa2822a0496c5e6516d0c792effc39ed20089e6268477e40a
     environment:
       - REDIS_HOSTS=local:redis:6379
     ports:

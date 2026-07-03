@@ -75,3 +75,30 @@ supporting databases) inside containers.
 - Health checks failing → inspect individual service logs.
 - Port collisions → adjust published ports in `docker-compose.yml`.
 - Database migrations → run `docker compose exec api uv run python scripts/ingest_docs.py support` as needed.
+
+## Reproducible build baseline (issue #41)
+
+- All Python runtime images build from tracked `pyproject.toml` + the root
+  `uv.lock` (workspace members) via a pinned `ghcr.io/astral-sh/uv` builder
+  stage — never `pip install`, never `requirements.txt`. `mcp/` is a standalone
+  bounded context excluded from the root uv workspace, so it carries its own
+  tracked `mcp/uv.lock`.
+- Every runtime image declares a fixed numeric non-root `USER` (UID/GID
+  `10001:10001` for Python/Java images; `1000:1000` for the Node admin-portal
+  image, reusing the official `node:22-alpine` image's built-in `node`
+  account).
+- Base images, databases, and caches are pinned by digest
+  (`image@sha256:...`), with a comment noting the human-readable tag —
+  `docker:S8431`-style linters flag combining a tag and a digest on one line.
+- `docker-compose.yml` and `docker-compose.dev.yml` share the same pinned
+  `pgvector/pgvector`, `redis`, and `nats` baselines. Dev intentionally uses
+  the `pgvector/pgvector` image (not vanilla `postgres`) because
+  `migrations/0001_init_pgvector.sql` requires the `vector` extension.
+- `kb-service`/`jira-service` in `docker-compose.yml` are opt-in stub
+  placeholders (`profiles: ["no-start"]`). `mcp`'s `depends_on` marks them
+  `required: false` so the default (no-profile) Compose graph validates and
+  starts without them.
+- Run `make verify-build-baseline` (or
+  `uv run python scripts/ci/verify_build_baseline.py`) to check these
+  invariants against tracked files only; it also runs in CI
+  (`.github/workflows/ci.yml`, `.gitlab-ci.yml`).

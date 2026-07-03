@@ -13,7 +13,8 @@
 # AstraDesk is licensed under the GNU General Public License version 2 only.
 # See the LICENSE file in the project root for the full license text.
 
-FROM gradle:9.2.0-jdk21 AS build
+# gradle:9.2.0-jdk21 (pinned by digest)
+FROM gradle@sha256:f73b9e12248ea459a1118f40da095c5305e90e2ebb22b790bcf0bfb9fcb1e39b AS build
 
 WORKDIR /workspace
 
@@ -30,8 +31,17 @@ COPY services/ticket-adapter-java ./services/ticket-adapter-java
 RUN chmod +x gradlew && \
     ./gradlew :services:ticket-adapter-java:bootJar --no-daemon
 
-FROM eclipse-temurin:21-jre
+# eclipse-temurin:21-jre (pinned by digest)
+FROM eclipse-temurin@sha256:d2b9f8f12212cadcfdf889461531784e8fd097feade954d65b31ee7a71c473ec
 WORKDIR /app
 COPY --from=build /workspace/services/ticket-adapter-java/build/libs/*.jar app.jar
+
+# Fixed numeric non-root UID/GID (INV-BUILD-3); eclipse-temurin runs as root
+# by default.
+RUN groupadd -g 10001 astradesk && \
+    useradd -u 10001 -g 10001 -M -s /usr/sbin/nologin astradesk && \
+    chown 10001:10001 app.jar
+
+USER 10001:10001
 EXPOSE 8081
 ENTRYPOINT ["java","-jar","app.jar"]

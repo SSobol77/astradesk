@@ -46,11 +46,15 @@ services:
     ports:
       - "8001:8001"
     volumes:
-      - ./packages:/app/src/packages:ro
+      # NOTE: admin_api resolves its packages dir as `parents[2]` of main.py,
+      # i.e. /app/packages (see services/admin_api/src/astradesk_admin/main.py
+      # and services/admin_api/Dockerfile) — must match the image layout.
+      - ./packages:/app/packages:ro
     restart: unless-stopped
 
   prometheus:
-    image: prom/prometheus:v3.7.1
+    # prom/prometheus:v3.7.1 (pinned by digest; matches dev compose baseline)
+    image: prom/prometheus@sha256:ff7e389acbe064a4823212a500393d40a28a8f362e4b05cbf6742a9a3ef736b2
     ports:
       - "9090:9090"
     volumes:
@@ -98,32 +102,52 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      # kb-service/jira-service are opt-in stub placeholders (profile
+      # "no-start", disabled by default). `required: false` lets Compose
+      # validate and start mcp without them present (INV-BUILD-4/8) —
+      # mcp's clients (mcp/src/clients/{kb,jira}_client.py) already handle
+      # the backing service being unreachable.
       kb-service:
         condition: service_started
+        required: false
       jira-service:
         condition: service_started
+        required: false
     environment:
       - REDIS_URL=redis://redis:6379/0
       - KB_SERVICE_URL=http://kb-service:8000
       - JIRA_SERVICE_URL=http://jira-service:8000
 
+  # Opt-in stub backends for local wiring/testing only (`docker compose
+  # --profile no-start up`); not started by default. Pinned digest instead of
+  # `alpine:latest` per INV-BUILD-5.
   kb-service:
-    image: alpine:latest
+    image: alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
     command: ["sleep", "3600"]
     profiles: ["no-start"]
 
   jira-service:
-    image: alpine:latest
+    image: alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
     command: ["sleep", "3600"]
     profiles: ["no-start"]
+
   db:
-    image: pgvector/pgvector:pg18
+    # pgvector/pgvector:pg18 (pinned by digest; matches dev compose baseline)
+    image: pgvector/pgvector@sha256:212765b63c1462883de295c4c415edcd22191b8d8d46853e86ad05d4b577a4cb
     environment:
       POSTGRES_DB: astradesk
       POSTGRES_USER: astradesk
       POSTGRES_PASSWORD: astrapass
     ports: ["5432:5432"]
-    volumes: [postgres_data:/var/lib/postgresql/data]
+    volumes:
+      # pg18+ images store data under a version-specific subdirectory of
+      # /var/lib/postgresql itself (pg_ctlcluster-compatible layout) — mounting
+      # at the old .../data path leaves the volume "unused" and the container
+      # exits at startup. See https://github.com/docker-library/postgres/pull/1259.
+      - postgres_data:/var/lib/postgresql
+      # Clean-volume bootstrap: postgres runs *.sql here once on first init
+      # (INV-BUILD-5 clean-volume migration path), matching docker-compose.dev.yml.
+      - ./migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U astradesk"]
       interval: 5s
@@ -131,7 +155,8 @@ services:
       retries: 5
 
   mysql:
-    image: mysql:8
+    # mysql:8 (pinned by digest)
+    image: mysql@sha256:d36d39a64cd12a5c1cc9e6aa2bfb5f8d4c81a2f6586e0a04a9ae13939db02209
     environment:
       MYSQL_DATABASE: tickets
       MYSQL_USER: tickets
@@ -148,7 +173,8 @@ services:
       retries: 5
 
   redis:
-    image: redis:8.2.2
+    # redis:8.2.2 (pinned by digest; matches dev compose baseline)
+    image: redis@sha256:4521b581dbddea6e7d81f8fe95ede93f5648aaa66a9dacd581611bf6fe7527bd
     ports:
       - "6379:6379"
     volumes:
@@ -160,7 +186,8 @@ services:
       retries: 5
 
   nats:
-    image: nats:2.12.1-alpine
+    # nats:2.12.1-alpine (pinned by digest; matches dev compose baseline)
+    image: nats@sha256:b3f2bd84176ae7bd0afa9c48a00f06d7d0818ff4aaee898e4172e0b8340e5816
     command:
       - "--jetstream"
       - "--store_dir=/datastore"

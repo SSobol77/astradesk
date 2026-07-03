@@ -30,7 +30,9 @@ __pycache__/
 .uv-cache/
 .mypy_cache/
 .pytest_cache/
+.ruff_cache/
 coverage/
+coverage.xml
 .coverage
 *.cover
 *.lcov
@@ -93,6 +95,7 @@ salt/.srv/
 # Docker and environment
 docker-compose.override.yml
 .dockerignore
+.docker-config/
 .env
 .env.*
 !.env.example

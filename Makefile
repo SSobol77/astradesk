@@ -14,7 +14,7 @@
 # See the LICENSE file in the project root for the full license text.
 
 .ONESHELL:
-.PHONY: help setup install-deps update-deps dev-server quick-test quick-lint test-unit test-integration test-red-team test-harness test test-all lint format format-check license-headers license-check docs docs-serve db-migrate db-seed env-check env-update ci docker-up docker-down docker-logs docker-build clean clean-docker clean-all dev stop logs logs-all health build build-prod deploy-local test-docker ci-local
+.PHONY: help setup install-deps update-deps dev-server quick-test quick-lint test-unit test-integration test-red-team test-harness test test-all lint format format-check license-headers license-check verify-build-baseline docs docs-serve db-migrate db-seed env-check env-update ci docker-up docker-down docker-logs docker-build clean clean-docker clean-all dev stop logs logs-all health build build-prod deploy-local test-docker ci-local
 
 # ------------------------------------------------------------------- #
 # Configurable variables
@@ -149,6 +149,10 @@ license-headers: ## Normalize project-owned license headers and metadata
 license-check: ## Verify project-owned license headers and metadata
 	@$(PYTHON_EXEC) scripts/license_headers.py --check
 
+verify-build-baseline: ## Verify reproducible-build baseline (Dockerfiles, Compose graph, pinning)
+	@echo "Verifying reproducible-build baseline..."
+	@$(PYTHON_EXEC) scripts/ci/verify_build_baseline.py
+
 # -------------------------------------------------------------------#
 # Documentation
 # -------------------------------------------------------------------#
@@ -197,7 +201,7 @@ mcp-all: ## Start all MCP servers
 # -------------------------------------------------------------------#
 # CI / Docker-dependent test path
 # -------------------------------------------------------------------#
-ci: lint test ## Run CI pipeline locally
+ci: lint test verify-build-baseline ## Run CI pipeline locally
 
 test-docker: ## Start required services and run full test suite
 	@echo "Starting services with Docker Compose..."
