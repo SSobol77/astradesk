@@ -30,6 +30,12 @@ Overview
   so the LLM-planned and keyword-fallback paths enforce identically
   (`INV-DUAL-PATH`). `side_effect` is mandatory at registration; a `write`/
   `execute` tool without `allowed_roles` is rejected at registration (fail fast).
+- Fail-closed contextual policy choke point (ISSUE 028): after RBAC passes,
+  `execute()` additionally consults a `runtime.policy_enforcer.PolicyEnforcer`
+  for every `write`/`execute` attempt (and any `read` tool explicitly
+  registered with `policy_governed=True`). A denial or an unavailable policy
+  dependency raises `PolicyDenied` before the tool runs; RBAC is not
+  duplicated by this gate, only composed with it.
 - Unified execution: async callables awaited directly; sync callables executed
   via `asyncio.to_thread`, with exceptions logged and re-raised.
 - Domain Packs: discoverable through `importlib.metadata.entry_points(group="astradesk.pack")`;
@@ -116,6 +122,7 @@ from typing import Any
 __all__ = [
     'AuditWriteError',
     'AuthorizationError',
+    'PolicyDenied',
     'RbacDenied',
     'SideEffect',
     'ToolInfo',
@@ -155,6 +162,14 @@ from runtime.authz import (
 )
 from runtime.authz import (
     SIDE_EFFECTING as _SIDE_EFFECTING,
+)
+from runtime.policy_enforcer import (
+    LocalPolicyEnforcer,
+    PolicyDecision,
+    PolicyDenied,
+    PolicyEnforcer,
+    PolicyReason,
+    PolicyRequest,
 )
 
 # Logowanie
@@ -236,6 +251,9 @@ class ToolInfo:
     allowed_roles: set[str] = field(default_factory=set)
     requires_approval: bool = False
     schema: dict[str, Any] = field(default_factory=dict)
+    # ISSUE 028: opt-in policy governance for a `read` tool. `write`/`execute`
+    # tools are always policy-governed regardless of this flag.
+    policy_governed: bool = False
 
     # Cache techniczny - nie eksponujemy w repr, ustawiany podczas register()
     signature: inspect.Signature | None = field(default=None, repr=False)
@@ -252,6 +270,7 @@ class ToolRegistry:
         audit_writer: AuditWriter | None = None,
         audit_event_id: EventIdFn = default_event_id,
         audit_clock: ClockFn = default_clock,
+        policy_enforcer: PolicyEnforcer | None = None,
     ) -> None:
         """Inicjalizacja klasa.
 
@@ -265,6 +284,14 @@ class ToolRegistry:
                 override in tests for deterministic ids.
             audit_clock: Injectable UTC clock (``INV-AUDIT-7``); override in
                 tests for deterministic timestamps.
+            policy_enforcer: Contextual policy gate (ISSUE 028) consulted for
+                every ``write``/``execute`` attempt (and any ``read`` tool
+                registered with ``policy_governed=True``). Defaults to
+                :class:`~runtime.policy_enforcer.LocalPolicyEnforcer`, a
+                deterministic allow-all, so existing callers/tests that do not
+                configure an enforcer keep working unchanged — exactly like
+                the default audit writer. Production wiring should inject
+                :func:`~runtime.policy_enforcer.build_policy_enforcer_from_env`.
 
         """
         self._tools: dict[str, ToolInfo] = {}
@@ -272,6 +299,7 @@ class ToolRegistry:
         self._audit_writer: AuditWriter = audit_writer or InMemoryAuditWriter()
         self._audit_event_id = audit_event_id
         self._audit_clock = audit_clock
+        self._policy_enforcer: PolicyEnforcer = policy_enforcer or LocalPolicyEnforcer()
 
     # Mutacje
     async def register(
@@ -285,6 +313,7 @@ class ToolRegistry:
         allowed_roles: set[str] | None = None,
         requires_approval: bool = False,
         schema: dict[str, Any] | None = None,
+        policy_governed: bool = False,
         override: bool = False,
     ) -> None:
         """Rejestruje narzędzie; użyj override=True aby zastąpić istniejące.
@@ -298,6 +327,13 @@ class ToolRegistry:
             the approval/change-record gate (``INV-RBAC-4``). All invariants are
             enforced here so a mis-declared tool fails fast at boot, not at the
             first unauthorized call (``INV-FAIL-CLOSED``).
+
+        Policy metadata (ISSUE 028):
+            ``write``/``execute`` tools are always policy-governed. Set
+            ``policy_governed=True`` to additionally subject a ``read`` tool to
+            the same contextual policy check (``INV-POLICY-6``); it is ``False``
+            by default so a broken policy dependency can never block an
+            ordinary read.
 
         Raises:
             ToolRegistrationError: niepoprawna nazwa/funkcja, brakujące lub
@@ -331,6 +367,7 @@ class ToolRegistry:
             allowed_roles=roles,
             requires_approval=effective_requires_approval,
             schema=dict(schema or {}),
+            policy_governed=bool(policy_governed),
         )
 
         # Cache sygnatury i coroutine-ness (tu, zamiast robić to w hot-path execute()).
@@ -486,6 +523,53 @@ class ToolRegistry:
                 await emit(AuditDecision.ERROR, error_type=type(exc).__name__, fail_closed=False)
             raise
 
+    async def _enforce_policy(
+        self,
+        *,
+        name: str,
+        info: ToolInfo,
+        shared_fields: dict[str, Any],
+        trace_id: str | None,
+        request_id: str | None,
+        approval_id: str | None,
+        is_side_effecting: bool,
+        emit: Callable[..., Any],
+    ) -> None:
+        """Contextual policy choke point (ISSUE 028; ``INV-POLICY-1..6``).
+
+        Called after RBAC passes, before any pre-execution audit write, so a
+        policy deny or an unavailable policy dependency prevents the tool from
+        running exactly like an RBAC deny. Never duplicates RBAC's role
+        decision — this gate answers external/contextual governance only.
+
+        Raises:
+            PolicyDenied: on a deny decision or an unavailable/ambiguous
+                policy dependency (fail-closed).
+        """
+        policy_request = PolicyRequest(
+            tool=name,
+            side_effect=info.side_effect,
+            roles=shared_fields['roles'],
+            principal_id=shared_fields['principal_id'],
+            tenant_id=shared_fields['tenant_id'],
+            trace_id=trace_id,
+            request_id=request_id,
+            approval_id=approval_id,
+            args_preview=shared_fields['args_preview'],
+        )
+        try:
+            decision = await self._policy_enforcer.evaluate(policy_request)
+        except Exception as exc:  # fail-closed backstop: never fail open
+            _logger.warning("Policy enforcer raised for tool='%s': %s", name, type(exc).__name__)
+            decision = PolicyDecision(allow=False, reason=PolicyReason.UNAVAILABLE.value)
+
+        if not decision.allow:
+            reason = decision.reason or PolicyReason.DENIED.value
+            _logger.warning("Policy deny: tool='%s' reason=%s", name, reason)
+            if is_side_effecting:
+                await emit(AuditDecision.DENIED, reason=reason, fail_closed=True)
+            raise PolicyDenied(reason, name)
+
     # Wykonanie
     async def execute(
         self,
@@ -499,14 +583,22 @@ class ToolRegistry:
         principal_id: str | None = None,
         **kwargs: Any,
     ) -> Any:
-        """Uruchamia narzędzie — jedyny punkt egzekwowania RBAC (ISSUE 016)
-        i durable audytu dla narzędzi side-effecting (ISSUE 019).
+        """Uruchamia narzędzie — jedyny punkt egzekwowania RBAC (ISSUE 016),
+        kontekstowej polityki (ISSUE 028) i durable audytu dla narzędzi
+        side-effecting (ISSUE 019).
 
         This is the single authorization choke point that both the LLM-planned
-        and keyword-fallback paths traverse (``INV-DUAL-PATH``). The decision is
-        delegated to :func:`runtime.authz.authorize_tool` and made from
-        *normalized roles only*. For ``write``/``execute`` tools, every attempt
-        — denied, allowed, or erroring — is durably recorded through the
+        and keyword-fallback paths traverse (``INV-DUAL-PATH``). RBAC is
+        delegated to :func:`runtime.authz.authorize_tool` and decided from
+        *normalized roles only*; once RBAC passes, the same call additionally
+        consults the configured
+        :class:`~runtime.policy_enforcer.PolicyEnforcer` for ``write``/
+        ``execute`` tools (and any ``read`` tool registered with
+        ``policy_governed=True``) — a policy deny or unavailable dependency
+        raises :class:`~runtime.policy_enforcer.PolicyDenied` before the tool
+        runs (``INV-POLICY-1``/``INV-POLICY-3``/``INV-FAIL-CLOSED``). For
+        ``write``/``execute`` tools, every attempt — RBAC-denied,
+        policy-denied, allowed, or erroring — is durably recorded through the
         configured :class:`~runtime.audit.AuditWriter` before the caller
         observes the outcome (``INV-AUDIT-1``/``INV-AUDIT-2``). ``read`` tools
         never touch the audit writer, so a broken sink can never block a read
@@ -537,6 +629,8 @@ class ToolRegistry:
 
         Raises:
             RbacDenied: gdy wywołanie nie jest autoryzowane (przed wykonaniem fn).
+            PolicyDenied: gdy kontekstowa polityka (ISSUE 028) odmawia lub jest
+                niedostępna (przed wykonaniem fn; fail-closed).
             ToolNotFoundError: gdy narzędzie nie istnieje.
             AuditWriteError: gdy audyt narzędzia side-effecting nie mógł zostać
                 trwale zapisany (``write``/``execute`` fail-closed, ISSUE 019).
@@ -556,17 +650,23 @@ class ToolRegistry:
         # original invocation kwargs, *before* any RBAC decision or meta-kwarg
         # stripping — so DENIED/ALLOWED/ERROR events for the same call always
         # report identical roles/principal/tenant/args_preview regardless of
-        # what the tool's own signature does with ``claims``. Only computed
-        # for side-effecting tools; the read-tool path never touches this.
-        audit_fields: dict[str, Any] = {}
-        if is_side_effecting:
+        # what the tool's own signature does with ``claims``. Computed
+        # whenever the tool is audited (side-effecting) or policy-governed
+        # (ISSUE 028: side-effecting, always, or an explicitly opted-in read
+        # tool) — a plain, unconfigured read tool never touches either.
+        is_policy_governed = is_side_effecting or info.policy_governed
+        shared_fields: dict[str, Any] = {}
+        if is_policy_governed:
             claims = kwargs.get('claims')
-            audit_fields = {
+            shared_fields = {
                 'roles': tuple(sorted(normalize_roles(effective_roles))),
                 'tenant_id': tenant_id or tenant_from_claims(claims),
                 'principal_id': principal_id or principal_from_claims(claims),
                 'args_preview': build_args_preview(kwargs),
             }
+        # Audit (ISSUE 019) stays scoped strictly to side-effecting tools
+        # (INV-AUDIT-6): a policy-governed read tool is never audited.
+        audit_fields = shared_fields if is_side_effecting else {}
 
         async def _emit(decision: AuditDecision, *, fail_closed: bool, **overrides: Any) -> None:
             await self._emit_audit(
@@ -600,6 +700,19 @@ class ToolRegistry:
             if is_side_effecting:
                 await _emit(AuditDecision.DENIED, reason=exc.reason.value, fail_closed=True)
             raise
+
+        # 1b Contextual policy choke point (ISSUE 028; INV-POLICY-1..6).
+        if is_policy_governed:
+            await self._enforce_policy(
+                name=name,
+                info=info,
+                shared_fields=shared_fields,
+                trace_id=trace_id,
+                request_id=request_id,
+                approval_id=effective_approval_id,
+                is_side_effecting=is_side_effecting,
+                emit=_emit,
+            )
 
         # 2 Czyszczenie kwargs: meta keys ('claims' and the approval fields) are
         #    stripped when the callable does not declare them, so they never leak

@@ -1080,6 +1080,7 @@ symlink to the canonical spec so the UI never drifts.
 - **RBAC**: Per tool, based on claims.
 - **mTLS**: STRICT via Istio.
 - **Audit**: Logged to Postgres + NATS publish. Every `write`/`execute` tool attempt (allowed, denied, or errored) is additionally recorded through a durable `AuditWriter` at the `ToolRegistry.execute` choke point, on both the LLM-planned and keyword-fallback paths. Deployed tiers (`production`/`prod`/`staging`/`stage`) fail closed at startup without `AUDIT_LOG_PATH`; local/dev/test may fall back to a non-durable in-process writer.
+- **Policy (OPA, fail-closed)**: A contextual policy gate, independent of RBAC, additionally guards every `write`/`execute` tool attempt (and any `read` tool opted in with `policy_governed=True`) at the same `ToolRegistry.execute` choke point (`runtime.policy_enforcer`, ISSUE 028). Deployed tiers require a real OPA server (`POLICY_MODE=opa` or the safe default) — missing/invalid `OPA_URL` aborts startup, and a denied or unreachable OPA decision at call time denies the tool before it runs. `POLICY_MODE=local` (deterministic allow-all) is refused on deployed tiers. Policy denials are durably audited through the same ISSUE 019 path. Schema-hash negotiation and OPA bundle versioning remain future work (Track B).
 - **Policies**: Allow-lists in tools, proxy retries.
 
 ## Roadmap
@@ -1087,7 +1088,8 @@ symlink to the canonical spec so the UI never drifts.
 - LLM integration (Bedrock/OpenAI/vLLM) with guardrails.
 - Temporal for long-running workflows.
 - RAG evaluations (Ragas).
-- Advanced multi-tenancy & RBAC (OPA).
+- Advanced multi-tenancy.
+- OPA policy-bundle supply chain: schema-hash negotiation and bundle versioning (see `docs/roadmap/issues/ISSUES_028_opa_fail_closed.md`).
 - Full Grafana dashboards with alerts.
 
 ## Contributing
