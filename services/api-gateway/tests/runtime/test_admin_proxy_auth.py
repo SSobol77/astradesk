@@ -24,7 +24,7 @@ leak the raw token.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping, Sequence
 
 import httpx
 import pytest
@@ -58,7 +58,16 @@ class _RecordingAdminClient:
         self.sent_requests: list[httpx.Request] = []
 
     def build_request(
-        self, method: str, url: httpx.URL, headers: object = None, content: object = None
+        self,
+        method: str,
+        url: httpx.URL,
+        headers: httpx.Headers
+        | Mapping[str, str]
+        | Mapping[bytes, bytes]
+        | Sequence[tuple[str, str]]
+        | Sequence[tuple[bytes, bytes]]
+        | None = None,
+        content: object = None,
     ) -> httpx.Request:
         return httpx.Request(method, f'http://admin-api{url}', headers=headers)
 

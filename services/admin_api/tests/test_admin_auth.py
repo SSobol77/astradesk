@@ -29,6 +29,7 @@ from collections.abc import Iterator
 
 import pytest
 from astradesk_core.utils.oidc import AuthConfigError, AuthError, Principal
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 from astradesk_admin.auth import install_verifier
@@ -185,9 +186,10 @@ def test_all_admin_router_routes_reject_unauthenticated_requests(
     ``admin_router``, bypassing the 'admin' gate (INV-ADMIN-AUTH-3/4)."""
     client, _verifier = admin_client
 
-    assert len(admin_router.routes) > 0
+    api_routes = [route for route in admin_router.routes if isinstance(route, APIRoute)]
+    assert len(api_routes) > 0
     checked = 0
-    for route in admin_router.routes:
+    for route in api_routes:
         path = _PATH_PARAM_RE.sub("placeholder", route.path)
         methods = route.methods - {"HEAD", "OPTIONS"}
         method = sorted(methods)[0]
@@ -197,7 +199,7 @@ def test_all_admin_router_routes_reject_unauthenticated_requests(
         ), f"{method} {path} did not require authentication (got {response.status_code})"
         checked += 1
 
-    assert checked == len(admin_router.routes)
+    assert checked == len(api_routes)
 
 
 def test_install_verifier_is_fail_closed_without_oidc_config(
