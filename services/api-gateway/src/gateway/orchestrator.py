@@ -32,8 +32,10 @@ from model_gateway.guardrails import PlanModel
 from model_gateway.llm_planner import LLMPlanner
 from opa_client.opa import OpaClient  # Governance
 from opentelemetry import trace  # AstraOps/OTel
+from runtime.authz import approval_from_mapping
 from runtime.memory import Memory
 from runtime.models import AgentRequest, AgentResponse, ToolCall
+from runtime.pii import attach_classification, safe_preview
 from runtime.registry import ToolRegistry
 
 import asyncpg
@@ -95,7 +97,11 @@ class AgentOrchestrator:
         self.tracer = trace.get_tracer(__name__)
 
     async def run(
-        self, req: AgentRequest, claims: dict[str, Any], request_id: str
+        self,
+        req: AgentRequest,
+        claims: dict[str, Any],
+        request_id: str,
+        roles: tuple[str, ...] = (),
     ) -> AgentResponse:
         """Main execution entrypoint with LLM → Keyword → Fallback strategy.
 
@@ -103,6 +109,10 @@ class AgentOrchestrator:
             req: Incoming agent request.
             claims: JWT claims from auth layer.
             request_id: Unique trace ID.
+            roles: Normalized principal roles from the OIDC layer. These — not the
+                raw claims — feed the RBAC choke point, and they are propagated
+                identically to the LLM-planned and keyword-fallback paths
+                (``INV-DUAL-PATH``).
 
         Returns:
             AgentResponse with output and invoked tools.
@@ -112,11 +122,22 @@ class AgentOrchestrator:
             PolicyViolationError: If OPA denies access.
         """
         with self.tracer.start_as_current_span('orchestrator.run') as span:
+            # Ingress boundary: classify the raw input once and propagate the
+            # classification with the request (INV-PII-2). Only a redacted,
+            # bounded preview reaches the span (INV-PII-1/INV-PII-4).
+            classification = attach_classification(req.input)
             span.set_attribute('request_id', request_id)
             span.set_attribute('agent', req.agent.value)
-            span.set_attribute('input_preview', req.input[:100])
+            span.set_attribute('input_preview', safe_preview(req.input, 100))
+            span.set_attribute('input_classification', sorted(classification))
 
-            context = {**req.meta, 'claims': claims, 'request_id': request_id}
+            context = {
+                **req.meta,
+                'claims': claims,
+                'roles': tuple(roles),
+                'request_id': request_id,
+                'data_classification': sorted(classification),
+            }
             memory = Memory(self.pg_pool, self.redis)
 
             # Try LLM path first
@@ -178,10 +199,18 @@ class AgentOrchestrator:
             if not decision.get('result', False):
                 raise PolicyViolationError(step.name)
 
-            # Execute with timeout
+            # Execute with timeout (RBAC enforced inside tools.execute from
+            # normalized roles + approval id — identical to the keyword-fallback
+            # path). write/execute tools deny without an approval/change record.
             try:
                 result = await asyncio.wait_for(
-                    self.tools.execute(step.name, claims=context['claims'], **step.args),
+                    self.tools.execute(
+                        step.name,
+                        roles=context.get('roles', ()),
+                        approval_id=approval_from_mapping(context),
+                        claims=context['claims'],
+                        **step.args,
+                    ),
                     timeout=30.0,
                 )
             except TimeoutError:

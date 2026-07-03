@@ -34,6 +34,9 @@ dependencies = [
   "uvicorn[standard]>=0.30.0",
   "pydantic[email]>=2.6.0",
   "python-dotenv>=1.0.1",
+  # OIDC/JWT verification (Principal, build_verifier_from_env) reused from the
+  # shared core library rather than reimplemented (NEW-SEC; see ISSUE 009).
+  "astradesk-core",
   # add DB / observability, etc. when needed:
   # "asyncpg>=0.29.0",
   # "opentelemetry-sdk>=1.27.0",

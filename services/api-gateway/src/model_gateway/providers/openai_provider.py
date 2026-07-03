@@ -30,6 +30,7 @@ import os
 from collections.abc import AsyncIterator, Sequence
 
 import httpx
+from astradesk_core.egress import ensure_allowed
 
 from ..base import (
     ChatChunk,
@@ -102,6 +103,9 @@ class OpenAIProvider(LLMProvider):
             )
 
         resolved_base_url = base_url or os.getenv('OPENAI_BASE_URL') or _DEFAULT_OPENAI_BASE_URL
+        # Fail-closed egress governance (INV-PII-3): the model target host must
+        # be on the allow-list. Raises EgressDenied for an unlisted target.
+        ensure_allowed(resolved_base_url, category='model')
         resolved_model = model or os.getenv('OPENAI_MODEL') or _DEFAULT_OPENAI_MODEL
         resolved_timeout = (
             timeout_sec

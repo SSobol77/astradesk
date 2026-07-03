@@ -368,7 +368,62 @@ flowchart LR
 
 ---
 
-## 8.13 Cross-References
+## 8.13 Admin API Defense-in-Depth (NEW-SEC)
+
+The Admin API (`services/admin_api`) and its API Gateway proxy route
+(`/api/admin/v1/{path}`) are each independently guarded. Neither layer trusts
+network placement, Docker Compose isolation, or the other layer's decision as
+a substitute for its own check.
+
+**Layer 1 — API Gateway proxy.** `/api/admin/v1/{path:path}`
+(`services/api-gateway/src/gateway/main.py`) requires an authenticated
+principal (OIDC Bearer JWT, ISSUE 009) with the normalized `admin` role before
+forwarding anything upstream:
+
+- Missing or malformed `Authorization` → `401`, upstream is never called.
+- Authenticated principal without `admin` → `403`, upstream is never called.
+- Authenticated `admin` → the request is proxied. Caller-supplied
+  `X-AstraDesk-*` headers (`X-AstraDesk-Principal`, `X-AstraDesk-Tenant`,
+  `X-AstraDesk-Roles`, and any other `X-AstraDesk-*` header) are stripped
+  before forwarding — **these headers are never a valid authentication
+  mechanism**, only the verified `Authorization` bearer token is. That header
+  is forwarded unchanged, and only because Layer 2 independently re-verifies
+  it (see below) rather than trusting the Gateway's decision.
+
+**Layer 2 — Admin API.** `services/admin_api/src/astradesk_admin/auth.py`
+independently verifies the same Bearer JWT (via the shared
+`astradesk_core.utils.oidc` verifier, ISSUE 009's contract, not a redesign)
+and independently requires the normalized `admin` role, regardless of what
+the Gateway already decided:
+
+- Missing or invalid Bearer JWT → `401`.
+- Authenticated principal without `admin` → `403`.
+- `X-AstraDesk-*` headers are never read as identity by the Admin API; only a
+  verified Bearer JWT establishes a principal.
+
+**Public exceptions.** `GET /health` (liveness/dashboard status — no secrets,
+credentials, or per-user data) and FastAPI's auto-generated `/docs`, `/redoc`,
+`/openapi.json` (API shape only, no live data) remain unauthenticated. Every
+other Admin API operation requires `admin`.
+
+**Contract.** `openapi/astradesk-admin.v1.yaml` declares a `BearerAuth`
+(`http`/`bearer`/`JWT`) security scheme and applies it to every protected
+operation, so the requirement is visible in the OpenAPI contract, not only in
+code.
+
+**Not yet implemented (future hardening).** Service-to-service mTLS and
+Istio `AuthorizationPolicy` between the Gateway and the Admin API remain the
+network-layer requirement described elsewhere in this document (§8.6); this
+defense-in-depth work adds the application-layer guard on top of that and
+does not replace it. Signed internal service-identity tokens (as an
+alternative to the currently-stripped `X-AstraDesk-*` headers) are not
+implemented and are not required for the current invariant set.
+
+<br>
+
+---
+
+## 8.14 Cross-References
 
 - Next: [9. MCP Gateway & Domain Packs](09_mcp_gateway_domain_packs.md)
 

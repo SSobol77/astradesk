@@ -46,7 +46,6 @@ dependencies = [
     "opentelemetry-api>=1.22.0",
     "opentelemetry-sdk>=1.22.0",
     "opentelemetry-instrumentation-fastapi>=0.44b0",
-    "opentelemetry-exporter-jaeger>=1.22.0",
     "tenacity>=8.2.3",
     "cryptography>=42.0.0",
     "python-multipart>=0.0.9",

@@ -14,17 +14,28 @@
 # See the LICENSE file in the project root for the full license text.
 
 """Thread-safe runtime Tool Registry for AstraDesk agents. Provides deterministic
-    registration/lookup/execution of domain tools (actions) with soft RBAC checks,
-    metadata (schema, version, description), and dynamic Domain Pack loading via
-    entry points (`astradesk.pack`).
+    registration/lookup/execution of domain tools (actions) and is the single RBAC
+    choke point (ISSUE 016), with metadata (side_effect, allowed_roles, schema,
+    version, description) and dynamic Domain Pack loading via entry points
+    (`astradesk.pack`).
 
 
 Overview
 --------
-- Metadata-first design: each tool is described by `ToolInfo` (name, version,
-  description, allowed_roles, schema), enabling auditability and UI introspection.
-- Soft RBAC: verifies caller's roles (from `claims`) against `allowed_roles`
-  using `runtime.policy.get_roles` when available (with a safe local fallback).
+- Metadata-first design: each tool is described by `ToolInfo` (name, side_effect,
+  allowed_roles, requires_approval, version, description, schema), enabling
+  auditability and UI introspection.
+- Fail-closed RBAC choke point: `execute()` authorizes every invocation through
+  `runtime.authz.authorize_tool` from *normalized roles* (never raw IdP claims),
+  so the LLM-planned and keyword-fallback paths enforce identically
+  (`INV-DUAL-PATH`). `side_effect` is mandatory at registration; a `write`/
+  `execute` tool without `allowed_roles` is rejected at registration (fail fast).
+- Fail-closed contextual policy choke point (ISSUE 028): after RBAC passes,
+  `execute()` additionally consults a `runtime.policy_enforcer.PolicyEnforcer`
+  for every `write`/`execute` attempt (and any `read` tool explicitly
+  registered with `policy_governed=True`). A denial or an unavailable policy
+  dependency raises `PolicyDenied` before the tool runs; RBAC is not
+  duplicated by this gate, only composed with it.
 - Unified execution: async callables awaited directly; sync callables executed
   via `asyncio.to_thread`, with exceptions logged and re-raised.
 - Domain Packs: discoverable through `importlib.metadata.entry_points(group="astradesk.pack")`;
@@ -33,14 +44,15 @@ Overview
 Responsibilities
 ----------------
 - Registration API:
-  * `register(name, fn, *, description, version, allowed_roles, schema, override)`
+  * `register(name, fn, *, side_effect, description, version, allowed_roles,
+    requires_approval, schema, override)`
   * `unregister(name)`
 - Read/Query API:
-  * `get(name)`, `get_info(name)`, `exists(name)`, `names()`
+  * `get(name)`, `get_info(name)`, `exists(name)`, `names()`, `infos()`
 - Execution:
-  * `execute(name, **kwargs)` — performs RBAC check (if configured), strips
-    meta-kwargs (e.g., `claims`) when not accepted by the callable’s signature,
-    then runs async/sync accordingly.
+  * `execute(name, *, roles=None, approval_id=None, **kwargs)` — authorizes via
+    the shared RBAC choke point (fail-closed), strips meta-kwargs (e.g., `claims`)
+    when not accepted by the callable’s signature, then runs async/sync.
 - Domain Packs:
   * `load_domain_packs()` — discovers and initializes packs; errors of individual
     packs are logged but do not block startup.
@@ -108,7 +120,11 @@ from importlib.metadata import entry_points
 from typing import Any
 
 __all__ = [
+    'AuditWriteError',
     'AuthorizationError',
+    'PolicyDenied',
+    'RbacDenied',
+    'SideEffect',
     'ToolInfo',
     'ToolNotFoundError',
     'ToolRegistrationError',
@@ -118,35 +134,49 @@ __all__ = [
 ]
 
 
-from runtime.policy import get_roles as _policy_get_roles
-
-
-class AuthorizationError(PermissionError):
-    """Registry authorization failure with a stable public exception type."""
-
-
-def get_roles(claims: dict[str, Any] | None) -> list[str]:
-    """Extract roles through runtime policy when available, otherwise use the local parser."""
-    return _policy_get_roles(claims)
-
+from runtime.audit import (
+    AuditDecision,
+    AuditEvent,
+    AuditWriteError,
+    AuditWriter,
+    ClockFn,
+    EventIdFn,
+    InMemoryAuditWriter,
+    build_args_preview,
+    default_clock,
+    default_event_id,
+    principal_from_claims,
+    tenant_from_claims,
+)
+from runtime.authz import (
+    APPROVAL_FIELDS,
+    AuthorizationError,
+    RbacDenied,
+    SideEffect,
+    approval_from_mapping,
+    authorize_tool,
+    coerce_side_effect,
+    normalize_roles,
+    roles_from_claims,
+    validate_tool_metadata,
+)
+from runtime.authz import (
+    SIDE_EFFECTING as _SIDE_EFFECTING,
+)
+from runtime.policy_enforcer import (
+    LocalPolicyEnforcer,
+    PolicyDecision,
+    PolicyDenied,
+    PolicyEnforcer,
+    PolicyReason,
+    PolicyRequest,
+)
 
 # Logowanie
 _logger = logging.getLogger(__name__)
 
 # Utils
 _TOOL_NAME_RE = re.compile(r'^[A-Za-z0-9._-]{1,128}$')
-
-
-def _normalize_roles(value: Any) -> list[str]:
-    """Ujednolica kształt ról do list[str]. Akceptuje str (CSV), list/tuple/set."""
-    if value is None:
-        return []
-    if isinstance(value, str):
-        parts = [p.strip() for p in value.split(',') if p.strip()]
-        return parts or [value]
-    if isinstance(value, list | tuple | set):
-        return [str(v) for v in value]
-    return []
 
 
 def load_domain_packs(registry: ToolRegistry) -> list[tuple[str, Any]]:
@@ -206,14 +236,24 @@ ToolCallable = Callable[..., Any]
 
 @dataclass
 class ToolInfo:
-    """Metadane zarejestrowanego narzędzia runtime."""
+    """Metadane zarejestrowanego narzędzia runtime.
+
+    ``side_effect`` and ``allowed_roles`` are the source of truth for the RBAC
+    choke point (ISSUE 016). ``side_effect`` is mandatory at registration; a
+    ``write``/``execute`` tool must also carry a non-empty ``allowed_roles``.
+    """
 
     name: str
     fn: ToolCallable
+    side_effect: SideEffect
     description: str = ''
     version: str = '1.0.0'
     allowed_roles: set[str] = field(default_factory=set)
+    requires_approval: bool = False
     schema: dict[str, Any] = field(default_factory=dict)
+    # ISSUE 028: opt-in policy governance for a `read` tool. `write`/`execute`
+    # tools are always policy-governed regardless of this flag.
+    policy_governed: bool = False
 
     # Cache techniczny - nie eksponujemy w repr, ustawiany podczas register()
     signature: inspect.Signature | None = field(default=None, repr=False)
@@ -224,10 +264,42 @@ class ToolInfo:
 class ToolRegistry:
     """Prosty, bezpieczny wątkowo rejestr narzędzi dla runtime."""
 
-    def __init__(self) -> None:
-        """Inicjalizacja klasa."""
+    def __init__(
+        self,
+        *,
+        audit_writer: AuditWriter | None = None,
+        audit_event_id: EventIdFn = default_event_id,
+        audit_clock: ClockFn = default_clock,
+        policy_enforcer: PolicyEnforcer | None = None,
+    ) -> None:
+        """Inicjalizacja klasa.
+
+        Args:
+            audit_writer: Durable(-compatible) sink for side-effect audit
+                events (ISSUE 019). Defaults to :class:`InMemoryAuditWriter`,
+                which never raises, so existing callers/tests that do not
+                configure a sink keep working unchanged. Production wiring
+                should inject a durable writer (e.g. ``FileAuditWriter``).
+            audit_event_id: Injectable event-id generator (``INV-AUDIT-7``);
+                override in tests for deterministic ids.
+            audit_clock: Injectable UTC clock (``INV-AUDIT-7``); override in
+                tests for deterministic timestamps.
+            policy_enforcer: Contextual policy gate (ISSUE 028) consulted for
+                every ``write``/``execute`` attempt (and any ``read`` tool
+                registered with ``policy_governed=True``). Defaults to
+                :class:`~runtime.policy_enforcer.LocalPolicyEnforcer`, a
+                deterministic allow-all, so existing callers/tests that do not
+                configure an enforcer keep working unchanged — exactly like
+                the default audit writer. Production wiring should inject
+                :func:`~runtime.policy_enforcer.build_policy_enforcer_from_env`.
+
+        """
         self._tools: dict[str, ToolInfo] = {}
         self._lock = asyncio.Lock()
+        self._audit_writer: AuditWriter = audit_writer or InMemoryAuditWriter()
+        self._audit_event_id = audit_event_id
+        self._audit_clock = audit_clock
+        self._policy_enforcer: PolicyEnforcer = policy_enforcer or LocalPolicyEnforcer()
 
     # Mutacje
     async def register(
@@ -235,16 +307,37 @@ class ToolRegistry:
         name: str,
         fn: ToolCallable,
         *,
+        side_effect: SideEffect | str | None = None,
         description: str = '',
         version: str = '1.0.0',
         allowed_roles: set[str] | None = None,
+        requires_approval: bool = False,
         schema: dict[str, Any] | None = None,
+        policy_governed: bool = False,
         override: bool = False,
     ) -> None:
         """Rejestruje narzędzie; użyj override=True aby zastąpić istniejące.
 
+        RBAC metadata (ISSUE 016):
+            ``side_effect`` is mandatory and must be one of ``read``/``write``/
+            ``execute``. A ``write``/``execute`` tool must declare a non-empty
+            ``allowed_roles`` set, and approval enforcement is forced on for it
+            (``requires_approval`` is set by invariant regardless of the argument)
+            so a side-effecting tool can never be registered in a way that bypasses
+            the approval/change-record gate (``INV-RBAC-4``). All invariants are
+            enforced here so a mis-declared tool fails fast at boot, not at the
+            first unauthorized call (``INV-FAIL-CLOSED``).
+
+        Policy metadata (ISSUE 028):
+            ``write``/``execute`` tools are always policy-governed. Set
+            ``policy_governed=True`` to additionally subject a ``read`` tool to
+            the same contextual policy check (``INV-POLICY-6``); it is ``False``
+            by default so a broken policy dependency can never block an
+            ordinary read.
+
         Raises:
-            ToolRegistrationError: niepoprawna nazwa/funkcja lub konflikt bez override.
+            ToolRegistrationError: niepoprawna nazwa/funkcja, brakujące lub
+                niepoprawne metadane RBAC, lub konflikt bez override.
 
         """
         if not name or not _TOOL_NAME_RE.fullmatch(name):
@@ -254,13 +347,27 @@ class ToolRegistry:
         if not callable(fn):
             raise ToolRegistrationError('fn must be callable')
 
+        roles = set(allowed_roles or set())
+        try:
+            effect = coerce_side_effect(side_effect)
+            validate_tool_metadata(name, effect, roles)
+        except ValueError as exc:
+            raise ToolRegistrationError(str(exc)) from exc
+
+        # Side-effecting tools always require an approval/change record (INV-RBAC-4);
+        # the flag can only ever be strengthened, never relaxed, at registration.
+        effective_requires_approval = bool(requires_approval) or effect in _SIDE_EFFECTING
+
         info = ToolInfo(
             name=name,
             fn=fn,
+            side_effect=effect,
             description=description or '',
             version=version or '1.0.0',
-            allowed_roles=set(allowed_roles or set()),
+            allowed_roles=roles,
+            requires_approval=effective_requires_approval,
             schema=dict(schema or {}),
+            policy_governed=bool(policy_governed),
         )
 
         # Cache sygnatury i coroutine-ness (tu, zamiast robić to w hot-path execute()).
@@ -315,63 +422,311 @@ class ToolRegistry:
         """Lista nazw zarejestrowanych narzędzi."""
         return list(self._tools.keys())
 
+    def infos(self) -> list[ToolInfo]:
+        """Snapshot of all registered tool metadata (for boot-time invariants)."""
+        return list(self._tools.values())
+
     def exists(self, name: str) -> bool:
         """Czy narzędzie jest zarejestrowane?"""
         return name in self._tools
 
-    # Wykonanie
-    async def execute(self, name: str, **kwargs: Any) -> Any:
-        """Uruchamia narzędzie z przekazanymi argumentami.
+    async def _emit_audit(
+        self,
+        *,
+        tool: str,
+        side_effect: SideEffect,
+        decision: AuditDecision,
+        roles: tuple[str, ...],
+        trace_id: str | None,
+        request_id: str | None,
+        tenant_id: str | None,
+        principal_id: str | None,
+        approval_id: str | None,
+        args_preview: dict[str, Any],
+        reason: str | None = None,
+        error_type: str | None = None,
+        fail_closed: bool,
+    ) -> None:
+        """Durably record one audit event (ISSUE 019); fail-closed when asked.
 
-        RBAC:
-            Jeśli ToolInfo.allowed_roles nie jest puste, wymagamy co najmniej jednej
-            roli wspólnej z rolami wyciągniętymi z `claims` (np. z JWT).
+        ``fail_closed`` gates whether a writer failure is escalated into
+        :class:`AuditWriteError` (``INV-AUDIT-5``, ``write``/``execute`` only)
+        or merely logged and swallowed (best-effort, used for the post-execution
+        error record so a tool's real exception is never masked by an audit
+        write problem).
+        """
+        event = AuditEvent(
+            event_id=self._audit_event_id(),
+            timestamp=self._audit_clock(),
+            tool=tool,
+            side_effect=side_effect,
+            decision=decision,
+            roles=roles,
+            trace_id=trace_id,
+            request_id=request_id,
+            tenant_id=tenant_id,
+            principal_id=principal_id,
+            reason=reason,
+            approval_id=approval_id,
+            args_preview=args_preview,
+            error_type=error_type,
+        )
+        try:
+            await self._audit_writer.write(event)
+        except Exception as exc:
+            _logger.critical(
+                "Audit write failed: tool='%s' decision=%s writer=%s: %s",
+                tool,
+                decision.value,
+                type(self._audit_writer).__name__,
+                type(exc).__name__,
+            )
+            if fail_closed:
+                raise AuditWriteError(tool) from exc
+
+    @staticmethod
+    def _strip_meta_kwargs(kwargs: dict[str, Any], sig: inspect.Signature | None) -> dict[str, Any]:
+        """Strip ``claims``/approval meta keys the callable does not declare."""
+        if sig is None:
+            return kwargs
+        meta_keys = [k for k in ('claims', *APPROVAL_FIELDS) if k in kwargs]
+        to_strip = [k for k in meta_keys if k not in sig.parameters]
+        if not to_strip:
+            return kwargs
+        kwargs = dict(kwargs)  # płytka kopia
+        for key in to_strip:
+            kwargs.pop(key, None)
+        return kwargs
+
+    async def _invoke_tool(
+        self,
+        name: str,
+        info: ToolInfo,
+        kwargs: dict[str, Any],
+        *,
+        is_side_effecting: bool,
+        emit: Callable[..., Any],
+    ) -> Any:
+        """Run the tool's callable (sync/async) and audit an ``ERROR`` outcome.
+
+        A writer failure here is best-effort (``fail_closed=False``): the
+        tool's own exception is what the caller needs to see, so an audit
+        write problem is logged but never masks it.
+        """
+        try:
+            if info.is_coroutine:
+                return await info.fn(**kwargs)
+            return await asyncio.to_thread(info.fn, **kwargs)
+        except Exception as exc:  # logujemy, nie maskujemy
+            _logger.exception("Tool '%s' failed: %s", name, exc)
+            if is_side_effecting:
+                await emit(AuditDecision.ERROR, error_type=type(exc).__name__, fail_closed=False)
+            raise
+
+    async def _enforce_policy(
+        self,
+        *,
+        name: str,
+        info: ToolInfo,
+        shared_fields: dict[str, Any],
+        trace_id: str | None,
+        request_id: str | None,
+        approval_id: str | None,
+        is_side_effecting: bool,
+        emit: Callable[..., Any],
+    ) -> None:
+        """Contextual policy choke point (ISSUE 028; ``INV-POLICY-1..6``).
+
+        Called after RBAC passes, before any pre-execution audit write, so a
+        policy deny or an unavailable policy dependency prevents the tool from
+        running exactly like an RBAC deny. Never duplicates RBAC's role
+        decision — this gate answers external/contextual governance only.
+
+        Raises:
+            PolicyDenied: on a deny decision or an unavailable/ambiguous
+                policy dependency (fail-closed).
+        """
+        policy_request = PolicyRequest(
+            tool=name,
+            side_effect=info.side_effect,
+            roles=shared_fields['roles'],
+            principal_id=shared_fields['principal_id'],
+            tenant_id=shared_fields['tenant_id'],
+            trace_id=trace_id,
+            request_id=request_id,
+            approval_id=approval_id,
+            args_preview=shared_fields['args_preview'],
+        )
+        try:
+            decision = await self._policy_enforcer.evaluate(policy_request)
+        except Exception as exc:  # fail-closed backstop: never fail open
+            _logger.warning("Policy enforcer raised for tool='%s': %s", name, type(exc).__name__)
+            decision = PolicyDecision(allow=False, reason=PolicyReason.UNAVAILABLE.value)
+
+        if not decision.allow:
+            reason = decision.reason or PolicyReason.DENIED.value
+            _logger.warning("Policy deny: tool='%s' reason=%s", name, reason)
+            if is_side_effecting:
+                await emit(AuditDecision.DENIED, reason=reason, fail_closed=True)
+            raise PolicyDenied(reason, name)
+
+    # Wykonanie
+    async def execute(
+        self,
+        name: str,
+        *,
+        roles: Iterable[str] | None = None,
+        approval_id: str | None = None,
+        trace_id: str | None = None,
+        request_id: str | None = None,
+        tenant_id: str | None = None,
+        principal_id: str | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        """Uruchamia narzędzie — jedyny punkt egzekwowania RBAC (ISSUE 016),
+        kontekstowej polityki (ISSUE 028) i durable audytu dla narzędzi
+        side-effecting (ISSUE 019).
+
+        This is the single authorization choke point that both the LLM-planned
+        and keyword-fallback paths traverse (``INV-DUAL-PATH``). RBAC is
+        delegated to :func:`runtime.authz.authorize_tool` and decided from
+        *normalized roles only*; once RBAC passes, the same call additionally
+        consults the configured
+        :class:`~runtime.policy_enforcer.PolicyEnforcer` for ``write``/
+        ``execute`` tools (and any ``read`` tool registered with
+        ``policy_governed=True``) — a policy deny or unavailable dependency
+        raises :class:`~runtime.policy_enforcer.PolicyDenied` before the tool
+        runs (``INV-POLICY-1``/``INV-POLICY-3``/``INV-FAIL-CLOSED``). For
+        ``write``/``execute`` tools, every attempt — RBAC-denied,
+        policy-denied, allowed, or erroring — is durably recorded through the
+        configured :class:`~runtime.audit.AuditWriter` before the caller
+        observes the outcome (``INV-AUDIT-1``/``INV-AUDIT-2``). ``read`` tools
+        never touch the audit writer, so a broken sink can never block a read
+        (``INV-AUDIT-6``).
+
+        Args:
+            roles: The principal's normalized roles. When ``None`` (legacy
+                callers) they are derived from ``claims`` via the compatibility
+                adapter; RBAC never inspects raw IdP claim shapes directly.
+            approval_id: Optional explicit approval/change-record id. When not
+                given, one is resolved from the invocation arguments / context via
+                the accepted fields (``approval_id``/``change_record``/
+                ``change_record_id``). ``write``/``execute`` tools are denied
+                (``APPROVAL_REQUIRED``) before execution if none is present
+                (``INV-RBAC-4``).
+            trace_id: Optional OTel/request trace id, recorded on the audit
+                event for incident correlation when supplied (``INV-AUDIT-4``).
+            request_id: Optional request correlation id, recorded on the audit
+                event when supplied.
+            tenant_id: Optional explicit tenant id. When not given, derived
+                from ``claims`` (``tenant``/``tenant_id``) if present.
+            principal_id: Optional explicit safe subject id. When not given,
+                derived from ``claims['sub']`` if present.
 
         Sync/Async:
             - Funkcje asynchroniczne awaitujemy bezpośrednio.
             - Funkcje synchroniczne odpalamy w wątku (`asyncio.to_thread`).
 
         Raises:
-            AuthorizationError: brak wymaganej roli.
+            RbacDenied: gdy wywołanie nie jest autoryzowane (przed wykonaniem fn).
+            PolicyDenied: gdy kontekstowa polityka (ISSUE 028) odmawia lub jest
+                niedostępna (przed wykonaniem fn; fail-closed).
             ToolNotFoundError: gdy narzędzie nie istnieje.
+            AuditWriteError: gdy audyt narzędzia side-effecting nie mógł zostać
+                trwale zapisany (``write``/``execute`` fail-closed, ISSUE 019).
             Dowolny wyjątek biznesowy narzędzia (przepuszczamy, ale logujemy).
 
         """
         info = self.get_info(name)
+        is_side_effecting = info.side_effect in _SIDE_EFFECTING
 
-        # 1 RBAC (jeśli skonfigurowano allowed_roles)
-        if info.allowed_roles:
+        # 1 RBAC choke point (shared by every execution path; fail-closed).
+        effective_roles = roles_from_claims(kwargs.get('claims')) if roles is None else roles
+        # Approval/change-record id may arrive explicitly or in the invocation
+        # arguments/context; the explicit value takes precedence.
+        effective_approval_id = approval_id or approval_from_mapping(kwargs)
+
+        # Audit correlation data (ISSUE 019) is captured once, from the
+        # original invocation kwargs, *before* any RBAC decision or meta-kwarg
+        # stripping — so DENIED/ALLOWED/ERROR events for the same call always
+        # report identical roles/principal/tenant/args_preview regardless of
+        # what the tool's own signature does with ``claims``. Computed
+        # whenever the tool is audited (side-effecting) or policy-governed
+        # (ISSUE 028: side-effecting, always, or an explicitly opted-in read
+        # tool) — a plain, unconfigured read tool never touches either.
+        is_policy_governed = is_side_effecting or info.policy_governed
+        shared_fields: dict[str, Any] = {}
+        if is_policy_governed:
             claims = kwargs.get('claims')
-            roles = set(_normalize_roles(get_roles(claims)))
-            if not roles.intersection(info.allowed_roles):
-                needed = sorted(info.allowed_roles)
-                _logger.warning(
-                    "RBAC deny: tool='%s' user_roles=%s need_any=%s",
-                    name,
-                    sorted(roles),
-                    needed,
-                )
-                raise AuthorizationError(
-                    f"Access denied: need any of roles {needed} for tool '{name}'."
-                )
+            shared_fields = {
+                'roles': tuple(sorted(normalize_roles(effective_roles))),
+                'tenant_id': tenant_id or tenant_from_claims(claims),
+                'principal_id': principal_id or principal_from_claims(claims),
+                'args_preview': build_args_preview(kwargs),
+            }
+        # Audit (ISSUE 019) stays scoped strictly to side-effecting tools
+        # (INV-AUDIT-6): a policy-governed read tool is never audited.
+        audit_fields = shared_fields if is_side_effecting else {}
 
-        # 2 Czyszczenie kwargs:
-        #    'claims' to meta - jeśli funkcja nie przyjmuje 'claims', nie przekazujemy go.
-        sig = info.signature
-        if sig is not None and 'claims' not in sig.parameters and 'claims' in kwargs:
-            kwargs = dict(kwargs)  # płytka kopia
-            kwargs.pop('claims', None)
+        async def _emit(decision: AuditDecision, *, fail_closed: bool, **overrides: Any) -> None:
+            await self._emit_audit(
+                tool=name,
+                side_effect=info.side_effect,
+                decision=decision,
+                trace_id=trace_id,
+                request_id=request_id,
+                approval_id=effective_approval_id,
+                fail_closed=fail_closed,
+                **audit_fields,
+                **overrides,
+            )
+
+        try:
+            authorize_tool(
+                tool=name,
+                side_effect=info.side_effect,
+                allowed_roles=info.allowed_roles,
+                roles=effective_roles,
+                requires_approval=info.requires_approval,
+                approval_id=effective_approval_id,
+            )
+        except RbacDenied as exc:
+            _logger.warning(
+                "RBAC deny: tool='%s' reason=%s need_any=%s",
+                name,
+                exc.reason.value,
+                list(exc.needed_roles),
+            )
+            if is_side_effecting:
+                await _emit(AuditDecision.DENIED, reason=exc.reason.value, fail_closed=True)
+            raise
+
+        # 1b Contextual policy choke point (ISSUE 028; INV-POLICY-1..6).
+        if is_policy_governed:
+            await self._enforce_policy(
+                name=name,
+                info=info,
+                shared_fields=shared_fields,
+                trace_id=trace_id,
+                request_id=request_id,
+                approval_id=effective_approval_id,
+                is_side_effecting=is_side_effecting,
+                emit=_emit,
+            )
+
+        # 2 Czyszczenie kwargs: meta keys ('claims' and the approval fields) are
+        #    stripped when the callable does not declare them, so they never leak
+        #    into business tool signatures.
+        kwargs = self._strip_meta_kwargs(kwargs, info.signature)
+
+        # 2b Fail-closed pre-execution audit for authorized side-effecting
+        #    attempts (INV-AUDIT-5): the durable ALLOWED record is written
+        #    *before* the tool runs. If the writer fails, the tool function is
+        #    never invoked and AuditWriteError propagates instead.
+        if is_side_effecting:
+            await _emit(AuditDecision.ALLOWED, fail_closed=True)
 
         # 3 Uruchomienie narzędzia obsługa sync/async
-        if info.is_coroutine:
-            try:
-                return await info.fn(**kwargs)
-            except Exception as exc:  # logujemy, nie maskujemy
-                _logger.exception("Async tool '%s' failed: %s", name, exc)
-                raise
-        else:
-            try:
-                return await asyncio.to_thread(info.fn, **kwargs)
-            except Exception as exc:
-                _logger.exception("Sync tool '%s' failed: %s", name, exc)
-                raise
+        return await self._invoke_tool(
+            name, info, kwargs, is_side_effecting=is_side_effecting, emit=_emit
+        )

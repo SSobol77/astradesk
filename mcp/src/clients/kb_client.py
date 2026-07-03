@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import httpx
+from astradesk_core.egress import ensure_allowed
 
 
 @dataclass
@@ -64,6 +65,11 @@ class KnowledgeBaseClient:
         Returns:
             List of knowledge base entries
         """
+        # Fail-closed egress governance (INV-PII-3): the KB host must be on the
+        # allow-list before the query (potentially containing user input) is
+        # sent to an external target. An unlisted host raises EgressDenied.
+        ensure_allowed(self.base_url, category='tool')
+
         # Prepare the request payload
         payload = {'query': query, 'top_k': top_k}
 
@@ -99,6 +105,8 @@ class KnowledgeBaseClient:
         Returns:
             KnowledgeBaseEntry if found, None otherwise
         """
+        # Fail-closed egress governance (INV-PII-3) before any external call.
+        ensure_allowed(self.base_url, category='tool')
         try:
             # Make HTTP request to knowledge base API
             response = await self.http_client.get(f'{self.base_url}/entries/{entry_id}')

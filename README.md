@@ -396,9 +396,13 @@ make setup
 - **NATS_URL**: NATS server (e.g. `nats://host:4222`).
 - **TICKETS_BASE_URL**: URL to Java adapter (e.g. `http://ticket-adapter:8081`).
 - **MYSQL_URL**: MySQL JDBC (e.g. `jdbc:mysql://host:3306/db?useSSL=false`).
-- **OIDC_ISSUER**: OIDC issuer (e.g. `https://your-issuer.com/`).
-- **OIDC_AUDIENCE**: JWT audience.
-- **OIDC_JWKS_URL**: JWKS URL (e.g. `https://your-issuer.com/.well-known/jwks.json`).
+- **ENVIRONMENT**: deployment tier. Defaults to `production` when unset — the safe default is deployed-tier behavior. `production`/`prod`/`staging`/`stage` are deployed tiers; anything else (e.g. `dev`, `test`, `local`, `ci`) is non-deployed.
+- **AUTH_MODE**: selects the API Gateway's ingress token verifier (ISSUE 009). Defaults to `production` (JWKS/RS256). `local-dev` is the sole named, non-default local convenience and is refused at startup (`AuthConfigError`) on a deployed tier.
+- **OIDC_ISSUER**: OIDC issuer (e.g. `https://your-issuer.com/`). **Required** in `AUTH_MODE=production`.
+- **OIDC_AUDIENCE**: JWT audience. **Required** in `AUTH_MODE=production`.
+- **OIDC_JWKS_URL**: JWKS URL (e.g. `https://your-issuer.com/.well-known/jwks.json`). **Required** in `AUTH_MODE=production`.
+- **ASTRADESK_DEV_JWT_SECRET**: HS256 secret for `AUTH_MODE=local-dev` only; never read or usable on a deployed tier.
+- **AUDIT_LOG_PATH**: append-only JSON-Lines path for the durable side-effect tool audit trail (ISSUE 019). **Required** when `ENVIRONMENT` is a deployed tier (`production`/`prod`/`staging`/`stage` — `ENVIRONMENT` defaults to `production` when unset): the gateway refuses to start without it (`AuditConfigError`). Outside a deployed tier (e.g. local dev/tests with `ENVIRONMENT=dev`), leaving it unset falls back to a non-durable in-process writer with a startup warning.
 
 Full list in `.env.example`.
 
@@ -409,9 +413,11 @@ Full list in `.env.example`.
 
 ### OIDC/JWT Authentication
 
-- Enabled in both API Gateway and Java Adapter.
-- Use Bearer token in requests: `Authorization: Bearer <token>`.
-- Validation: issuer, audience, signature via JWKS.
+- API Gateway ingress (`POST /v1/run`) requires `Authorization: Bearer <token>`, verified by `astradesk_core.utils.oidc` via `gateway.auth_dependency.install_verifier()`, wired at lifespan startup before DB/Redis/RAG initialization (ISSUE 009).
+- Validation: signature via JWKS, `iss`, `aud`, `exp`, `nbf` (when present), algorithm allow-list (`OIDC_ALGORITHMS`, default `RS256`), and `kid` resolution with one forced JWKS refresh on a signing-key miss (rotation without restart).
+- On a deployed tier (`ENVIRONMENT` ∈ `production`/`prod`/`staging`/`stage`; defaults to `production` when unset) missing `OIDC_ISSUER`/`OIDC_AUDIENCE`/`OIDC_JWKS_URL` aborts startup (`AuthConfigError`) — no fallback to a weaker verifier.
+- `AUTH_MODE=local-dev` (symmetric HS256, keyed by `ASTRADESK_DEV_JWT_SECRET`) is the only local/dev/test/CI convenience; it is a named, non-default mode and is refused at startup on a deployed tier.
+- Verified claims are normalized into a `Principal` (`subject`, `roles`, `scopes`, `claims`) before reaching RBAC (ISSUE 016) — the choke point never inspects raw IdP-specific claim shapes.
 - For Admin Portal: use Auth0 or a similar front-channel flow.
 
 ### RBAC Policies
@@ -1073,15 +1079,23 @@ symlink to the canonical spec so the UI never drifts.
 - **Auth**: OIDC/JWT with JWKS.
 - **RBAC**: Per tool, based on claims.
 - **mTLS**: STRICT via Istio.
-- **Audit**: Logged to Postgres + NATS publish.
+- **Audit**: Logged to Postgres + NATS publish. Every `write`/`execute` tool attempt (allowed, denied, or errored) is additionally recorded through a durable `AuditWriter` at the `ToolRegistry.execute` choke point, on both the LLM-planned and keyword-fallback paths. Deployed tiers (`production`/`prod`/`staging`/`stage`) fail closed at startup without `AUDIT_LOG_PATH`; local/dev/test may fall back to a non-durable in-process writer.
+- **Policy (OPA, fail-closed)**: A contextual policy gate, independent of RBAC, additionally guards every `write`/`execute` tool attempt (and any `read` tool opted in with `policy_governed=True`) at the same `ToolRegistry.execute` choke point (`runtime.policy_enforcer`, ISSUE 028). Deployed tiers require a real OPA server (`POLICY_MODE=opa` or the safe default) — missing/invalid `OPA_URL` aborts startup, and a denied or unreachable OPA decision at call time denies the tool before it runs. `POLICY_MODE=local` (deterministic allow-all) is refused on deployed tiers. Policy denials are durably audited through the same ISSUE 019 path. Schema-hash negotiation and OPA bundle versioning remain future work (Track B).
 - **Policies**: Allow-lists in tools, proxy retries.
+- **Admin API defense-in-depth (NEW-SEC)**: `/api/admin/v1/{path}` requires an
+  authenticated `admin` principal at the API Gateway proxy **before** forwarding, and
+  the Admin API (`services/admin_api`) independently re-verifies the same Bearer JWT
+  and independently requires `admin` — neither layer trusts the other's decision or
+  network placement alone. Part of the security baseline alongside the OIDC/RBAC/audit/
+  policy hardening above; see [docs/en/08_security_governance.md §8.13](docs/en/08_security_governance.md#813-admin-api-defense-in-depth-new-sec).
 
 ## Roadmap
 
 - LLM integration (Bedrock/OpenAI/vLLM) with guardrails.
 - Temporal for long-running workflows.
 - RAG evaluations (Ragas).
-- Advanced multi-tenancy & RBAC (OPA).
+- Advanced multi-tenancy.
+- OPA policy-bundle supply chain: schema-hash negotiation and bundle versioning (see `docs/roadmap/issues/ISSUES_028_opa_fail_closed.md`).
 - Full Grafana dashboards with alerts.
 
 ## Contributing

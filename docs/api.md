@@ -37,6 +37,7 @@ Dokument opisuje publiczne endpointy API Gateway dla systemu **AstraDesk**.
 - [Endpointy](#endpointy)
   - [GET /healthz](#get-healthz)
   - [POST /v1/agents/run](#post-v1agentsrun)
+  - [/api/admin/v1/{path} (proxy Admin API)](#apiadminv1path-proxy-admin-api)
 
 - [Kody błędów](#kody-błędów)
 
@@ -79,6 +80,18 @@ Authorization: Bearer <JWT>
 Przykład: `restart_service` wymaga roli `sre`.
 
 > Brak/niepoprawny token - `401 Unauthorized`.
+
+**Weryfikacja tokenu (ISSUE 009):** ingress API Gateway (`astradesk_core.utils.oidc`,
+podłączony w `gateway.auth_dependency.install_verifier()` podczas startu, przed
+inicjalizacją DB/Redis/RAG) weryfikuje podpis przez JWKS, `iss`, `aud`, `exp`,
+`nbf` (jeśli obecne) oraz dopuszczalne algorytmy (`OIDC_ALGORITHMS`, domyślnie
+`RS256`). **Na wdrożonych warstwach** (`ENVIRONMENT` ∈ `production`/`prod`/
+`staging`/`stage`; domyślnie `production`, gdy `ENVIRONMENT` nie jest ustawione)
+brak `OIDC_ISSUER`/`OIDC_AUDIENCE`/`OIDC_JWKS_URL` przerywa start serwisu
+(`AuthConfigError`) — bez fallbacku do słabszego weryfikatora. Tryb
+`AUTH_MODE=local-dev` (symetryczny HS256, `ASTRADESK_DEV_JWT_SECRET`) jest
+jedyną, jawnie nazwaną wygodą lokalną/dev/test/CI i jest odrzucany przy
+starcie na wdrożonej warstwie.
 
 <br>
 
@@ -139,6 +152,36 @@ Agent wykonuje plan (planner) -> wywołuje niezbędne narzędzia (RBAC) -> final
 Authorization: Bearer <JWT>
 Content-Type: application/json
 ```
+
+<br>
+
+### `/api/admin/v1/{path}` (proxy Admin API)
+
+Reverse proxy do niezależnej usługi Admin API (`services/admin_api`). Obsługuje
+`GET`/`POST`/`PUT`/`DELETE`/`PATCH`/`OPTIONS`. Wymaga uwierzytelnionego
+principala z rolą **`admin`**, sprawdzanej przez Gateway **zanim** żądanie
+zostanie przekazane dalej (NEW-SEC, obrona wielowarstwowa):
+
+- Brak/niepoprawny `Authorization` → `401 Unauthorized`; żądanie **nie**
+  dociera do Admin API.
+- Uwierzytelniony principal bez roli `admin` → `403 Forbidden`; żądanie
+  **nie** dociera do Admin API.
+- Uwierzytelniony `admin` → żądanie jest przekazywane. Nagłówki
+  `X-AstraDesk-*` dostarczone przez klienta (np. `X-AstraDesk-Principal`,
+  `X-AstraDesk-Tenant`, `X-AstraDesk-Roles`) są usuwane przed przekazaniem —
+  **nie są one mechanizmem uwierzytelniania**. Nagłówek `Authorization` jest
+  przekazywany bez zmian, ponieważ Admin API **niezależnie** weryfikuje ten
+  sam token JWT, zamiast ufać decyzji Gateway lub samemu położeniu sieciowemu.
+
+**Endpointy publiczne Admin API** (bez wymogu tokenu): `GET /health` (status
+komponentów — bez sekretów/danych wrażliwych) oraz automatycznie generowane
+`/docs`, `/redoc`, `/openapi.json`. Wszystkie pozostałe operacje (np.
+`/secrets`, `/users`, `/roles`, `/policies`, `/audit`) wymagają roli `admin`
+zweryfikowanej **niezależnie także przez samo Admin API** — nie tylko przez
+Gateway.
+
+Szczegóły i przykłady `curl`: `services/admin_api/README.md` oraz
+[8. Security & Governance §8.13](en/08_security_governance.md#813-admin-api-defense-in-depth-new-sec).
 
 <br>
 
@@ -252,6 +295,7 @@ Odpowiedź:
 
 * **Readiness (503):** podczas startu API może zwrócić `503` do czasu inicjalizacji połączeń (Postgres/Redis/RAG/Registry).
 * **Audyt:** każde wywołanie agenta jest logowane (Postgres) i emitowane jako event (NATS) — zapis do S3/Elastic realizuje subskrybent „auditor”.
+* **Audyt narzędzi side-effect (ISSUE 019):** każda próba wywołania narzędzia `write`/`execute` przez `ToolRegistry.execute` — dozwolona, odrzucona przez RBAC lub zakończona błędem — jest trwale zapisywana przez skonfigurowany `AuditWriter` (`services/api-gateway/src/runtime/audit.py`), niezależnie od tego, czy krok pochodzi z planera LLM czy ścieżki fallback. Podgląd argumentów jest redagowany współdzielonym mechanizmem NEW-04. Ustawienie `AUDIT_LOG_PATH` włącza trwały zapis do pliku JSON-Lines. **Na wdrożonych warstwach** (`ENVIRONMENT` ∈ `production`/`prod`/`staging`/`stage`; `production` jest wartością domyślną, gdy `ENVIRONMENT` nie jest ustawione) brak `AUDIT_LOG_PATH` przerywa start serwisu (`AuditConfigError`) — audyt nie może po cichu spaść do trybu nietrwałego. Poza warstwami wdrożeniowymi (np. lokalny dev/test z `ENVIRONMENT=dev`) writer in-proces jest dozwolony, z ostrzeżeniem w logu.
 * **Rate limiting:** (opcjonalnie) może zwrócić `429` z nagłówkiem `Retry-After`.
 * **Observability:** zalecane OTel + Prometheus/Grafana, logi w Loki; `reasoning_trace_id` umożliwia korelację.
 

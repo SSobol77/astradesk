@@ -50,14 +50,20 @@ Early MCP/tool ecosystems suffered tool-poisoning (a tool's declared schema/desc
 | Bundle version unknown | Deny until a valid versioned bundle loads |
 
 ## Acceptance criteria (Definition of Done)
-- [ ] OPA deployed and health-gated; bundle versioned.
-- [ ] Bypass test: OPA down → side effects denied, not allowed.
-- [ ] Dual-path test: fallback tool call is policy-checked identically.
-- [ ] Schema-hash negotiation enforced; mismatch rejected with audit of both hashes.
-- [ ] Decision + bundle version present in audit records.
+- [x] Policy check moved to the shared `ToolRegistry.execute` choke point (ISSUE 016), so fallback and LLM-planned calls are covered identically.
+- [x] Bypass test: OPA down/unreachable/timeout/ambiguous decision → side effects denied, not allowed (`services/api-gateway/tests/runtime/test_policy_enforcer.py`, `test_policy_choke_point.py`).
+- [x] Dual-path test: fallback tool call is policy-checked identically to the LLM-planned call (`test_policy_choke_point.py::test_dual_path_*`).
+- [x] Deployed-tier fail-closed startup: missing/invalid OPA config aborts process start (`test_policy_startup.py`, `test_policy_enforcer.py::test_deployed_tier_without_opa_url_fails_closed`).
+- [x] Policy denials durably audited through the ISSUE 019 path (`test_policy_choke_point.py::test_policy_denial_emits_durable_audit_event`).
+- [ ] OPA deployed as a tracked workload (sidecar/deployment) + bundle directory; health-gated at the infra level. *(Not implemented here — this issue delivered the application-level enforcer/choke-point/fail-closed contract; standing up the OPA workload itself is a deployment/ops task tracked separately.)*
+- [ ] Policy bundles versioned; bundle version recorded in the audit decision (`INV-OPA-3`). *(Deferred — no bundle-versioning scheme exists yet; out of scope per the rescope below.)*
+- [ ] Schema-hash negotiation enforced; mismatch rejected with audit of both hashes (`INV-SCHEMA-1`). *(Deferred — Track B, see below.)*
 
 ## Verification evidence (artifact)
-OPA-down bypass test log; schema-mismatch rejection test; dual-path policy test.
+`uv run pytest -q services/api-gateway/tests/runtime/test_policy_enforcer.py services/api-gateway/tests/runtime/test_policy_choke_point.py services/api-gateway/tests/runtime/test_policy_startup.py` — OPA-down/timeout/ambiguous-decision fail-closed tests, dual-path policy test, deployed-tier startup fail-closed tests, and durable-audit-of-denial tests.
+
+## Rescope note (v0.3.1 Safety Core)
+Per the Safety Core priority order (CLAUDE.md §19), this pass delivered the deployable, fail-closed, dual-path policy *enforcement contract* at the `ToolRegistry.execute` choke point (`services/api-gateway/src/runtime/policy_enforcer.py`): a `PolicyEnforcer` protocol, a deterministic `LocalPolicyEnforcer` (explicit non-deployed-tier mode), a fail-closed `OpaHttpPolicyEnforcer`, and `build_policy_enforcer_from_env` (fail-closed tier/mode selection, mirroring ISSUE 009/019). Schema-hash negotiation, OPA bundle versioning/supply chain, and AstraCatalog policy versioning were **not** implemented — these remain Track B per the engineering task's non-goals and are tracked as open items above.
 
 ## Out of scope
-Rich policy authoring UX, policy simulation/CI policy tests as a separate suite (Track B).
+Rich policy authoring UX, policy simulation/CI policy tests as a separate suite, OPA bundle supply chain, schema-hash negotiation, AstraCatalog policy versioning (Track B).

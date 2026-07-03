@@ -28,7 +28,7 @@ from __future__ import annotations
 import logging
 import os
 import uuid
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Iterable
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -44,12 +44,16 @@ from agents.ops import OpsAgent
 from agents.support import SupportAgent
 from astradesk_core.utils.oidc import Principal
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
+from fastapi.responses import StreamingResponse
 from model_gateway.llm_planner import LLMPlanner
 from model_gateway.router import provider_router
 from opa_client.opa import OpaClient
+from runtime.audit import AuditWriter, FileAuditWriter, InMemoryAuditWriter
+from runtime.authz import SideEffect, enforce_registration_invariants
 from runtime.memory import Memory
 from runtime.models import AgentRequest, AgentResponse
 from runtime.planner import KeywordPlanner
+from runtime.policy_enforcer import PolicyEnforcer, build_policy_enforcer_from_env
 from runtime.rag import RAG
 from runtime.registry import ToolRegistry, load_domain_packs
 from tools import metrics, ops_actions, tickets_proxy
@@ -58,7 +62,11 @@ import asyncpg
 import redis.asyncio as redis
 
 # AstraDesk imports
-from gateway.auth_dependency import install_verifier, require_authenticated
+from gateway.auth_dependency import (
+    install_verifier,
+    require_admin_role,
+    require_authenticated,
+)
 from gateway.orchestrator import AgentNotFoundError, AgentOrchestrator, PolicyViolationError
 
 # --- Configuration ---
@@ -81,6 +89,52 @@ OPA_URL = os.getenv('OPA_URL', 'http://localhost:8181')
 app_state: dict[str, Any] = {}
 
 
+class AuditConfigError(RuntimeError):
+    """Raised at startup when a deployed tier lacks a durable audit sink.
+
+    Mirrors :class:`astradesk_core.utils.oidc.AuthConfigError`: absence of a
+    required security/evidence dependency must abort startup, not silently
+    downgrade to a weaker mode (``INV-FAIL-CLOSED`` / ``INV-LOCAL-MODE-EXPLICIT``,
+    ISSUE 019).
+    """
+
+
+# Tiers considered "deployed" for the audit fail-closed check below — the same
+# values as astradesk_core.utils.oidc's deployed-tier check, kept local rather
+# than importing that module's private constant for an unrelated concern.
+_AUDIT_DEPLOYED_TIERS = frozenset({'production', 'prod', 'staging', 'stage'})
+
+
+def _resolve_audit_writer() -> AuditWriter:
+    """Select the durable audit sink for side-effecting tools (ISSUE 019).
+
+    ``AUDIT_LOG_PATH`` set: always used — an append-only JSON-Lines file,
+    regardless of tier. Unset: allowed only outside a deployed tier.
+    ``ENVIRONMENT`` defaults to ``'production'`` when unset, the same
+    fail-closed default used by
+    :func:`astradesk_core.utils.oidc.build_verifier_from_env`, so a deployed
+    environment can never silently start with a non-durable sink for
+    ``write``/``execute`` tools — it aborts startup instead
+    (``INV-AUDIT-5``/``INV-FAIL-CLOSED``). The error message names only the
+    tier and the missing variable, never a secret.
+    """
+    audit_log_path = os.getenv('AUDIT_LOG_PATH', '').strip()
+    if audit_log_path:
+        return FileAuditWriter(audit_log_path)
+
+    environment = os.getenv('ENVIRONMENT', 'production').strip().lower()
+    if environment in _AUDIT_DEPLOYED_TIERS:
+        raise AuditConfigError(
+            f"AUDIT_LOG_PATH is required on tier '{environment}': refusing to "
+            'start without a durable audit sink for write/execute tools.'
+        )
+    logger.warning(
+        'AUDIT_LOG_PATH not set; using in-process audit writer '
+        '(events do not survive a restart). Do not use this in production.'
+    )
+    return InMemoryAuditWriter()
+
+
 # --- Application Lifespan (Startup/Shutdown) ---
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -89,6 +143,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     logger.info('API Gateway starting up...')
     install_verifier(app)
+    # Fail-closed before any external resource is touched (ISSUE 019): a
+    # deployed tier without a durable audit sink must never start, mirroring
+    # how the OIDC verifier above already aborts before DB/Redis are touched.
+    audit_writer = _resolve_audit_writer()
+    # Fail-closed before any external resource is touched (ISSUE 028): a
+    # deployed tier without valid policy (OPA) configuration must never
+    # start, mirroring the audit sink and OIDC verifier checks above.
+    policy_enforcer: PolicyEnforcer = build_policy_enforcer_from_env()
+    app_state['policy_enforcer'] = policy_enforcer
 
     # --- Initialize connections ---
     # DATABASE_URL/REDIS_URL always resolve (to real values or safe dummy
@@ -107,19 +170,42 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     opa_client = OpaClient(url=OPA_URL)
 
     # --- Initialize core components ---
-    tool_registry = ToolRegistry()
-    # Register built-in tools
+    # audit_writer/policy_enforcer were already resolved fail-closed above,
+    # before any external resource was touched.
+    tool_registry = ToolRegistry(audit_writer=audit_writer, policy_enforcer=policy_enforcer)
+    # Register built-in tools with mandatory RBAC metadata (ISSUE 016).
+    # side_effect + allowed_roles are the source of truth for the choke point;
+    # the OIDC layer normalizes identity/roles, RBAC authorizes from those roles.
     await tool_registry.register(
-        'get_metrics', metrics.get_metrics, description='Get service performance metrics.'
+        'get_metrics',
+        metrics.get_metrics,
+        side_effect=SideEffect.READ,
+        description='Get service performance metrics.',
     )
     await tool_registry.register(
-        'restart_service', ops_actions.restart_service, description='Restart a service deployment.'
+        'restart_service',
+        ops_actions.restart_service,
+        side_effect=SideEffect.EXECUTE,
+        allowed_roles={'sre'},
+        description='Restart a service deployment.',
     )
     await tool_registry.register(
-        'create_ticket', tickets_proxy.create_ticket, description='Create a support ticket.'
+        'create_ticket',
+        tickets_proxy.create_ticket,
+        side_effect=SideEffect.WRITE,
+        allowed_roles={'it.support', 'sre'},
+        description='Create a support ticket.',
     )
-    # Discover and load tools from external domain packs
+    # Discover and load tools from external domain packs.
     load_domain_packs(tool_registry)
+
+    # Boot-time RBAC invariant: abort startup if any registered tool lacks
+    # side_effect metadata or any side-effecting tool lacks allowed_roles
+    # (fail-closed; catch at boot, not at the first unauthorized call).
+    enforce_registration_invariants(
+        (info.name, info.side_effect, info.allowed_roles, info.requires_approval)
+        for info in tool_registry.infos()
+    )
 
     # llm_planner = LLMPlanner(opa_client=opa_client)
     # rag = RAG(pg_pool=pg_pool, llm_planner=llm_planner)
@@ -167,6 +253,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await app_state['admin_api_client'].aclose()
         logger.info('Admin API client shut down.')
 
+    if 'policy_enforcer' in app_state:
+        aclose = getattr(app_state['policy_enforcer'], 'aclose', None)
+        if callable(aclose):
+            await aclose()
+
     logger.info('Resources cleaned up.')
 
 
@@ -188,17 +279,57 @@ def healthz() -> dict[str, str]:
     return {'status': 'ok'}
 
 
+# Caller-supplied identity headers that must never be trusted from the inbound
+# request: the gateway is the only party permitted to assert them, and only
+# after its own OIDC + RBAC gate has run (INV-ADMIN-AUTH-9/11).
+_SPOOFABLE_HEADER_PREFIX = b'x-astradesk-'
+
+
+def _strip_spoofable_headers(
+    raw_headers: Iterable[tuple[bytes, bytes]],
+) -> list[tuple[bytes, bytes]]:
+    """Drop caller-supplied ``X-AstraDesk-*`` headers before proxying upstream.
+
+    These headers would otherwise let a caller self-assert principal/tenant/role
+    identity to the Admin API out-of-band of the verified bearer token
+    (INV-ADMIN-AUTH-9/11). The ``Authorization`` header is preserved unchanged:
+    it is forwarded only because the caller has already been authenticated and
+    authorized as ``admin`` by :func:`gateway.auth_dependency.require_admin_role`
+    above, and the Admin API independently re-verifies the same JWT
+    (INV-ADMIN-AUTH-10).
+    """
+    return [
+        (name, value)
+        for name, value in raw_headers
+        if not name.lower().startswith(_SPOOFABLE_HEADER_PREFIX)
+    ]
+
+
 @app.api_route(
     '/api/admin/v1/{path:path}',
     methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     tags=['Admin Proxy'],
     summary='Proxy for the Admin API service',
-    description='This endpoint acts as a reverse proxy, forwarding all requests to the separate Admin API microservice.',
+    description=(
+        'Reverse proxy to the Admin API microservice. Requires an authenticated '
+        "principal with the 'admin' role before any request reaches the Admin "
+        'API (NEW-SEC); the Admin API independently re-verifies the same '
+        'bearer token rather than trusting this proxy or network placement.'
+    ),
 )
-async def proxy_to_admin_service(request: Request) -> Response:
+async def proxy_to_admin_service(
+    request: Request,
+    principal: Principal = Depends(require_admin_role),
+) -> Response:
     """
     Reverse proxies all requests for /api/admin/v1 to the Admin API service.
-    It streams the request and response for efficiency.
+
+    Gated by ``require_admin_role`` (INV-ADMIN-AUTH-1/2/5/6): a missing or
+    invalid token is rejected with 401, and an authenticated non-admin caller
+    is rejected with 403 — both before any upstream connection is attempted.
+    Caller-supplied ``X-AstraDesk-*`` identity headers are stripped from the
+    forwarded request; the verified ``Authorization`` header is forwarded
+    unchanged (INV-ADMIN-AUTH-9/10/11).
     """
     client: httpx.AsyncClient | None = app_state.get('admin_api_client')
     if not client:
@@ -217,7 +348,7 @@ async def proxy_to_admin_service(request: Request) -> Response:
     proxied_req = client.build_request(
         method=request.method,
         url=url,
-        headers=request.headers.raw,
+        headers=_strip_spoofable_headers(request.headers.raw),
         content=request.stream(),
     )
 
@@ -230,8 +361,12 @@ async def proxy_to_admin_service(request: Request) -> Response:
             detail='Unable to connect to the Admin API service.',
         )
 
-    # Stream the response back to the client
-    return Response(
+    # Stream the response back to the client. StreamingResponse (not the base
+    # Response) is required here: Starlette's base Response only renders
+    # bytes/memoryview and cannot accept an async-generator body such as
+    # ``aiter_bytes()`` — using it would raise on every successful proxy call,
+    # independent of authentication.
+    return StreamingResponse(
         content=proxied_resp.aiter_bytes(),
         status_code=proxied_resp.status_code,
         headers=proxied_resp.headers,
@@ -266,7 +401,12 @@ async def execute_agent(
     request_id = request.headers.get('X-Request-ID', str(uuid.uuid4()))
 
     try:
-        response = await orchestrator.run(agent_request, dict(principal.claims), request_id)
+        response = await orchestrator.run(
+            agent_request,
+            dict(principal.claims),
+            request_id,
+            roles=tuple(principal.roles),
+        )
         return response
     except AgentNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

@@ -58,12 +58,16 @@ test:python:
   variables:
     UV_CACHE_DIR: "/uv-cache"
   before_script:
-    - pip install --no-cache-dir uv==0.4.16
+    # uv acquired via the official installer script (no pip install path),
+    # pinned to the same version as the Dockerfiles' ghcr.io/astral-sh/uv pin.
+    - curl -LsSf https://astral.sh/uv/0.11.24/install.sh | sh
+    - export PATH="$HOME/.local/bin:$PATH"
     - uv sync --all-extras --frozen
   script:
     - uv run ruff check .
     - uv run mypy .
     - uv run pytest --cov=src --cov-report=xml --cov-report=term-missing -q
+    - uv run python scripts/ci/verify_build_baseline.py
   artifacts:
     paths:
       - coverage.xml

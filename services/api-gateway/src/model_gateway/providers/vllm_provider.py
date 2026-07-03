@@ -47,6 +47,7 @@ import os
 from collections.abc import AsyncIterator, Sequence
 
 import httpx
+from astradesk_core.egress import ensure_allowed
 
 from ..base import (
     ChatChunk,
@@ -79,6 +80,9 @@ class VLLMProvider(LLMProvider):
         # Sprawdź, czy VLLM_MODEL jest ustawione
         if not VLLM_MODEL:
             raise ModelGatewayError('VLLM_MODEL environment variable is required', provider='vllm')
+
+        # Fail-closed egress governance (INV-PII-3): deny an unlisted vLLM host.
+        ensure_allowed(VLLM_BASE_URL, category='model')
 
         headers = {}
         if VLLM_API_KEY:

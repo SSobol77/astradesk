@@ -13,8 +13,12 @@
 # AstraDesk is licensed under the GNU General Public License version 2 only.
 # See the LICENSE file in the project root for the full license text.
 
+# uv 0.11.24 (pinned by digest; no pip install path)
+FROM ghcr.io/astral-sh/uv@sha256:99ea34acedc870ba4ad11a1f540a1c04267c9f30aadc465a94406f52dfda2c36 AS uv
+
 # --- Builder Stage ---
-FROM python:3.13-slim AS builder
+# python:3.13-slim (pinned by digest)
+FROM python@sha256:eb43ff125d8d58d7449dcba7d336c23bcac412f526d861db493b9994d8010280 AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -24,8 +28,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install uv + build tools
-RUN pip install --no-cache-dir uv==0.4.16
+# uv binary copied from the pinned official uv image (no pip install path).
+COPY --from=uv /uv /uvx /usr/local/bin/
 
 # System deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -46,7 +50,8 @@ RUN --mount=type=cache,target=/uv-cache \
     uv sync --all-extras --frozen
 
 # --- Runtime Stage ---
-FROM python:3.13-slim AS runtime
+# python:3.13-slim (pinned by digest; must match the builder stage above)
+FROM python@sha256:eb43ff125d8d58d7449dcba7d336c23bcac412f526d861db493b9994d8010280 AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -72,13 +77,14 @@ COPY core /app/core
 COPY packages ./packages
 
 # --- Security & Hardening ---
-# Create non-root user
-RUN useradd -m -s /bin/bash astradesk && \
-    chown -R astradesk:astradesk /app && \
-    # Make root filesystem read-only (except /tmp, /app)
+# Fixed numeric non-root UID/GID (INV-BUILD-3): no reliance on username
+# resolution at runtime, safe for read-only-root-filesystem deployments.
+RUN groupadd -g 10001 astradesk && \
+    useradd -u 10001 -g 10001 -M -s /usr/sbin/nologin astradesk && \
+    chown -R 10001:10001 /app && \
     chmod 755 /app
 
-USER astradesk
+USER 10001:10001
 
 # --- OCI Image Labels (per Open Container Initiative) ---
 LABEL org.opencontainers.image.title="AstraDesk API" \

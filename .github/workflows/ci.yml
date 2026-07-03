@@ -57,6 +57,9 @@ jobs:
           chmod +x scripts/check-openapi-version.sh
           scripts/check-openapi-version.sh
 
+      - name: Reproducible-build baseline guard (issue #41)
+        run: uv run python scripts/ci/verify_build_baseline.py
+
       - name: Lint & Type Check
         run: |
           uv run python scripts/license_headers.py --check
@@ -65,7 +68,7 @@ jobs:
           uv run mypy .
 
       - name: Run Python Tests with Coverage
-        run: uv run pytest -q
+        run: uv run pytest -q --cov-report=xml:coverage.xml
 
       - name: Build Docker Image (Python)
         run: docker build -t astradesk:ci-python -f Dockerfile .
@@ -167,6 +170,11 @@ jobs:
 
       - name: Verify downloaded reports
         run: ls -R coverage-reports
+
+      - name: Place Python coverage report for Sonar
+        run: |
+          cp coverage-reports/python-coverage/coverage.xml coverage.xml
+          test -s coverage.xml
 
       - name: Run SonarQube Scan
         env:

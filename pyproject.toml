@@ -25,6 +25,7 @@ license = { text = "GPL-2.0-only" }
 dependencies = [
     "astradesk-core",
     "astradesk-api-gateway",
+    "astradesk-admin-api",
     "astradesk-auditor",
     "astradesk-domain-ops",
     "astradesk-domain-finance",
@@ -34,6 +35,13 @@ dependencies = [
     "rank-bm25>=0.2.2",
     "regex>=2025.10.23",
     "python-dotenv>=1.2.1",
+    # mcp/ (the reusable MCP Gateway library) is exercised by root-level test
+    # runs (`uv run pytest ... mcp/tests`) but is not a `[tool.uv.workspace]`
+    # member, so its own mcp/pyproject.toml dependencies are not resolved
+    # into this environment. python-jose is mcp/src/security/auth.py's OIDC
+    # verifier for that separate bounded context (unrelated to the api-gateway
+    # ingress verifier in astradesk_core.utils.oidc, which uses pyjwt).
+    "python-jose[cryptography]>=3.3.0,<3.4.0",
 ]
 
 [project.optional-dependencies]
@@ -129,11 +137,12 @@ exclude = '^(src/|services/api_gateway/|\.venv/|build/|dist/|.*/build/)'
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-addopts = "--cov=core/src --cov=services/api-gateway/src --cov=mcp.src --cov=domain_support --cov=domain_ops --cov=domain_finance --cov=domain_supply --cov-report=xml --cov-report=term-missing"
+addopts = "--cov=core/src --cov=services/api-gateway/src --cov=services/admin_api/src --cov=mcp.src --cov=domain_support --cov=domain_ops --cov=domain_finance --cov=domain_supply --cov-report=xml --cov-report=term-missing"
 pythonpath = ["services/api-gateway/src"]
 testpaths = [
   "tests",
   "services/api-gateway/tests",
+  "services/admin_api/tests",
   "mcp/tests",
   "packages/domain-support/tests",
   "packages/domain-ops/tests",

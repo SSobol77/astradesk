@@ -17,15 +17,19 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 from uuid import uuid4
 from pathlib import Path
 import tomllib
 
-from fastapi import FastAPI, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Response, status
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, EmailStr, Field
+
+from astradesk_admin.auth import install_verifier, require_admin
 
 
 def iso_now() -> str:
@@ -536,6 +540,19 @@ store = DataStore()
 
 # --- FastAPI application ---
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Fail-closed startup: install the OIDC verifier before serving traffic.
+
+    Mirrors ``gateway.auth_dependency.install_verifier`` (ISSUE 009): missing or
+    invalid OIDC configuration aborts process start rather than silently
+    serving an unauthenticated Admin API (INV-ADMIN-AUTH-3, INV-FAIL-CLOSED).
+    """
+    install_verifier(app)
+    yield
+
+
 app = FastAPI(
     title="AstraDesk Admin API",
     description="API for AstraDesk Admin v1.2 - operational and governance panel for agents, data, policies, and audits.",
@@ -546,7 +563,16 @@ app = FastAPI(
     openapi_url="/openapi.json",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
+
+# Every operation registered on this router independently requires an
+# authenticated principal with the normalized 'admin' role
+# (INV-ADMIN-AUTH-3/4/8, NEW-SEC) — regardless of any decision already made by
+# the API Gateway proxy. Only /health (liveness/dashboard status, no sensitive
+# state) and the auto-generated docs/OpenAPI routes remain public; see
+# services/admin_api/README.md for the documented exception.
+admin_router = APIRouter(dependencies=[Depends(require_admin)])
 
 
 # --- Dashboard endpoints ---
@@ -557,12 +583,12 @@ async def get_health() -> HealthStatus:
     return store.health
 
 
-@app.get("/usage/llm", response_model=UsageMetrics, tags=["Dashboard"])
+@admin_router.get("/usage/llm", response_model=UsageMetrics, tags=["Dashboard"])
 async def get_usage() -> UsageMetrics:
     return store.usage
 
 
-@app.get("/errors/recent", response_model=List[RecentError], tags=["Dashboard"])
+@admin_router.get("/errors/recent", response_model=List[RecentError], tags=["Dashboard"])
 async def get_recent_errors(limit: int = 25, offset: int = 0) -> List[RecentError]:
     return store.recent_errors[offset : offset + limit]
 
@@ -570,13 +596,15 @@ async def get_recent_errors(limit: int = 25, offset: int = 0) -> List[RecentErro
 # --- Agent endpoints ---
 
 
-@app.get("/agents", response_model=List[Agent], tags=["Agents"])
+@admin_router.get("/agents", response_model=List[Agent], tags=["Agents"])
 async def list_agents(limit: int = 25, offset: int = 0) -> List[Agent]:
     agents = list(store.agents.values())
     return agents[offset : offset + limit]
 
 
-@app.post("/agents", response_model=Agent, status_code=status.HTTP_201_CREATED, tags=["Agents"])
+@admin_router.post(
+    "/agents", response_model=Agent, status_code=status.HTTP_201_CREATED, tags=["Agents"]
+)
 async def create_agent(payload: AgentConfigRequest) -> Agent:
     agent_id = str(uuid4())
     agent = Agent(
@@ -602,12 +630,12 @@ def _get_agent_or_404(agent_id: str) -> Agent:
     return agent
 
 
-@app.get("/agents/{agent_id}", response_model=Agent, tags=["Agents"])
+@admin_router.get("/agents/{agent_id}", response_model=Agent, tags=["Agents"])
 async def get_agent(agent_id: str) -> Agent:
     return _get_agent_or_404(agent_id)
 
 
-@app.put("/agents/{agent_id}", response_model=Agent, tags=["Agents"])
+@admin_router.put("/agents/{agent_id}", response_model=Agent, tags=["Agents"])
 async def update_agent(agent_id: str, payload: AgentConfigRequest) -> Agent:
     agent = _get_agent_or_404(agent_id)
     updated = agent.model_copy(
@@ -619,7 +647,7 @@ async def update_agent(agent_id: str, payload: AgentConfigRequest) -> Agent:
     return updated
 
 
-@app.delete("/agents/{agent_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Agents"])
+@admin_router.delete("/agents/{agent_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Agents"])
 async def delete_agent(agent_id: str) -> Response:
     if agent_id not in store.agents:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
@@ -629,7 +657,7 @@ async def delete_agent(agent_id: str) -> Response:
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@app.post("/agents/{agent_id}:test", tags=["Agents"])
+@admin_router.post("/agents/{agent_id}:test", tags=["Agents"])
 async def test_agent(agent_id: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     _get_agent_or_404(agent_id)
     return {
@@ -639,7 +667,7 @@ async def test_agent(agent_id: str, payload: Optional[Dict[str, Any]] = None) ->
     }
 
 
-@app.post("/agents/{agent_id}:clone", response_model=Agent, tags=["Agents"])
+@admin_router.post("/agents/{agent_id}:clone", response_model=Agent, tags=["Agents"])
 async def clone_agent(agent_id: str) -> Agent:
     agent = _get_agent_or_404(agent_id)
     clone_id = str(uuid4())
@@ -652,7 +680,7 @@ async def clone_agent(agent_id: str) -> Agent:
     return clone
 
 
-@app.post("/agents/{agent_id}:promote", response_model=Agent, tags=["Agents"])
+@admin_router.post("/agents/{agent_id}:promote", response_model=Agent, tags=["Agents"])
 async def promote_agent(agent_id: str) -> Agent:
     agent = _get_agent_or_404(agent_id)
     promoted = agent.model_copy(update={"env": "prod", "status": "active"})
@@ -660,7 +688,7 @@ async def promote_agent(agent_id: str) -> Agent:
     return promoted
 
 
-@app.get("/agents/{agent_id}/metrics", response_model=AgentMetrics, tags=["Agents"])
+@admin_router.get("/agents/{agent_id}/metrics", response_model=AgentMetrics, tags=["Agents"])
 async def get_agent_metrics(agent_id: str, timeWindow: Optional[str] = None) -> AgentMetrics:  # noqa: N803
     _get_agent_or_404(agent_id)
     metrics = store.agent_metrics.get(agent_id)
@@ -669,7 +697,7 @@ async def get_agent_metrics(agent_id: str, timeWindow: Optional[str] = None) -> 
     return metrics
 
 
-@app.get("/agents/{agent_id}/io", response_model=List[AgentIoMessage], tags=["Agents"])
+@admin_router.get("/agents/{agent_id}/io", response_model=List[AgentIoMessage], tags=["Agents"])
 async def get_agent_io(agent_id: str, limit: int = 25, offset: int = 0) -> List[AgentIoMessage]:
     _get_agent_or_404(agent_id)
     messages = store.agent_io.get(agent_id, [])
@@ -679,7 +707,7 @@ async def get_agent_io(agent_id: str, limit: int = 25, offset: int = 0) -> List[
 # --- Intent graph ---
 
 
-@app.get("/intents/graph", response_model=IntentGraph, tags=["Intent Graph"])
+@admin_router.get("/intents/graph", response_model=IntentGraph, tags=["Intent Graph"])
 async def get_intent_graph() -> IntentGraph:
     return store.intent_graph
 
@@ -694,7 +722,7 @@ def _get_flow_or_404(flow_id: str) -> Flow:
     return flow
 
 
-@app.get("/flows", response_model=FlowListResponse, tags=["Flows"])
+@admin_router.get("/flows", response_model=FlowListResponse, tags=["Flows"])
 async def list_flows(
     limit: int = 25,
     offset: int = 0,
@@ -711,7 +739,9 @@ async def list_flows(
     return FlowListResponse(items=sliced, total=total, limit=limit, offset=offset)
 
 
-@app.post("/flows", response_model=Flow, status_code=status.HTTP_201_CREATED, tags=["Flows"])
+@admin_router.post(
+    "/flows", response_model=Flow, status_code=status.HTTP_201_CREATED, tags=["Flows"]
+)
 async def create_flow(payload: FlowCreateRequest) -> Flow:
     flow_id = str(uuid4())
     config_yaml = json.dumps(payload.graph, indent=2)
@@ -730,12 +760,12 @@ async def create_flow(payload: FlowCreateRequest) -> Flow:
     return flow
 
 
-@app.get("/flows/{flow_id}", response_model=Flow, tags=["Flows"])
+@admin_router.get("/flows/{flow_id}", response_model=Flow, tags=["Flows"])
 async def get_flow(flow_id: str) -> Flow:
     return _get_flow_or_404(flow_id)
 
 
-@app.put("/flows/{flow_id}", response_model=Flow, tags=["Flows"])
+@admin_router.put("/flows/{flow_id}", response_model=Flow, tags=["Flows"])
 async def update_flow(flow_id: str, payload: FlowUpdateRequest) -> Flow:
     flow = _get_flow_or_404(flow_id)
     updated = flow.model_copy(
@@ -750,7 +780,7 @@ async def update_flow(flow_id: str, payload: FlowUpdateRequest) -> Flow:
     return updated
 
 
-@app.delete("/flows/{flow_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Flows"])
+@admin_router.delete("/flows/{flow_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Flows"])
 async def delete_flow(flow_id: str) -> Response:
     if flow_id not in store.flows:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Flow not found")
@@ -759,13 +789,13 @@ async def delete_flow(flow_id: str) -> Response:
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@app.post("/flows/{flow_id}:validate", response_model=FlowValidationResult, tags=["Flows"])
+@admin_router.post("/flows/{flow_id}:validate", response_model=FlowValidationResult, tags=["Flows"])
 async def validate_flow(flow_id: str) -> FlowValidationResult:
     _get_flow_or_404(flow_id)
     return FlowValidationResult(valid=True, errors=[])
 
 
-@app.post("/flows/{flow_id}:dryrun", response_model=FlowDryRunResult, tags=["Flows"])
+@admin_router.post("/flows/{flow_id}:dryrun", response_model=FlowDryRunResult, tags=["Flows"])
 async def dry_run_flow(flow_id: str) -> FlowDryRunResult:
     _get_flow_or_404(flow_id)
     steps = [
@@ -775,7 +805,7 @@ async def dry_run_flow(flow_id: str) -> FlowDryRunResult:
     return FlowDryRunResult(steps=steps)
 
 
-@app.post("/flows/{flow_id}:test", response_model=FlowTestResult, tags=["Flows"])
+@admin_router.post("/flows/{flow_id}:test", response_model=FlowTestResult, tags=["Flows"])
 async def test_flow(flow_id: str, payload: Optional[Dict[str, Any]] = None) -> FlowTestResult:
     _get_flow_or_404(flow_id)
     return FlowTestResult(
@@ -785,14 +815,14 @@ async def test_flow(flow_id: str, payload: Optional[Dict[str, Any]] = None) -> F
     )
 
 
-@app.get("/flows/{flow_id}/log", response_model=List[FlowLogEntry], tags=["Flows"])
+@admin_router.get("/flows/{flow_id}/log", response_model=List[FlowLogEntry], tags=["Flows"])
 async def get_flow_log(flow_id: str, limit: int = 25, offset: int = 0) -> List[FlowLogEntry]:
     _get_flow_or_404(flow_id)
     logs = store.flow_logs.get(flow_id, [])
     return logs[offset : offset + limit]
 
 
-@app.post("/flows/generate", tags=["Flows"])
+@admin_router.post("/flows/generate", tags=["Flows"])
 async def generate_flow(payload: FlowGenerationRequest) -> PlainTextResponse:
     generated = {
         "flow": {
@@ -819,13 +849,13 @@ def _get_dataset_or_404(dataset_id: str) -> Dataset:
     return dataset
 
 
-@app.get("/datasets", response_model=List[Dataset], tags=["Datasets"])
+@admin_router.get("/datasets", response_model=List[Dataset], tags=["Datasets"])
 async def list_datasets(limit: int = 25, offset: int = 0) -> List[Dataset]:
     datasets = list(store.datasets.values())
     return datasets[offset : offset + limit]
 
 
-@app.post(
+@admin_router.post(
     "/datasets", response_model=Dataset, status_code=status.HTTP_201_CREATED, tags=["Datasets"]
 )
 async def create_dataset(payload: DatasetCreateRequest) -> Dataset:
@@ -839,12 +869,14 @@ async def create_dataset(payload: DatasetCreateRequest) -> Dataset:
     return dataset
 
 
-@app.get("/datasets/{dataset_id}", response_model=Dataset, tags=["Datasets"])
+@admin_router.get("/datasets/{dataset_id}", response_model=Dataset, tags=["Datasets"])
 async def get_dataset(dataset_id: str) -> Dataset:
     return _get_dataset_or_404(dataset_id)
 
 
-@app.delete("/datasets/{dataset_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Datasets"])
+@admin_router.delete(
+    "/datasets/{dataset_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Datasets"]
+)
 async def delete_dataset(dataset_id: str) -> Response:
     if dataset_id not in store.datasets:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dataset not found")
@@ -854,7 +886,7 @@ async def delete_dataset(dataset_id: str) -> Response:
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@app.get("/datasets/{dataset_id}/schema", response_model=DatasetSchema, tags=["Datasets"])
+@admin_router.get("/datasets/{dataset_id}/schema", response_model=DatasetSchema, tags=["Datasets"])
 async def get_dataset_schema(dataset_id: str) -> DatasetSchema:
     _get_dataset_or_404(dataset_id)
     schema = store.dataset_schemas.get(dataset_id)
@@ -863,7 +895,7 @@ async def get_dataset_schema(dataset_id: str) -> DatasetSchema:
     return schema
 
 
-@app.get(
+@admin_router.get(
     "/datasets/{dataset_id}/embeddings", response_model=List[EmbeddingMetadata], tags=["Datasets"]
 )
 async def get_dataset_embeddings(
@@ -874,7 +906,9 @@ async def get_dataset_embeddings(
     return embeddings[offset : offset + limit]
 
 
-@app.post("/datasets/{dataset_id}:reindex", status_code=status.HTTP_202_ACCEPTED, tags=["Datasets"])
+@admin_router.post(
+    "/datasets/{dataset_id}:reindex", status_code=status.HTTP_202_ACCEPTED, tags=["Datasets"]
+)
 async def reindex_dataset(dataset_id: str) -> Dict[str, str]:
     _get_dataset_or_404(dataset_id)
     return {"job_id": str(uuid4())}
@@ -890,13 +924,13 @@ def _get_connector_or_404(connector_id: str) -> Connector:
     return connector
 
 
-@app.get("/connectors", response_model=List[Connector], tags=["Tools/Connectors"])
+@admin_router.get("/connectors", response_model=List[Connector], tags=["Tools/Connectors"])
 async def list_connectors(limit: int = 25, offset: int = 0) -> List[Connector]:
     connectors = list(store.connectors.values())
     return connectors[offset : offset + limit]
 
 
-@app.post(
+@admin_router.post(
     "/connectors",
     response_model=Connector,
     status_code=status.HTTP_201_CREATED,
@@ -909,12 +943,12 @@ async def create_connector(payload: ConnectorConfigRequest) -> Connector:
     return connector
 
 
-@app.get("/connectors/{connector_id}", response_model=Connector, tags=["Tools/Connectors"])
+@admin_router.get("/connectors/{connector_id}", response_model=Connector, tags=["Tools/Connectors"])
 async def get_connector(connector_id: str) -> Connector:
     return _get_connector_or_404(connector_id)
 
 
-@app.put("/connectors/{connector_id}", response_model=Connector, tags=["Tools/Connectors"])
+@admin_router.put("/connectors/{connector_id}", response_model=Connector, tags=["Tools/Connectors"])
 async def update_connector(connector_id: str, payload: ConnectorConfigRequest) -> Connector:
     connector = _get_connector_or_404(connector_id)
     updated = connector.model_copy(
@@ -924,7 +958,7 @@ async def update_connector(connector_id: str, payload: ConnectorConfigRequest) -
     return updated
 
 
-@app.delete(
+@admin_router.delete(
     "/connectors/{connector_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Tools/Connectors"]
 )
 async def delete_connector(connector_id: str) -> Response:
@@ -934,13 +968,13 @@ async def delete_connector(connector_id: str) -> Response:
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@app.post("/connectors/{connector_id}:test", tags=["Tools/Connectors"])
+@admin_router.post("/connectors/{connector_id}:test", tags=["Tools/Connectors"])
 async def test_connector(connector_id: str) -> Dict[str, Any]:
     _get_connector_or_404(connector_id)
     return {"success": True, "message": "Connector authentication succeeded."}
 
 
-@app.post("/connectors/{connector_id}:probe", tags=["Tools/Connectors"])
+@admin_router.post("/connectors/{connector_id}:probe", tags=["Tools/Connectors"])
 async def probe_connector(connector_id: str) -> Dict[str, Any]:
     _get_connector_or_404(connector_id)
     return {"success": True, "latency_ms": 128.0}
@@ -956,13 +990,13 @@ def _get_secret_or_404(secret_id: str) -> SecretMetadata:
     return secret
 
 
-@app.get("/secrets", response_model=List[SecretMetadata], tags=["Keys & Secrets"])
+@admin_router.get("/secrets", response_model=List[SecretMetadata], tags=["Keys & Secrets"])
 async def list_secrets(limit: int = 25, offset: int = 0) -> List[SecretMetadata]:
     secrets = list(store.secrets.values())
     return secrets[offset : offset + limit]
 
 
-@app.post(
+@admin_router.post(
     "/secrets",
     response_model=SecretMetadata,
     status_code=status.HTTP_201_CREATED,
@@ -981,7 +1015,7 @@ async def create_secret(payload: SecretCreateRequest) -> SecretMetadata:
     return metadata
 
 
-@app.post(
+@admin_router.post(
     "/secrets/{secret_id}:rotate", response_model=SecretCreateRequest, tags=["Keys & Secrets"]
 )
 async def rotate_secret(secret_id: str) -> SecretCreateRequest:
@@ -991,7 +1025,7 @@ async def rotate_secret(secret_id: str) -> SecretCreateRequest:
     return SecretCreateRequest(name=secret.name, value=f"rotated-{uuid4()}", type=secret.type)
 
 
-@app.delete(
+@admin_router.delete(
     "/secrets/{secret_id}:disable", status_code=status.HTTP_204_NO_CONTENT, tags=["Keys & Secrets"]
 )
 async def disable_secret(secret_id: str) -> Response:
@@ -1011,7 +1045,7 @@ def _get_run_or_404(run_id: str) -> Run:
     return run
 
 
-@app.get("/runs", response_model=List[Run], tags=["Runs & Logs"])
+@admin_router.get("/runs", response_model=List[Run], tags=["Runs & Logs"])
 async def list_runs(
     agentId: Optional[str] = None,  # noqa: N803
     status: Optional[str] = None,
@@ -1028,12 +1062,12 @@ async def list_runs(
     return runs[offset : offset + limit]
 
 
-@app.get("/runs/{run_id}", response_model=Run, tags=["Runs & Logs"])
+@admin_router.get("/runs/{run_id}", response_model=Run, tags=["Runs & Logs"])
 async def get_run(run_id: str) -> Run:
     return _get_run_or_404(run_id)
 
 
-@app.get("/runs/stream", tags=["Runs & Logs"])
+@admin_router.get("/runs/stream", tags=["Runs & Logs"])
 async def stream_runs(
     agentId: Optional[str] = None,  # noqa: N803
     status: Optional[str] = None,
@@ -1053,7 +1087,7 @@ async def stream_runs(
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
-@app.get("/logs/export", tags=["Runs & Logs"])
+@admin_router.get("/logs/export", tags=["Runs & Logs"])
 async def export_logs(
     format: Literal["json", "ndjson", "csv"], agentId: Optional[str] = None
 ) -> PlainTextResponse:  # noqa: N803
@@ -1084,13 +1118,13 @@ def _get_job_or_404(job_id: str) -> Job:
     return job
 
 
-@app.get("/jobs", response_model=List[Job], tags=["Jobs & Schedules"])
+@admin_router.get("/jobs", response_model=List[Job], tags=["Jobs & Schedules"])
 async def list_jobs(limit: int = 25, offset: int = 0) -> List[Job]:
     jobs = list(store.jobs.values())
     return jobs[offset : offset + limit]
 
 
-@app.post(
+@admin_router.post(
     "/jobs", response_model=Job, status_code=status.HTTP_201_CREATED, tags=["Jobs & Schedules"]
 )
 async def create_job(payload: JobCreateRequest) -> Job:
@@ -1106,12 +1140,12 @@ async def create_job(payload: JobCreateRequest) -> Job:
     return job
 
 
-@app.get("/jobs/{job_id}", response_model=Job, tags=["Jobs & Schedules"])
+@admin_router.get("/jobs/{job_id}", response_model=Job, tags=["Jobs & Schedules"])
 async def get_job(job_id: str) -> Job:
     return _get_job_or_404(job_id)
 
 
-@app.put("/jobs/{job_id}", response_model=Job, tags=["Jobs & Schedules"])
+@admin_router.put("/jobs/{job_id}", response_model=Job, tags=["Jobs & Schedules"])
 async def update_job(job_id: str, payload: JobCreateRequest) -> Job:
     _get_job_or_404(job_id)
     job = Job(
@@ -1125,7 +1159,9 @@ async def update_job(job_id: str, payload: JobCreateRequest) -> Job:
     return job
 
 
-@app.delete("/jobs/{job_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Jobs & Schedules"])
+@admin_router.delete(
+    "/jobs/{job_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Jobs & Schedules"]
+)
 async def delete_job(job_id: str) -> Response:
     if job_id not in store.jobs:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
@@ -1133,14 +1169,16 @@ async def delete_job(job_id: str) -> Response:
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@app.post("/jobs/{job_id}:trigger", status_code=status.HTTP_202_ACCEPTED, tags=["Jobs & Schedules"])
+@admin_router.post(
+    "/jobs/{job_id}:trigger", status_code=status.HTTP_202_ACCEPTED, tags=["Jobs & Schedules"]
+)
 async def trigger_job(job_id: str) -> Dict[str, str]:
     _get_job_or_404(job_id)
     run_id = str(uuid4())
     return {"run_id": run_id}
 
 
-@app.post("/jobs/{job_id}:pause", response_model=Job, tags=["Jobs & Schedules"])
+@admin_router.post("/jobs/{job_id}:pause", response_model=Job, tags=["Jobs & Schedules"])
 async def pause_job(job_id: str) -> Job:
     job = _get_job_or_404(job_id)
     paused = job.model_copy(update={"status": "paused"})
@@ -1148,7 +1186,7 @@ async def pause_job(job_id: str) -> Job:
     return paused
 
 
-@app.post("/jobs/{job_id}:resume", response_model=Job, tags=["Jobs & Schedules"])
+@admin_router.post("/jobs/{job_id}:resume", response_model=Job, tags=["Jobs & Schedules"])
 async def resume_job(job_id: str) -> Job:
     job = _get_job_or_404(job_id)
     resumed = job.model_copy(update={"status": "active"})
@@ -1156,7 +1194,7 @@ async def resume_job(job_id: str) -> Job:
     return resumed
 
 
-@app.get("/dlq", response_model=List[DLQItem], tags=["Jobs & Schedules"])
+@admin_router.get("/dlq", response_model=List[DLQItem], tags=["Jobs & Schedules"])
 async def list_dlq(limit: int = 25, offset: int = 0) -> List[DLQItem]:
     items = list(store.dlq_items.values())
     return items[offset : offset + limit]
@@ -1172,13 +1210,13 @@ def _get_user_or_404(user_id: str) -> User:
     return user
 
 
-@app.get("/users", response_model=List[User], tags=["Users & Roles"])
+@admin_router.get("/users", response_model=List[User], tags=["Users & Roles"])
 async def list_users(limit: int = 25, offset: int = 0) -> List[User]:
     users = list(store.users.values())
     return users[offset : offset + limit]
 
 
-@app.post(
+@admin_router.post(
     "/users", response_model=User, status_code=status.HTTP_201_CREATED, tags=["Users & Roles"]
 )
 async def create_user(payload: UserCreateRequest) -> User:
@@ -1190,12 +1228,14 @@ async def create_user(payload: UserCreateRequest) -> User:
     return user
 
 
-@app.get("/users/{user_id}", response_model=User, tags=["Users & Roles"])
+@admin_router.get("/users/{user_id}", response_model=User, tags=["Users & Roles"])
 async def get_user(user_id: str) -> User:
     return _get_user_or_404(user_id)
 
 
-@app.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Users & Roles"])
+@admin_router.delete(
+    "/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Users & Roles"]
+)
 async def delete_user(user_id: str) -> Response:
     if user_id not in store.users:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -1203,13 +1243,13 @@ async def delete_user(user_id: str) -> Response:
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@app.post("/users/{user_id}:reset-mfa", tags=["Users & Roles"])
+@admin_router.post("/users/{user_id}:reset-mfa", tags=["Users & Roles"])
 async def reset_mfa(user_id: str) -> Dict[str, bool]:
     _get_user_or_404(user_id)
     return {"success": True}
 
 
-@app.put("/users/{user_id}/role", response_model=User, tags=["Users & Roles"])
+@admin_router.put("/users/{user_id}/role", response_model=User, tags=["Users & Roles"])
 async def update_user_role(user_id: str, payload: UserRoleUpdateRequest) -> User:
     user = _get_user_or_404(user_id)
     updated = user.model_copy(update={"role": payload.role})
@@ -1217,7 +1257,7 @@ async def update_user_role(user_id: str, payload: UserRoleUpdateRequest) -> User
     return updated
 
 
-@app.get("/roles", response_model=List[str], tags=["Users & Roles"])
+@admin_router.get("/roles", response_model=List[str], tags=["Users & Roles"])
 async def list_roles() -> List[str]:
     return ["admin", "operator", "viewer"]
 
@@ -1232,13 +1272,13 @@ def _get_policy_or_404(policy_id: str) -> Policy:
     return policy
 
 
-@app.get("/policies", response_model=List[Policy], tags=["Policies"])
+@admin_router.get("/policies", response_model=List[Policy], tags=["Policies"])
 async def list_policies(limit: int = 25, offset: int = 0) -> List[Policy]:
     policies = list(store.policies.values())
     return policies[offset : offset + limit]
 
 
-@app.post(
+@admin_router.post(
     "/policies", response_model=Policy, status_code=status.HTTP_201_CREATED, tags=["Policies"]
 )
 async def create_policy(payload: PolicyCreateRequest) -> Policy:
@@ -1248,12 +1288,12 @@ async def create_policy(payload: PolicyCreateRequest) -> Policy:
     return policy
 
 
-@app.get("/policies/{policy_id}", response_model=Policy, tags=["Policies"])
+@admin_router.get("/policies/{policy_id}", response_model=Policy, tags=["Policies"])
 async def get_policy(policy_id: str) -> Policy:
     return _get_policy_or_404(policy_id)
 
 
-@app.put("/policies/{policy_id}", response_model=Policy, tags=["Policies"])
+@admin_router.put("/policies/{policy_id}", response_model=Policy, tags=["Policies"])
 async def update_policy(policy_id: str, payload: PolicyCreateRequest) -> Policy:
     _get_policy_or_404(policy_id)
     policy = Policy(id=policy_id, name=payload.name, rego_text=payload.rego_text)
@@ -1261,7 +1301,9 @@ async def update_policy(policy_id: str, payload: PolicyCreateRequest) -> Policy:
     return policy
 
 
-@app.delete("/policies/{policy_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Policies"])
+@admin_router.delete(
+    "/policies/{policy_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Policies"]
+)
 async def delete_policy(policy_id: str) -> Response:
     if policy_id not in store.policies:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Policy not found")
@@ -1269,7 +1311,7 @@ async def delete_policy(policy_id: str) -> Response:
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@app.post(
+@admin_router.post(
     "/policies/{policy_id}:simulate", response_model=PolicySimulationResult, tags=["Policies"]
 )
 async def simulate_policy(
@@ -1291,7 +1333,7 @@ def _get_audit_or_404(audit_id: str) -> AuditEntry:
     return entry
 
 
-@app.get("/audit", response_model=List[AuditEntry], tags=["Audit Trail"])
+@admin_router.get("/audit", response_model=List[AuditEntry], tags=["Audit Trail"])
 async def list_audit(
     userId: Optional[str] = None,  # noqa: N803
     action: Optional[str] = None,
@@ -1311,12 +1353,12 @@ async def list_audit(
     return entries[offset : offset + limit]
 
 
-@app.get("/audit/{audit_id}", response_model=AuditEntry, tags=["Audit Trail"])
+@admin_router.get("/audit/{audit_id}", response_model=AuditEntry, tags=["Audit Trail"])
 async def get_audit_entry(audit_id: str) -> AuditEntry:
     return _get_audit_or_404(audit_id)
 
 
-@app.get("/audit/export", tags=["Audit Trail"])
+@admin_router.get("/audit/export", tags=["Audit Trail"])
 async def export_audit(
     format: Literal["json", "ndjson", "csv"],
     userId: Optional[str] = None,  # noqa: N803
@@ -1360,7 +1402,7 @@ def _get_settings_group_or_404(group: str) -> Dict[str, Setting]:
     return settings
 
 
-@app.get("/settings/{group}", response_model=List[Setting], tags=["Settings"])
+@admin_router.get("/settings/{group}", response_model=List[Setting], tags=["Settings"])
 async def list_settings(
     group: Literal["integrations", "localization", "platform"],
 ) -> List[Setting]:
@@ -1368,7 +1410,7 @@ async def list_settings(
     return list(settings.values())
 
 
-@app.put("/settings/{group}", response_model=Setting, tags=["Settings"])
+@admin_router.put("/settings/{group}", response_model=Setting, tags=["Settings"])
 async def update_setting(
     group: Literal["integrations", "localization", "platform"], payload: SettingUpdateRequest
 ) -> Setting:
@@ -1384,20 +1426,26 @@ async def update_setting(
 # --- Domain packs ---
 
 
-@app.get("/domain-packs", response_model=List[DomainPack], tags=["Domain Packs"])
+@admin_router.get("/domain-packs", response_model=List[DomainPack], tags=["Domain Packs"])
 async def list_domain_packs() -> List[DomainPack]:
     return store.domain_packs
 
 
-@app.post(
+@admin_router.post(
     "/domain-packs/{name}:install", status_code=status.HTTP_202_ACCEPTED, tags=["Domain Packs"]
 )
 async def install_domain_pack(name: str) -> Dict[str, str]:
     return {"job_id": str(uuid4()), "pack": name}
 
 
-@app.post(
+@admin_router.post(
     "/domain-packs/{name}:uninstall", status_code=status.HTTP_202_ACCEPTED, tags=["Domain Packs"]
 )
 async def uninstall_domain_pack(name: str) -> Dict[str, str]:
     return {"job_id": str(uuid4()), "pack": name}
+
+
+# Every route above (all except /health) is registered on admin_router and
+# therefore independently requires an authenticated 'admin' principal
+# (INV-ADMIN-AUTH-3/4/8, NEW-SEC).
+app.include_router(admin_router)
