@@ -1082,6 +1082,12 @@ symlink to the canonical spec so the UI never drifts.
 - **Audit**: Logged to Postgres + NATS publish. Every `write`/`execute` tool attempt (allowed, denied, or errored) is additionally recorded through a durable `AuditWriter` at the `ToolRegistry.execute` choke point, on both the LLM-planned and keyword-fallback paths. Deployed tiers (`production`/`prod`/`staging`/`stage`) fail closed at startup without `AUDIT_LOG_PATH`; local/dev/test may fall back to a non-durable in-process writer.
 - **Policy (OPA, fail-closed)**: A contextual policy gate, independent of RBAC, additionally guards every `write`/`execute` tool attempt (and any `read` tool opted in with `policy_governed=True`) at the same `ToolRegistry.execute` choke point (`runtime.policy_enforcer`, ISSUE 028). Deployed tiers require a real OPA server (`POLICY_MODE=opa` or the safe default) — missing/invalid `OPA_URL` aborts startup, and a denied or unreachable OPA decision at call time denies the tool before it runs. `POLICY_MODE=local` (deterministic allow-all) is refused on deployed tiers. Policy denials are durably audited through the same ISSUE 019 path. Schema-hash negotiation and OPA bundle versioning remain future work (Track B).
 - **Policies**: Allow-lists in tools, proxy retries.
+- **Admin API defense-in-depth (NEW-SEC)**: `/api/admin/v1/{path}` requires an
+  authenticated `admin` principal at the API Gateway proxy **before** forwarding, and
+  the Admin API (`services/admin_api`) independently re-verifies the same Bearer JWT
+  and independently requires `admin` — neither layer trusts the other's decision or
+  network placement alone. Part of the security baseline alongside the OIDC/RBAC/audit/
+  policy hardening above; see [docs/en/08_security_governance.md §8.13](docs/en/08_security_governance.md#813-admin-api-defense-in-depth-new-sec).
 
 ## Roadmap
 

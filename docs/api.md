@@ -37,6 +37,7 @@ Dokument opisuje publiczne endpointy API Gateway dla systemu **AstraDesk**.
 - [Endpointy](#endpointy)
   - [GET /healthz](#get-healthz)
   - [POST /v1/agents/run](#post-v1agentsrun)
+  - [/api/admin/v1/{path} (proxy Admin API)](#apiadminv1path-proxy-admin-api)
 
 - [Kody błędów](#kody-błędów)
 
@@ -151,6 +152,36 @@ Agent wykonuje plan (planner) -> wywołuje niezbędne narzędzia (RBAC) -> final
 Authorization: Bearer <JWT>
 Content-Type: application/json
 ```
+
+<br>
+
+### `/api/admin/v1/{path}` (proxy Admin API)
+
+Reverse proxy do niezależnej usługi Admin API (`services/admin_api`). Obsługuje
+`GET`/`POST`/`PUT`/`DELETE`/`PATCH`/`OPTIONS`. Wymaga uwierzytelnionego
+principala z rolą **`admin`**, sprawdzanej przez Gateway **zanim** żądanie
+zostanie przekazane dalej (NEW-SEC, obrona wielowarstwowa):
+
+- Brak/niepoprawny `Authorization` → `401 Unauthorized`; żądanie **nie**
+  dociera do Admin API.
+- Uwierzytelniony principal bez roli `admin` → `403 Forbidden`; żądanie
+  **nie** dociera do Admin API.
+- Uwierzytelniony `admin` → żądanie jest przekazywane. Nagłówki
+  `X-AstraDesk-*` dostarczone przez klienta (np. `X-AstraDesk-Principal`,
+  `X-AstraDesk-Tenant`, `X-AstraDesk-Roles`) są usuwane przed przekazaniem —
+  **nie są one mechanizmem uwierzytelniania**. Nagłówek `Authorization` jest
+  przekazywany bez zmian, ponieważ Admin API **niezależnie** weryfikuje ten
+  sam token JWT, zamiast ufać decyzji Gateway lub samemu położeniu sieciowemu.
+
+**Endpointy publiczne Admin API** (bez wymogu tokenu): `GET /health` (status
+komponentów — bez sekretów/danych wrażliwych) oraz automatycznie generowane
+`/docs`, `/redoc`, `/openapi.json`. Wszystkie pozostałe operacje (np.
+`/secrets`, `/users`, `/roles`, `/policies`, `/audit`) wymagają roli `admin`
+zweryfikowanej **niezależnie także przez samo Admin API** — nie tylko przez
+Gateway.
+
+Szczegóły i przykłady `curl`: `services/admin_api/README.md` oraz
+[8. Security & Governance §8.13](en/08_security_governance.md#813-admin-api-defense-in-depth-new-sec).
 
 <br>
 

@@ -206,6 +206,7 @@ name = "astradesk"
 version = "0.3.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "astradesk-admin-api" },
     { name = "astradesk-api-gateway" },
     { name = "astradesk-auditor" },
     { name = "astradesk-core" },
@@ -247,6 +248,7 @@ ingestion = [
 
 [package.metadata]
 requires-dist = [
+    { name = "astradesk-admin-api", editable = "services/admin_api" },
     { name = "astradesk-api-gateway", editable = "services/api-gateway" },
     { name = "astradesk-auditor", editable = "services/auditor" },
     { name = "astradesk-core", editable = "core" },
@@ -284,6 +286,7 @@ name = "astradesk-admin-api"
 version = "0.3.0"
 source = { editable = "services/admin_api" }
 dependencies = [
+    { name = "astradesk-core" },
     { name = "fastapi" },
     { name = "pydantic", extra = ["email"] },
     { name = "python-dotenv" },
@@ -300,6 +303,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "astradesk-core", editable = "core" },
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11.0" },

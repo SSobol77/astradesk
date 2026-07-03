@@ -117,6 +117,7 @@ Rationale for order: you cannot authorize (016) before you can authenticate (009
 | `ISSUES_028_opa_fail_closed.md` | rescope #28 | RESCOPE | Security | yes |
 | `ISSUES_NEW-01_supply_chain.md` | NEW-1 | NEW | Security | yes |
 | `ISSUES_NEW-02_reproducible_build.md` | NEW-2 | NEW | Simplicity | yes |
+| `ISSUES_NEW-SEC_admin_proxy_auth.md` | NEW-SEC | NEW | Security | yes |
 
 Each issue file is self-contained and follows one contract template (problem → analog disease → invariants → interface → failure modes → acceptance → evidence → out-of-scope).
 
