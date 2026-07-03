@@ -52,6 +52,7 @@ from runtime.authz import SideEffect, enforce_registration_invariants
 from runtime.memory import Memory
 from runtime.models import AgentRequest, AgentResponse
 from runtime.planner import KeywordPlanner
+from runtime.policy_enforcer import PolicyEnforcer, build_policy_enforcer_from_env
 from runtime.rag import RAG
 from runtime.registry import ToolRegistry, load_domain_packs
 from tools import metrics, ops_actions, tickets_proxy
@@ -141,6 +142,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # deployed tier without a durable audit sink must never start, mirroring
     # how the OIDC verifier above already aborts before DB/Redis are touched.
     audit_writer = _resolve_audit_writer()
+    # Fail-closed before any external resource is touched (ISSUE 028): a
+    # deployed tier without valid policy (OPA) configuration must never
+    # start, mirroring the audit sink and OIDC verifier checks above.
+    policy_enforcer: PolicyEnforcer = build_policy_enforcer_from_env()
+    app_state['policy_enforcer'] = policy_enforcer
 
     # --- Initialize connections ---
     # DATABASE_URL/REDIS_URL always resolve (to real values or safe dummy
@@ -159,9 +165,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     opa_client = OpaClient(url=OPA_URL)
 
     # --- Initialize core components ---
-    # audit_writer was already resolved fail-closed above, before any
-    # external resource was touched.
-    tool_registry = ToolRegistry(audit_writer=audit_writer)
+    # audit_writer/policy_enforcer were already resolved fail-closed above,
+    # before any external resource was touched.
+    tool_registry = ToolRegistry(audit_writer=audit_writer, policy_enforcer=policy_enforcer)
     # Register built-in tools with mandatory RBAC metadata (ISSUE 016).
     # side_effect + allowed_roles are the source of truth for the choke point;
     # the OIDC layer normalizes identity/roles, RBAC authorizes from those roles.
@@ -241,6 +247,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if 'admin_api_client' in app_state:
         await app_state['admin_api_client'].aclose()
         logger.info('Admin API client shut down.')
+
+    if 'policy_enforcer' in app_state:
+        aclose = getattr(app_state['policy_enforcer'], 'aclose', None)
+        if callable(aclose):
+            await aclose()
 
     logger.info('Resources cleaned up.')
 
