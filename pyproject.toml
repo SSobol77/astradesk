@@ -25,6 +25,7 @@ license = { text = "GPL-2.0-only" }
 dependencies = [
     "astradesk-core",
     "astradesk-api-gateway",
+    "astradesk-admin-api",
     "astradesk-auditor",
     "astradesk-domain-ops",
     "astradesk-domain-finance",
@@ -136,11 +137,12 @@ exclude = '^(src/|services/api_gateway/|\.venv/|build/|dist/|.*/build/)'
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-addopts = "--cov=core/src --cov=services/api-gateway/src --cov=mcp.src --cov=domain_support --cov=domain_ops --cov=domain_finance --cov=domain_supply --cov-report=xml --cov-report=term-missing"
+addopts = "--cov=core/src --cov=services/api-gateway/src --cov=services/admin_api/src --cov=mcp.src --cov=domain_support --cov=domain_ops --cov=domain_finance --cov=domain_supply --cov-report=xml --cov-report=term-missing"
 pythonpath = ["services/api-gateway/src"]
 testpaths = [
   "tests",
   "services/api-gateway/tests",
+  "services/admin_api/tests",
   "mcp/tests",
   "packages/domain-support/tests",
   "packages/domain-ops/tests",

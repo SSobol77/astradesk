@@ -341,6 +341,21 @@ flowchart TB
 
 * **Data**: secrets in manager (KMS/ASM), PII filters at ingress, egress allow-lists.
 
+* **Admin API defense-in-depth (NEW-SEC)**: the Admin API service boundary is guarded
+  twice, independently — it is never trusted solely by network placement or Docker
+  Compose isolation.
+  * **Gateway guard**: `/api/admin/v1/{path}` requires an authenticated principal with
+    the `admin` role before proxying; it strips caller-supplied `X-AstraDesk-*`
+    headers, which are never a valid authentication mechanism.
+  * **Admin API guard**: `services/admin_api` independently re-verifies the same
+    Bearer JWT and independently requires `admin`, regardless of the Gateway's
+    decision. Only `/health` and the auto-generated `/docs`/`/redoc`/`/openapi.json`
+    stay public.
+  * **Contract**: `openapi/astradesk-admin.v1.yaml` declares the `BearerAuth` security
+    scheme on protected operations. See
+    [8. Security & Governance §8.13](08_security_governance.md#813-admin-api-defense-in-depth-new-sec)
+    for the full model.
+
 <br>
 
 ---

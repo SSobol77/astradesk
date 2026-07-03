@@ -24,6 +24,9 @@ Run this procedure **every time** you:
 
 - add, rename, or remove endpoints in `openapi/astradesk-admin.v1.yaml`
 - adjust schemas or parameters that affect the admin portal client
+- change security requirements on Admin API operations (e.g. add/remove a `security:`
+  block or edit `components.securitySchemes`, as NEW-SEC did when adding the
+  `BearerAuth` requirement to previously-unprotected operations)
 - regenerate OpenAPI-driven TypeScript helpers
 
 This is the single source of truth for contract updates—link to it in pull requests whenever an API change ships.
@@ -67,7 +70,16 @@ Optional but recommended:
    ```
    The command fails if artifacts are stale or missing.
 
-4. **Run quality gates locally**
+4. **Verify the contract version/shape guard**
+   ```bash
+   bash scripts/check-openapi-version.sh
+   ```
+   Confirms `openapi.version` (`3.1.0`) and `info.version` (`1.2.0`) are unchanged, and
+   that `services/admin-portal/openapi/OpenAPI.yaml` (if present as a real file rather
+   than a symlink) matches the canonical spec. Run this whenever the spec changes,
+   including security-only changes that don't touch schemas.
+
+5. **Run quality gates locally**
    ```bash
    npm run lint
    npm run typecheck
@@ -78,7 +90,7 @@ Optional but recommended:
    docker run --rm -v "$PWD":/app -w /app node:22 npm run typecheck
    ```
 
-5. **Stage and commit related changes together**
+6. **Stage and commit related changes together**
    ```bash
    git add openapi/astradesk-admin.v1.yaml \
            services/admin-portal/src/api/types.gen.ts \
@@ -88,7 +100,7 @@ Optional but recommended:
    ```
    Include any other touched files (e.g., UI updates) in the same changeset to keep history cohesive.
 
-6. **Push and open a pull request**
+7. **Push and open a pull request**
    - Reference this workflow in the PR description.
    - Ensure branch protection requires the **API contract sync** job to pass on CI.
 

@@ -2051,6 +2051,8 @@ paths:
     post:
       tags: [Jobs & Schedules]
       summary: Create a new scheduled job
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -2072,6 +2074,8 @@ paths:
     get:
       tags: [Jobs & Schedules]
       summary: Get job details
+      security:
+        - BearerAuth: []
       parameters:
         - name: id
           in: path
@@ -2095,6 +2099,8 @@ paths:
     put:
       tags: [Jobs & Schedules]
       summary: Update a job
+      security:
+        - BearerAuth: []
       parameters:
         - name: id
           in: path
@@ -2118,6 +2124,8 @@ paths:
     delete:
       tags: [Jobs & Schedules]
       summary: Delete a job
+      security:
+        - BearerAuth: []
       parameters:
         - name: id
           in: path
@@ -2214,6 +2222,8 @@ paths:
     post:
       tags: [Jobs & Schedules]
       summary: Resume a paused job
+      security:
+        - BearerAuth: []
       parameters:
         - name: id
           in: path
@@ -2240,6 +2250,8 @@ paths:
       tags: [Jobs & Schedules]
       summary: List items from the Dead-Letter Queue
       description: Retrieves a paginated list of failed messages or events that could not be processed.
+      security:
+        - BearerAuth: []
       parameters:
         - $ref: '#/components/parameters/PaginationLimit'
         - $ref: '#/components/parameters/PaginationOffset'
@@ -2297,6 +2309,8 @@ paths:
     post:
       tags: [Users & Roles]
       summary: Create or invite a new user
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -2327,6 +2341,8 @@ paths:
     get:
       tags: [Users & Roles]
       summary: Get user details
+      security:
+        - BearerAuth: []
       parameters:
         - name: id
           in: path
@@ -2345,6 +2361,8 @@ paths:
     delete:
       tags: [Users & Roles]
       summary: Delete a user
+      security:
+        - BearerAuth: []
       parameters:
         - name: id
           in: path
@@ -2396,6 +2414,8 @@ paths:
     put:
       tags: [Users & Roles]
       summary: Update a user's role
+      security:
+        - BearerAuth: []
       parameters:
         - name: id
           in: path
@@ -2427,6 +2447,8 @@ paths:
     get:
       tags: [Users & Roles]
       summary: List available roles
+      security:
+        - BearerAuth: []
       responses:
         '200':
           description: A list of available role names.
@@ -2474,6 +2496,8 @@ paths:
     post:
       tags: [Policies]
       summary: Create a new policy
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -2495,6 +2519,8 @@ paths:
     get:
       tags: [Policies]
       summary: Get policy details
+      security:
+        - BearerAuth: []
       parameters:
         - name: id
           in: path
@@ -2511,6 +2537,8 @@ paths:
     put:
       tags: [Policies]
       summary: Update a policy
+      security:
+        - BearerAuth: []
       parameters:
         - name: id
           in: path
@@ -2545,6 +2573,8 @@ paths:
     delete:
       tags: [Policies]
       summary: Delete a policy
+      security:
+        - BearerAuth: []
       parameters:
         - name: id
           in: path
@@ -2568,6 +2598,8 @@ paths:
       tags: [Policies]
       summary: Simulate a policy against a given input
       description: Allows for dry-running a policy to see the outcome without enforcing it.
+      security:
+        - BearerAuth: []
       parameters:
         - name: id
           in: path
@@ -2624,6 +2656,8 @@ paths:
         
         Critical for compliance reporting, security investigations, and operational audits.
         All entries are cryptographically signed to ensure integrity.
+      security:
+        - BearerAuth: []
       parameters:
         - name: userId
           in: query
@@ -2781,6 +2815,8 @@ paths:
         
         Critical for platform configuration management and system customization.
         Supports dynamic system behavior modification without service restarts.
+      security:
+        - BearerAuth: []
       parameters:
         - name: group
           in: path
@@ -2804,6 +2840,8 @@ paths:
       tags: [Settings]
       summary: Update a specific setting within a group
       description: Updates the value of a single setting identified by its key within a group.
+      security:
+        - BearerAuth: []
       parameters:
         - name: group
           in: path

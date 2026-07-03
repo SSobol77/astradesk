@@ -21,13 +21,20 @@ from astradesk_core.utils.oidc import (
     Verifier,
     build_verifier_from_env,
 )
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import HTTPException
-from starlette.status import HTTP_401_UNAUTHORIZED
+from runtime.authz import normalize_roles
+from starlette.status import HTTP_401_UNAUTHORIZED, HTTP_403_FORBIDDEN
 
-__all__ = ['get_principal', 'install_verifier', 'require_authenticated']
+__all__ = [
+    'get_principal',
+    'install_verifier',
+    'require_admin_role',
+    'require_authenticated',
+]
 
 _BEARER_PREFIX = 'bearer '
+_ADMIN_ROLE = 'admin'
 
 
 def install_verifier(app: FastAPI) -> None:
@@ -64,6 +71,26 @@ async def require_authenticated(request: Request) -> Principal:
             headers={'WWW-Authenticate': f'Bearer error="{exc.code}"'},
         ) from exc
     request.state.principal = principal
+    return principal
+
+
+async def require_admin_role(
+    principal: Principal = Depends(require_authenticated),
+) -> Principal:
+    """Gateway authorization gate for the Admin API proxy (INV-ADMIN-AUTH-2/6).
+
+    Runs after ``require_authenticated``, so a missing/invalid token is already
+    rejected with 401 before this check. An authenticated principal without the
+    normalized ``admin`` role is rejected with 403 — before the request reaches
+    the Admin API upstream (NEW-SEC). Reuses the same case-fold role convention
+    as the RBAC choke point (ISSUE 016, :func:`runtime.authz.normalize_roles`)
+    rather than inventing a second one.
+    """
+    if _ADMIN_ROLE not in normalize_roles(principal.roles):
+        raise HTTPException(
+            status_code=HTTP_403_FORBIDDEN,
+            detail={'error': 'admin_role_required'},
+        )
     return principal
 
 
