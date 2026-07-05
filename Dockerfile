@@ -47,7 +47,7 @@ COPY packages/ ./packages/
 
 # Sync dependencies with cache
 RUN --mount=type=cache,target=/uv-cache \
-    uv sync --all-extras --frozen
+    uv sync --frozen --no-dev --package astradesk-api-gateway
 
 # --- Runtime Stage ---
 # python:3.13-slim (pinned by digest; must match the builder stage above)
@@ -83,6 +83,14 @@ RUN groupadd -g 10001 astradesk && \
     useradd -u 10001 -g 10001 -M -s /usr/sbin/nologin astradesk && \
     chown -R 10001:10001 /app && \
     chmod 755 /app
+
+# `astradesk-api-gateway` is installed editable; its .pth shim resolves to the
+# builder-stage layout (services/api-gateway/src), which is never copied into
+# the runtime stage. /app/src holds the same source tree but is not otherwise
+# on sys.path, so top-level imports (agents, gateway, model_gateway, runtime,
+# tools) fail at startup. Matches the same pattern already used in
+# services/admin_api/Dockerfile.
+ENV PYTHONPATH=/app/src
 
 USER 10001:10001
 

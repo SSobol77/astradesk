@@ -173,6 +173,19 @@ sonarqube:scan:
 # Stage: Build Docker Images (multi-arch, cache, Sigstore)
 # ==============================================================================
 
+# Supply-chain scan gate (issue #40, NEW-01): the GitHub Actions pipeline
+# (.github/workflows/ci.yml) runs `scripts/ci/supply_chain_scan.sh` against
+# each single-arch image it already builds in the test stage. That script is
+# the intended integration point here too, but it is deliberately NOT wired
+# into build:images below in this pass: this job builds multi-arch images
+# with `--push` (no local, single-arch, `docker image`-scannable artifact
+# without an extra `--load` step) and signs with cosign against a real
+# registry, so bolting an unvalidated new dependency onto it carries more
+# release-pipeline risk than the surgical scope of #40 allows. Once wired,
+# the scan should run per-tag after `docker buildx build` (before `cosign
+# sign`) using the same ignorefile/severity contract documented in
+# docs/en/08_security_governance.md §8.5.4 and audit/evidence/40_dependency_triage.md.
+
 build:images:
   stage: build
   image: docker:25-dind

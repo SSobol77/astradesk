@@ -48,6 +48,17 @@ configurations {
     }
 }
 
+// Issue #40: Spring Boot 3.5.14's own BOM still manages jackson-bom 2.21.2
+// (CVE-2026-54512/CVE-2026-54513 fix floor in that line is 2.21.4) and
+// netty.version 4.1.132.Final (CVE-2026-33870/42579/42583/42584/42587/
+// 44249/45416/45674/47691/50010 fix floors range 4.1.133.Final-4.1.135.Final)
+// below the Trivy-reported fix floors. Overriding just these two BOM
+// properties — the narrowest fix available via io.spring.dependency-management
+// — raises every managed Jackson/Netty artifact consistently without a
+// direct per-artifact pin. See audit/evidence/40_dependency_triage.md.
+extra["jackson-bom.version"] = "2.21.4"
+extra["netty.version"] = "4.1.135.Final"
+
 dependencies {
     // --- Web / Actuator / Security ---
     implementation("org.springframework.boot:spring-boot-starter-webflux")

@@ -153,6 +153,11 @@ def is_excluded(path: PurePosixPath) -> bool:
         return True
     if '.gen.' in path.name or path.name.endswith(('_pb2.py', '_pb2_grpc.py')):
         return True
+    # Raw scanner-report JSON under audit/evidence/ embeds scanned third-party
+    # packages' own SPDX license identifiers as data, not as our own file
+    # header — it must not trip the obsolete-license-header check below.
+    if path.parts[:2] == ('audit', 'evidence') and path.suffix == '.json':
+        return True
     return False
 
 

@@ -38,8 +38,18 @@ COPY --from=build /workspace/services/ticket-adapter-java/build/libs/*.jar app.j
 
 # Fixed numeric non-root UID/GID (INV-BUILD-3); eclipse-temurin runs as root
 # by default.
+#
+# Runtime hardening (issue #40): ENTRYPOINT below only ever runs
+# `java -jar app.jar`. /usr/bin/pebble is a Go ACME test-CA binary bundled
+# by the eclipse-temurin image maintainers for their own testing; it is not
+# invoked by this service or any startup script and carries unfixed
+# golang.org/x/net / Go stdlib HIGH findings. The pinned digest is already
+# the latest published `eclipse-temurin:21-jre` manifest (confirmed via
+# `docker buildx imagetools inspect`), so remove the unused binary directly
+# rather than accept the risk.
 RUN groupadd -g 10001 astradesk && \
     useradd -u 10001 -g 10001 -M -s /usr/sbin/nologin astradesk && \
+    rm -f /usr/bin/pebble && \
     chown 10001:10001 app.jar
 
 USER 10001:10001

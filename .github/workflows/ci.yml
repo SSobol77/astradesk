@@ -73,6 +73,14 @@ jobs:
       - name: Build Docker Image (Python)
         run: docker build -t astradesk:ci-python -f Dockerfile .
 
+      - name: Set up Trivy
+        uses: aquasecurity/setup-trivy@v0.3.1
+        with:
+          version: v0.72.0
+
+      - name: Supply-chain scan gate (issue #40)
+        run: scripts/ci/supply_chain_scan.sh astradesk:ci-python
+
       - name: Upload Python coverage report
         uses: actions/upload-artifact@v4
         with:
@@ -101,6 +109,14 @@ jobs:
         # services/ticket-adapter-java/…), so it must build with the repository root
         # as the Docker context.
         run: docker build -f services/ticket-adapter-java/Dockerfile -t astradesk:ci-java .
+
+      - name: Set up Trivy
+        uses: aquasecurity/setup-trivy@v0.3.1
+        with:
+          version: v0.72.0
+
+      - name: Supply-chain scan gate (issue #40)
+        run: scripts/ci/supply_chain_scan.sh astradesk:ci-java
 
       - name: Upload Java coverage report
         uses: actions/upload-artifact@v4
@@ -142,6 +158,14 @@ jobs:
       - name: Build Docker Image (JS)
         # Dockerfile copies the portal and the canonical OpenAPI spec from repo-root paths.
         run: docker build -f services/admin-portal/Dockerfile -t astradesk:ci-js .
+
+      - name: Set up Trivy
+        uses: aquasecurity/setup-trivy@v0.3.1
+        with:
+          version: v0.72.0
+
+      - name: Supply-chain scan gate (issue #40)
+        run: scripts/ci/supply_chain_scan.sh astradesk:ci-js
 
       - name: Upload JS coverage report
         uses: actions/upload-artifact@v4

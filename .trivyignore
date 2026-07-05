@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Project: AstraDesk
+# File: .trivyignore
+#
+# Supply-chain accepted-risk allow-list for the fail-closed image scan gate
+# (GitHub issue #40 — NEW-01 dependency & supply-chain remediation).
+#
+# scripts/ci/supply_chain_scan.sh passes this file to `trivy image
+# --ignorefile`. Every active entry below is a disposition under INV-SC-1
+# (docs/roadmap/issues/ISSUES_NEW-01_supply_chain.md): it MUST be either
+#   (a) a documented false positive (the scanner is wrong: the flagged code
+#       path is not present, or the version match is incorrect), or
+#   (b) a proven non-reachable finding (the vulnerable code is present in
+#       the image but no execution path reaches it), justified in a comment
+#       immediately above the entry.
+#
+# This file must NOT be used to defer a reachable HIGH/CRITICAL finding that
+# is merely inconvenient to fix yet (INV-SC-2). Reachable findings must be
+# remediated (dependency bump, resolver-safe pin) or the build must fail.
+#
+# Format (one advisory ID per line, optional expiry):
+#   CVE-2024-12345
+#   GHSA-xxxx-yyyy-zzzz exp:2026-12-31
+#
+# INV-SC-4: every entry with an `exp:` date must be re-justified or removed
+# before it expires; Trivy re-fails the gate once the date passes. Entries
+# without an `exp:` date are not permitted — every acceptance here is
+# time-boxed by contract.
+#
+# `starlette`/`fastapi` and `transformers` were previously listed here as
+# pending Python-package findings and are now fully remediated (see
+# audit/evidence/40_dependency_triage.md's follow-up sections) — zero
+# Python-package HIGH/CRITICAL findings remain in `astradesk:ci-python-scoped`.
+#
+# The entries below are the last remaining findings in that image: Debian
+# trixie (13) OS packages with no upstream fixed version published on any
+# current Debian suite at the time of this pass (confirmed via each
+# advisory's Trivy `Status` field: `affected` or `fix_deferred`, and
+# `FixedVersion` empty in `audit/evidence/40_trivy_api_gateway_scoped.json`).
+# The pinned base image digest (`python@sha256:eb43ff12...` in `Dockerfile`)
+# was re-confirmed via `docker buildx imagetools inspect python:3.13-slim`
+# to already be the latest published manifest for that tag — there is no
+# newer digest to refresh to. Full disposition table:
+# audit/evidence/40_dependency_triage.md ("Debian OS accepted-risk" table).
+#
+# Each entry is time-boxed to exp:2026-08-31 per INV-SC-4 — this forces
+# re-review (renew, remove, or replace with a real fix) at the next
+# hardening window rather than becoming a silent permanent exception.
+# scripts/ci/supply_chain_scan.sh validates at scan time that every active
+# entry below carries a non-expired `exp:` date; Trivy itself (confirmed
+# v0.72.0) also stops suppressing a finding once its `exp:` date passes.
+
+# gzip 1.13-1 (Debian trixie) — global buffer overflow in LZH decompression.
+# Trivy Status: affected, no FixedVersion.
+CVE-2026-41992 exp:2026-08-31
+
+# libacl1 2.3.2-2+b1 (Debian trixie) — symlink traversal privilege escalation.
+# Trivy Status: affected, no FixedVersion.
+CVE-2026-54369 exp:2026-08-31
+
+# libncursesw6/libtinfo6/ncurses-base/ncurses-bin 6.5+20250216-2 (Debian
+# trixie) — one CVE ID spans all four scanned packages from the ncurses
+# source package. Buffer overflow, possible arbitrary code execution.
+# Trivy Status: affected, no FixedVersion.
+CVE-2025-69720 exp:2026-08-31
+
+# perl-base 5.40.1-6 (Debian trixie) — 5 distinct advisories against the
+# bundled perl-Archive-Tar/perl-IO-Compress/perl-base modules. Trivy Status:
+# affected or fix_deferred (Debian Security Tracker: no patched perl-base
+# published for any current suite at any of these IDs), no FixedVersion.
+CVE-2026-42496 exp:2026-08-31
+CVE-2026-8376 exp:2026-08-31
+CVE-2026-42497 exp:2026-08-31
+CVE-2026-48962 exp:2026-08-31
+CVE-2026-9538 exp:2026-08-31
