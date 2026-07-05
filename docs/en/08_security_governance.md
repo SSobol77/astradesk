@@ -210,6 +210,59 @@ cosign verify --key $COSIGN_PUB ghcr.io/org/astradesk/support-agent:${GIT_SHA}
 
 <br>
 
+### 8.5.4 Fail-Closed Dependency & Image Scan Gate (Track A, issue #40)
+
+The §8.5.1 SBOM/sign/Catalog flow above is the Track B enterprise pipeline
+(full SBOM publishing, cosign signing, digest-verified promotion) and is not
+yet wired into CI. Issue #40 (`docs/roadmap/issues/ISSUES_NEW-01_supply_chain.md`,
+NEW-01) implements the narrower Track A gate that **is** wired into CI today:
+
+- `scripts/ci/supply_chain_scan.sh <image-ref> [<image-ref> ...]` runs
+  `trivy image --severity HIGH,CRITICAL --exit-code 1` against each
+  already-built image and fails the job on any unaccepted finding. It treats
+  a missing `trivy` binary as a gate failure, not a skip (INV-FAIL-CLOSED) —
+  a supply-chain gate that silently no-ops when its scanner is absent is not
+  a control.
+- `.github/workflows/ci.yml` invokes it once per built image
+  (`astradesk:ci-python`, `astradesk:ci-java`, `astradesk:ci-js`) immediately
+  after that image's existing `docker build` step, so no new network-heavy
+  scan runs before the normal lint/type/test gates.
+- `.trivyignore` at the repository root is the accepted-risk allow-list. Every
+  active entry must be a documented false positive or a proven
+  **non-reachable** finding, with an `exp:YYYY-MM-DD` expiry
+  (INV-SC-4 — Trivy re-fails the gate once an entry expires). It must never
+  be used to silence a real, reachable HIGH/CRITICAL finding; those must be
+  remediated (dependency bump on a tested constraint set, not a blind
+  mass-update — see the issue's own "childhood disease" framing).
+- `audit/evidence/19_pip_audit.txt` and `audit/evidence/40_dependency_triage.md`
+  record the current `pip-audit` advisory list and its reachability
+  disposition (remediated / not-present-in-runtime-image /
+  accepted-with-expiry / pending) per INV-SC-1. As of this writing several
+  reachable findings (`transformers`, `torch`, `starlette` via `fastapi`,
+  `urllib3`, `cryptography`) remain **pending** a dedicated,
+  resolver-tested remediation pass — the gate is expected to fail on
+  `astradesk:ci-python` until that lands; that is the gate working as
+  designed, not a defect in it.
+- A GitLab CI equivalent is intentionally **not** wired into the multi-arch
+  `build:images` stage in this pass (that stage pushes to a real registry and
+  signs with cosign; bolting an unvalidated new dependency onto it was judged
+  higher-risk than deferring). The same
+  `scripts/ci/supply_chain_scan.sh` script is the intended integration point
+  once that stage is extended — see the comment left in `.gitlab-ci.yml`.
+- Scoping the root `Dockerfile`'s `uv sync --all-extras --frozen` down to
+  `--frozen --no-dev --package astradesk-api-gateway` (matching every sibling
+  service Dockerfile) was investigated and proven, by Trivy diff, to remove
+  several dev/docs/test-only findings from `astradesk:ci-python` — including
+  the image's sole CRITICAL Python-package finding. It is **not applied**:
+  the rebuilt image was run with its real entrypoint and found to fail at
+  startup (`ModuleNotFoundError: No module named 'agents'`), and the
+  unmodified image fails identically — a pre-existing, unrelated
+  Dockerfile/editable-install path defect, not a supply-chain issue. See
+  `audit/evidence/40_dependency_triage.md` for the full investigation and
+  the narrow fix it points to.
+
+<br>
+
 ---
 
 ## 8.6 Secrets & Encryption

@@ -26,7 +26,11 @@ dependencies = [
   "astradesk-core",
 
   # Zależności frameworka webowego i serwera
-  "fastapi>=0.115,<0.116",
+  # Lower bound raised to 0.133 (from 0.115): 0.133.0 is the lowest FastAPI
+  # release whose own starlette constraint drops the <1.0.0 upper bound
+  # (confirmed via PyPI metadata across every FastAPI 0.115-0.139 minor),
+  # which is required to resolve the Starlette CVE fixes (0.49.1/1.1.0/1.3.1).
+  "fastapi>=0.133,<0.134",
   "uvicorn[standard]>=0.30,<0.31",
   "pydantic>=2.12.3",
   "python-dotenv>=1.0,<2.0",
@@ -48,8 +52,14 @@ dependencies = [
   "kubernetes-asyncio>=20.0,<21.0",
 
   # Zależności AI / ML
-  "sentence-transformers>=3.0,<4.0",
-  "transformers==4.45.2",
+  # sentence-transformers lower bound raised to 5.2.0 (from 3.0): 5.2.0 is the
+  # lowest sentence-transformers release whose own transformers constraint
+  # raises the <5.0.0 upper bound to <6.0.0 (confirmed via PyPI metadata
+  # across the 3.0-5.6 line), required to resolve transformers>=5.3.0 below
+  # (clears CVE-2026-4372; the exact-pin change also clears CVE-2024-11392/
+  # 11393/11394, fixed upstream at 4.48.0).
+  "sentence-transformers>=5.2.0,<5.3.0",
+  "transformers>=5.3.0,<5.4.0",
   "torch==2.9.0",
 
   # Zależności obserwowalności (Observability)
@@ -64,6 +74,10 @@ dependencies = [
   "opa-python-client>=0.1.0,<3.0",
   "rank-bm25>=0.2.0",
   "botocore>=1.40.46,<1.40.50",
+  # model_gateway/providers/bedrock_provider.py imports aioboto3 directly
+  # (async AWS Bedrock Runtime client); must be a direct dependency so
+  # package-scoped `uv sync --package astradesk-api-gateway` installs it.
+  "aioboto3>=15.4.0",
   "python-dotenv",
 ]
 

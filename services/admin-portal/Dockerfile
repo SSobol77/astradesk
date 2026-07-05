@@ -49,9 +49,27 @@ COPY --from=build /app/.next/static ./standalone/.next/static
 COPY --from=build /app/public ./standalone/public
 COPY services/admin-portal/package.json ./standalone/package.json
 
+# Runtime hardening (issue #40): CMD below only ever runs `node server.js`
+# (the Next.js standalone server) and never npm/npx/corepack/yarn. The
+# base image's global npm install carries its own vendored copies of
+# picomatch and sigstore that trail upstream fixes (CVE-2026-33671,
+# CVE-2026-48815); since the package manager is unreachable at runtime,
+# drop it and corepack/yarn from this final stage rather than carry
+# unused, vulnerable payload. The build/deps stages above still run
+# `npm ci`/`npm run build` unaffected.
+#
 # Fixed numeric non-root UID/GID (INV-BUILD-3). The official node:22-alpine
 # image already ships a `node` user/group at 1000:1000; reuse it explicitly.
-RUN chown -R 1000:1000 /app/standalone
+RUN rm -rf \
+      /usr/local/lib/node_modules/npm \
+      /usr/local/lib/node_modules/corepack \
+      /usr/local/bin/npm \
+      /usr/local/bin/npx \
+      /usr/local/bin/corepack \
+      /usr/local/bin/yarn \
+      /usr/local/bin/yarnpkg \
+      /opt/yarn-v* \
+    && chown -R 1000:1000 /app/standalone
 
 WORKDIR /app/standalone
 USER 1000:1000

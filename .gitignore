@@ -209,3 +209,5 @@ audit-report.md
 !docs/roadmap/*
 !docs/roadmap/issues/*.*
 !audit/*
+!audit/evidence/*
+!audit/evidence/*.txt

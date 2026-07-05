@@ -1,0 +1,118 @@
+# AstraDesk supply-chain evidence — pip-audit (root workspace)
+# Generated: 2026-07-04T00:02:47Z
+# Command: uv run pip-audit --format columns
+# Context: docs/roadmap/issues/ISSUES_NEW-01_supply_chain.md (issue #40, NEW-01)
+# Scope: root uv workspace environment (core, services/api-gateway, services/admin_api,
+#   services/auditor, packages/domain-*). mcp/ has its own separate uv.lock and is audited
+#   independently (already clean at capture time — see audit/evidence/40_dependency_triage.md).
+
+Found 97 known vulnerabilities in 19 packages
+Name          Version ID                  Fix Versions
+------------- ------- ------------------- -------------
+aiohttp       3.13.1  PYSEC-2026-237      3.14.1
+aiohttp       3.13.1  GHSA-p998-jp59-783m 3.13.4
+aiohttp       3.13.1  GHSA-hcc4-c3v8-rx92 3.13.4
+aiohttp       3.13.1  GHSA-m5qp-6w8w-w647 3.13.4
+aiohttp       3.13.1  GHSA-3wq7-rqq7-wx6j 3.13.4
+aiohttp       3.13.1  GHSA-mwh4-6h8g-pg8w 3.13.4
+aiohttp       3.13.1  GHSA-966j-vmvw-g2g9 3.13.4
+aiohttp       3.13.1  GHSA-63hf-3vf5-4wqf 3.13.4
+aiohttp       3.13.1  GHSA-c427-h43c-vf67 3.13.4
+aiohttp       3.13.1  GHSA-6mq8-rvhq-8wgg 3.13.3
+aiohttp       3.13.1  GHSA-69f9-5gxw-wvc2 3.13.3
+aiohttp       3.13.1  GHSA-6jhg-hg63-jvvf 3.13.3
+aiohttp       3.13.1  GHSA-g84x-mcqj-x9qq 3.13.3
+aiohttp       3.13.1  GHSA-fh55-r93g-j68g 3.13.3
+aiohttp       3.13.1  GHSA-54jq-c3m8-4m76 3.13.3
+aiohttp       3.13.1  GHSA-jj3x-wxrx-4x23 3.13.3
+aiohttp       3.13.1  GHSA-mqqc-3gqh-h2x8 3.13.3
+aiohttp       3.13.1  GHSA-w2fm-2cpv-w7v5 3.13.4
+aiohttp       3.13.1  GHSA-2vrm-gr82-f7m5 3.13.4
+aiohttp       3.13.1  GHSA-jg22-mg44-37j8 3.14.0
+aiohttp       3.13.1  GHSA-hg6j-4rv6-33pg 3.14.0
+aiohttp       3.13.1  GHSA-4fvr-rgm6-gqmc 3.14.1
+aiohttp       3.13.1  GHSA-2fqr-mr3j-6wp8 3.14.1
+aiohttp       3.13.1  GHSA-63hw-fmq6-xxg2 3.14.1
+aiohttp       3.13.1  GHSA-m6qw-4cw2-hm4m 3.14.0
+aiohttp       3.13.1  GHSA-hpj7-wq8m-9hgp 3.14.1
+aiohttp       3.13.1  GHSA-g3cq-j2xw-wf74 3.14.1
+aiohttp       3.13.1  GHSA-9x8q-7h8h-wcw9 3.14.1
+aiohttp       3.13.1  GHSA-xcgm-r5h9-7989 3.14.1
+black         25.9.0  GHSA-3936-cmfr-pm3m 26.3.1
+cryptography  46.0.3  PYSEC-2026-36       46.0.7
+cryptography  46.0.3  PYSEC-2026-35       46.0.6
+cryptography  46.0.3  GHSA-r6ph-v2qm-q3c2 46.0.5
+cryptography  46.0.3  GHSA-537c-gmf6-5ccf 48.0.1
+filelock      3.20.0  GHSA-w853-jp5j-5j7f 3.20.1
+filelock      3.20.0  GHSA-qmgc-5h2g-mvrw 3.20.3
+fonttools     4.60.1  GHSA-768j-98cg-p3fv 4.60.2
+idna          3.11    PYSEC-2026-215      3.15
+msgpack       1.1.2   GHSA-6v7p-g79w-8964 1.2.1
+pillow        12.0.0  PYSEC-2026-165      12.2.0
+pillow        12.0.0  GHSA-cfh3-3jmp-rvhc 12.1.1
+pillow        12.0.0  GHSA-whj4-6x5x-4v2j 12.2.0
+pillow        12.0.0  GHSA-5xmw-vc9v-4wf2 12.2.0
+pillow        12.0.0  GHSA-r73j-pqj5-w3x7 12.2.0
+pillow        12.0.0  GHSA-pwv6-vv43-88gr 12.2.0
+pip           25.3    PYSEC-2026-196      26.1.2
+pip           25.3    GHSA-6vgw-5pg2-w6jp 26.0
+pip           25.3    GHSA-58qw-9mgm-455v 26.1
+pip           25.3    GHSA-jp4c-xjxw-mgf9 26.1
+protobuf      6.33.0  GHSA-7gcm-g887-7qv7 5.29.6,6.33.5
+pygments      2.19.2  GHSA-5239-wwwm-4pmq 2.20.0
+pytest        8.4.2   GHSA-6w46-j5rx-g56g 9.0.3
+python-dotenv 1.2.1   GHSA-mf9w-mj56-hr94 1.2.2
+python-jose   3.3.0   PYSEC-2024-232      3.4.0
+python-jose   3.3.0   PYSEC-2024-233      3.4.0
+python-jose   3.3.0   PYSEC-2025-185
+requests      2.32.5  GHSA-gc5v-m9x4-r6x2 2.33.0
+starlette     0.46.2  PYSEC-2026-161      1.0.1
+starlette     0.46.2  PYSEC-2026-249      1.3.1
+starlette     0.46.2  PYSEC-2026-248      1.3.0
+starlette     0.46.2  GHSA-2c2j-9gv5-cj73 0.47.2
+starlette     0.46.2  GHSA-7f5h-v6xp-fcq8 0.49.1
+starlette     0.46.2  GHSA-wqp7-x3pw-xc5r 1.1.0
+starlette     0.46.2  GHSA-x746-7m8f-x49c 1.1.0
+torch         2.9.0   PYSEC-2026-139
+torch         2.9.0   GHSA-vgrw-7cvw-pwgx 2.9.1
+torch         2.9.0   GHSA-rrmf-rvhw-rf47
+torch         2.9.0   GHSA-qfhq-4f3w-5fph 2.10.0
+transformers  4.45.2  PYSEC-2025-217
+transformers  4.45.2  PYSEC-2024-227      4.48.0
+transformers  4.45.2  PYSEC-2024-229      4.48.0
+transformers  4.45.2  PYSEC-2024-228      4.48.0
+transformers  4.45.2  PYSEC-2025-40       4.49.0
+transformers  4.45.2  PYSEC-2025-214
+transformers  4.45.2  PYSEC-2025-218
+transformers  4.45.2  PYSEC-2025-211
+transformers  4.45.2  PYSEC-2025-212
+transformers  4.45.2  PYSEC-2025-213
+transformers  4.45.2  PYSEC-2025-215
+transformers  4.45.2  PYSEC-2025-216
+transformers  4.45.2  GHSA-6rvg-6v2m-4j46 4.48.0
+transformers  4.45.2  GHSA-fpwr-67px-3qhx 4.50.0
+transformers  4.45.2  GHSA-q2wp-rjmx-x6x9 4.51.0
+transformers  4.45.2  GHSA-jjph-296x-mrcr 4.51.0
+transformers  4.45.2  GHSA-phhr-52qp-3mj4 4.52.1
+transformers  4.45.2  GHSA-37mw-44qp-f5jm 4.52.1
+transformers  4.45.2  GHSA-9356-575x-2w9m 4.53.0
+transformers  4.45.2  GHSA-59p9-h35m-wg4g 4.53.0
+transformers  4.45.2  GHSA-rcv9-qm8p-9p6j 4.53.0
+transformers  4.45.2  GHSA-4w7r-h757-3r74 4.53.0
+transformers  4.45.2  GHSA-69w3-r845-3855 5.0.0rc3
+transformers  4.45.2  GHSA-29pf-2h5f-8g72 5.3.0
+urllib3       1.26.20 PYSEC-2026-141      2.7.0
+urllib3       1.26.20 GHSA-pq67-6m6q-mj2v 2.5.0
+urllib3       1.26.20 GHSA-gm62-xv2j-4w53 2.6.0
+urllib3       1.26.20 GHSA-2xpw-w6gg-jr37 2.6.0
+urllib3       1.26.20 GHSA-38jv-5279-wg99 2.6.3
+Name                     Skip Reason
+------------------------ ---------------------------------------------------------------------------------------
+astradesk-admin-api      Dependency not found on PyPI and could not be audited: astradesk-admin-api (0.3.0)
+astradesk-api-gateway    Dependency not found on PyPI and could not be audited: astradesk-api-gateway (0.3.0)
+astradesk-auditor        Dependency not found on PyPI and could not be audited: astradesk-auditor (0.3.0)
+astradesk-core           Dependency not found on PyPI and could not be audited: astradesk-core (0.3.0)
+astradesk-domain-finance Dependency not found on PyPI and could not be audited: astradesk-domain-finance (0.3.0)
+astradesk-domain-ops     Dependency not found on PyPI and could not be audited: astradesk-domain-ops (0.3.0)
+astradesk-domain-supply  Dependency not found on PyPI and could not be audited: astradesk-domain-supply (0.3.0)
+astradesk-domain-support Dependency not found on PyPI and could not be audited: astradesk-domain-support (0.3.0)
