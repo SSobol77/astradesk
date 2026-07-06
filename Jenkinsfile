@@ -30,7 +30,7 @@ pipeline {
 
         // AWS / Terraform
         AWS_CREDENTIALS_ID    = 'aws-credentials'// AWS access/secret keys
-        TERRAFORM_DIR         = 'infra'
+        TERRAFORM_DIR         = 'deploy/infra'
         TF_VAR_FILE           = "${TERRAFORM_DIR}/terraform.tfvars"
 
         // Admin API (JWT + endpoint)
@@ -515,7 +515,7 @@ pipeline {
                 pytest-report.xml,
                 **/jacocoTestReport.xml,
                 services/admin-portal/coverage/**,
-                infra/plan.out,
+                deploy/infra/plan.out,
                 *.log,
                 aws-secret-response.json
             ''', allowEmptyArchive: true

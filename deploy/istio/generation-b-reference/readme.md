@@ -1,7 +1,7 @@
 <!--
 SPDX-License-Identifier: GPL-2.0-only
 Project: AstraDesk
-File: deploy/istio/readme.md
+File: deploy/istio/generation-b-reference/readme.md
 Website: https://www.astradesk.dev
 Repository: https://github.com/SSobol77/astradesk
 

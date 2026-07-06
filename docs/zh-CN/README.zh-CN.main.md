@@ -369,7 +369,7 @@ curl -X POST http://localhost:8080/v1/agents/run \
 **初始化**：
 
    ```sh
-   cd infra
+   cd deploy/infra
    terraform init
    terraform apply -var="region=us-east-1" -var="project=astradesk"
    ```
@@ -388,8 +388,8 @@ curl -X POST http://localhost:8080/v1/agents/run \
 
 ### mTLS 与 Istio 服务网格
 
-1. 创建命名空间：`kubectl apply -f deploy/istio/00-namespace.yaml`。
-2. 启用 mTLS：`kubectl apply -f deploy/istio/10-peer-authentication.yaml`（以及 `deploy/istio/` 中的其余文件）。
+1. 命名空间：`astradesk-prod` 由 Helm 创建（`--create-namespace`），并非通过单独的清单文件。
+2. 启用 mTLS：`kubectl apply -f deploy/istio/`（应用 `peerauthentication.yaml`、`gateway.yaml`、`virtualservice.yaml`、`certmanager.yaml` —— 即规范的 `astradesk-prod` 生成版本；详见 `audit/evidence/43_deployability_verification.md`）。
 3. Gateway：通过 cert-manager 在 443 端口启用 HTTPS。
 
 <br>

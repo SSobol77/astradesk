@@ -17,17 +17,17 @@ module "rds_postgres" {
   source  = "terraform-aws-modules/rds/aws"
   version = "~> 5.0"
 
-  identifier           = "${var.db_name}-postgres"
-  engine               = "postgres"
-  engine_version       = var.engine_version
-  instance_class       = var.instance_class
-  allocated_storage    = 20
-  db_name              = var.db_name
-  username             = var.db_username
-  password             = var.db_password
-  multi_az             = true
+  identifier             = "${var.db_name}-postgres"
+  engine                 = "postgres"
+  engine_version         = var.engine_version
+  instance_class         = var.instance_class
+  allocated_storage      = 20
+  db_name                = var.db_name
+  username               = var.db_username
+  password               = var.db_password
+  multi_az               = true
   vpc_security_group_ids = [aws_security_group.rds.id]
-  subnet_ids           = var.subnets
+  subnet_ids             = var.subnets
 
   tags = {
     Name    = "${var.db_name}-postgres"
@@ -36,8 +36,8 @@ module "rds_postgres" {
 }
 
 resource "aws_security_group" "rds" {
-  name        = "${var.db_name}-rds-sg"
-  vpc_id      = var.vpc_id
+  name   = "${var.db_name}-rds-sg"
+  vpc_id = var.vpc_id
 
   ingress {
     from_port   = 5432

@@ -18,13 +18,13 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: astradesk-{{ $service }}-hpa
-  namespace: {{ .Release.Namespace }}
+  name: astradesk-{{ $service | kebabcase }}-hpa
+  namespace: {{ $.Release.Namespace }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: astradesk-{{ $service }}
+    name: astradesk-{{ $service | kebabcase }}
   minReplicas: {{ index $.Values $service "autoscaling" "minReplicas" }}
   maxReplicas: {{ index $.Values $service "autoscaling" "maxReplicas" }}
   metrics:

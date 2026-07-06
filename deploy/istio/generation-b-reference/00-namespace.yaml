@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # Project: AstraDesk
-# File: deploy/istio/certs/astradesk-ca-clusterissuer.yaml
+# File: deploy/istio/generation-b-reference/00-namespace.yaml
 # Website: https://www.astradesk.dev
 # Repository: https://github.com/SSobol77/astradesk
 #
@@ -13,10 +13,10 @@
 # AstraDesk is licensed under the GNU General Public License version 2 only.
 # See the LICENSE file in the project root for the full license text.
 
-apiVersion: cert-manager.io/v1
-kind: ClusterIssuer
+apiVersion: v1
+kind: Namespace
 metadata:
-  name: astradesk-ca
-spec:
-  ca:
-    secretName: astradesk-ca-secret  # References CA cert/key from astradesk-ca-certificate.yaml
+  name: astradesk
+  labels:
+    istio-injection: enabled  # Enables automatic Envoy sidecar injection for all Pods
+    app: astradesk  # Optional: Label for workload grouping (e.g., for monitoring)
