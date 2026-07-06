@@ -26,6 +26,11 @@ dependencies = [
   "prophet>=1.1,<2.0",
   "grpcio>=1.66,<2.0",
   "protobuf>=5.0",
+  # tools/mcp_server.py imports these directly to serve the pack's standalone
+  # MCP server; pinned to the same range as services/api-gateway so the
+  # workspace lock resolves one already-audited version, not a second one.
+  "fastapi>=0.133,<0.134",
+  "uvicorn[standard]>=0.30,<0.31",
 ]
 
 [project.entry-points."astradesk.pack"]

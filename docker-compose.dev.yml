@@ -141,8 +141,15 @@ services:
     environment:
       - LOG_LEVEL=INFO
       - ENVIRONMENT=development
+    # Mounted at the package's own path (not `/app`): the image's `/app`
+    # already holds `.venv` and `core/` from the build (see
+    # packages/domain-support/Dockerfile); mounting the host source directly
+    # onto `/app` shadowed both and broke `python -m
+    # domain_support.tools.mcp_server` with `ModuleNotFoundError: No module
+    # named 'domain_support'` (found while wiring ISSUE 018's integration
+    # gate — see audit/evidence/18_integration_ci_gate.md).
     volumes:
-      - ./packages/domain-support:/app
+      - ./packages/domain-support:/app/packages/domain-support
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 30s
@@ -160,8 +167,10 @@ services:
     environment:
       - LOG_LEVEL=INFO
       - ENVIRONMENT=development
+    # See mcp-support's volume comment above: mounted at the package's own
+    # path, not `/app`, so the image's `.venv`/`core/` are not shadowed.
     volumes:
-      - ./packages/domain-ops:/app
+      - ./packages/domain-ops:/app/packages/domain-ops
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
       interval: 30s
@@ -179,8 +188,10 @@ services:
     environment:
       - LOG_LEVEL=INFO
       - ENVIRONMENT=development
+    # See mcp-support's volume comment above: mounted at the package's own
+    # path, not `/app`, so the image's `.venv`/`core/` are not shadowed.
     volumes:
-      - ./packages/domain-finance:/app
+      - ./packages/domain-finance:/app/packages/domain-finance
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
       interval: 30s
@@ -198,8 +209,10 @@ services:
     environment:
       - LOG_LEVEL=INFO
       - ENVIRONMENT=development
+    # See mcp-support's volume comment above: mounted at the package's own
+    # path, not `/app`, so the image's `.venv`/`core/` are not shadowed.
     volumes:
-      - ./packages/domain-supply:/app
+      - ./packages/domain-supply:/app/packages/domain-supply
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
       interval: 30s

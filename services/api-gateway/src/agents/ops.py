@@ -187,7 +187,12 @@ class OpsAgent(BaseAgent):
         user_id = claims.get('user_id', 'unknown')
 
         steps: list[PlanStep] = []
-        if any(k in low for k in ('metrics', 'performance', 'status', 'health')):
+        # 'metryki' matches this file's own `KeywordPlanner` fallback rule
+        # (runtime/planner.py) — omitting it here meant Polish-language
+        # metrics queries fell through to the `search_ops_kb` catch-all
+        # below instead of `get_metrics`, discovered while wiring ISSUE
+        # 018's integration gate (see audit/evidence/18_integration_ci_gate.md).
+        if any(k in low for k in ('metrics', 'metryki', 'performance', 'status', 'health')):
             steps.append(
                 PlanStep(
                     name='get_metrics',
@@ -302,7 +307,7 @@ class OpsAgent(BaseAgent):
 
                 if len(intent_graph.nodes) > MAX_GRAPH_NODES:
                     raise RuntimeError('Graph size exceeded max nodes')
-                if nx.has_cycles(intent_graph):
+                if not nx.is_directed_acyclic_graph(intent_graph):
                     raise RuntimeError('Cycle detected in Intent Graph')
 
                 step = intent_graph.nodes[node]['step']

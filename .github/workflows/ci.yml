@@ -87,6 +87,56 @@ jobs:
           name: python-coverage
           path: coverage.xml
 
+  integration-tests:
+    # ISSUE 018: wires tests/integration_tests.py as an explicit, always-run
+    # gate. Never folded into build-test-python's plain `pytest -q`: that
+    # file's `*_tests.py` name does not match pytest's default
+    # `python_files` glob, so it is always targeted by explicit path plus
+    # the `integration` marker (registered in pyproject.toml) instead — see
+    # audit/evidence/18_integration_ci_gate.md for the full investigation.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Sync dependencies (locked)
+        run: uv sync --frozen --extra dev
+
+      - name: Start required integration services
+        run: |
+          # Hard requirement: the gateway's real (non-mock) Postgres/Redis/NATS
+          # backing the agent -> tool -> RAG flow, plus the 4 domain-pack MCP
+          # servers. All must become healthy or this step fails the job (see
+          # audit/evidence/18_integration_ci_gate.md for the fixes that made
+          # the 4 mcp-* services startable).
+          docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180 \
+            postgres redis nats mcp-support mcp-ops mcp-finance mcp-supply
+
+      - name: Run integration test gate (issue #18)
+        env:
+          DATABASE_URL: postgresql://astradesk:dev_password@localhost:5432/astradesk
+          REDIS_URL: redis://localhost:6379/0
+          NATS_URL: nats://localhost:4222
+          ENVIRONMENT: ci
+          # Local-dev-only HS256 signing key (astradesk_core.utils.oidc.LocalDevVerifier,
+          # ISSUE 009): never a real credential, generated fresh per CI run,
+          # verified only by this same ephemeral process — the same class of
+          # CI-only fixture value as docker-compose.dev.yml's POSTGRES_PASSWORD.
+          AUTH_MODE: local-dev
+          ASTRADESK_DEV_JWT_SECRET: ci-only-local-dev-jwt-signing-secret-not-a-real-credential
+        run: uv run pytest -q -m integration tests/integration_tests.py
+
+      - name: Tear down integration services
+        if: always()
+        run: docker compose -f docker-compose.dev.yml down -v
+
   build-test-java:
     runs-on: ubuntu-latest
     steps:

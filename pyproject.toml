@@ -138,6 +138,19 @@ exclude = '^(src/|services/api_gateway/|\.venv/|build/|dist/|.*/build/)'
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 addopts = "--cov=core/src --cov=services/api-gateway/src --cov=services/admin_api/src --cov=mcp.src --cov=domain_support --cov=domain_ops --cov=domain_finance --cov=domain_supply --cov-report=xml --cov-report=term-missing"
+# ISSUE 018: `tests/integration_tests.py` is never picked up by a bare
+# `pytest -q` (its `*_tests.py` name does not match the default
+# `python_files` glob `test_*.py`/`*_test.py`), so it is always run
+# explicitly by path: `uv run pytest -q -m integration tests/integration_tests.py`
+# (see .github/workflows/ci.yml's `integration-tests` job and
+# audit/evidence/18_integration_ci_gate.md). The marker below is
+# self-documentation plus a safety net if the file is ever renamed to match
+# the default glob — it is deliberately NOT added to `addopts` as
+# `-m "not integration"`, since a second CLI `-m integration` would then be
+# ANDed against it by pytest and match nothing.
+markers = [
+  "integration: full end-to-end tests against real docker-compose services (ISSUE 018); never run by the default unit-test gate.",
+]
 pythonpath = ["services/api-gateway/src"]
 testpaths = [
   "tests",
