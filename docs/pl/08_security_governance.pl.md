@@ -273,6 +273,8 @@ block_patterns:
 
 - **Zabezpieczenie przed zmianą**: przechowuj hashe w niezmiennym logu lub append-only object storage.
 
+- **Trwały sink (ISSUE 019/039, zaimplementowane)**: konkretny `AuditWriter` stojący za tym strumieniem zdarzeń jest wybierany przez `AUDIT_MODE`. Domyślny tryb `jsonl` zapisuje plik JSON-Lines append-only (wymagany na warstwach wdrożeniowych, fail-closed przy starcie w przeciwnym razie). Jawnie włączany tryb `jetstream` publikuje trwale do NATS JetStream: wywołanie narzędzia z efektem ubocznym nie jest zgłaszane jako zakończone sukcesem, dopóki JetStream nie potwierdzi zdarzenia, a osobna usługa Auditor — trwały konsument typu pull w JetStream — potwierdza (ack) każdą partię dopiero po trwałym zapisaniu jej zarówno w Elasticsearch, jak i S3, z ograniczonymi ponowieniami, przekierowaniem do DLQ po ich wyczerpaniu oraz idempotentnymi kluczami zapisu, dzięki czemu redelivery nigdy nie duplikuje rekordu. Odzyskiwanie po awarii (zabicie procesu w trakcie przetwarzania → zero utraty po restarcie) zostało potwierdzone na prawdziwym kontenerze NATS JetStream w `audit/evidence/39_jetstream_durable_audit.md`.
+
 <br>
 
 ```mermaid

@@ -749,7 +749,7 @@ logs-grafana:
 * **Auth**: OIDC/JWT z JWKS.
 * **RBAC**: Per narzędzie, na bazie claims.
 * **mTLS**: STRICT via Istio.
-* **Audyt**: W Postgres + publikacja NATS.
+* **Audyt**: W Postgres + publikacja NATS. Tryb `AUDIT_MODE=jetstream` (ISSUE 039) dodaje trwały sink na NATS JetStream z potwierdzeniem po trwałym zapisie, ograniczonymi ponowieniami i DLQ — patrz `audit/evidence/39_jetstream_durable_audit.md`.
 * **Polityki**: Allow-lists w narzędziach, ponawianie w proxy.
 
 <br>

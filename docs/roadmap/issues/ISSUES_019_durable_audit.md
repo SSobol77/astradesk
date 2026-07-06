@@ -50,14 +50,70 @@ Event/audit pipelines commonly ack-before-write and buffer in memory for through
 | Sink throws | Surfaced + retried, not suppressed |
 
 ## Acceptance criteria (Definition of Done)
-- [ ] Durable JetStream consumer; ack-after-durable-write.
-- [ ] Crash-recovery test: kill during flush → zero event loss after restart.
-- [ ] Sink-outage test: induced outage → events land in DLQ, replay restores them.
-- [ ] Idempotency test: forced redelivery → no duplicates.
-- [ ] Removed exception suppression; failures observable in metrics.
+- [x] Durable JetStream consumer; ack-after-durable-write.
+- [x] Crash-recovery test: kill during flush → zero event loss after restart.
+- [x] Sink-outage test: induced outage → events land in DLQ, replay restores them.
+- [x] Idempotency test: forced redelivery → no duplicates.
+- [x] Removed exception suppression; failures observable (structured logs; no dedicated Prometheus counter yet — see Limitations).
 
 ## Verification evidence (artifact)
 Crash-recovery and sink-outage test logs; DLQ replay output.
+
+**Resolved by GitHub issue #39** (tracked separately from this RESCOPE
+document because #19/#19-RESCOPE predates the numbered-issue workflow used
+from #39 onward). Full implementation record, exact commands, and results:
+`audit/evidence/39_jetstream_durable_audit.md`. Raw crash-recovery run
+output: `audit/evidence/39_jetstream_crash_recovery_run.txt`.
+
+Summary of how each invariant is satisfied:
+
+- **INV-AUD-1/INV-AUD-5** (ack-after-durable-write; Gateway doesn't block on
+  audit but can't lose what it accepted): the producer-side
+  `runtime.audit.JetStreamAuditWriter` (`services/api-gateway/src/runtime/audit.py`)
+  only returns from `write()` once JetStream acknowledges durable storage on
+  the primary subject; the pre-existing `ToolRegistry.execute` choke point
+  (`services/api-gateway/src/runtime/registry.py`, unmodified) already
+  awaits `AuditWriter.write()` before invoking a side-effecting tool, so a
+  tool never runs without a durably-stored audit record. Selected via the
+  explicit, non-default `AUDIT_MODE=jetstream` (`INV-LOCAL-MODE-EXPLICIT`
+  applies in reverse here: the *stronger* mode must be opted into, and the
+  weaker JSONL baseline stays the default so existing deployments are
+  unaffected).
+- **INV-AUD-2** (durable JetStream consumer, restart resumes from the last
+  unacked message): `services/auditor/main.py`'s `Auditor` is now a
+  JetStream durable pull consumer (`AckPolicy.EXPLICIT`, durable name
+  `AUDIT_JETSTREAM_DURABLE_CONSUMER`). Proven against a real, ephemeral NATS
+  JetStream container by `scripts/jetstream_crash_recovery.py`: a batch
+  fetched-but-never-acked by one `Auditor` instance is redelivered
+  unmodified to a brand-new instance under the same durable name.
+- **INV-AUD-3** (bounded retry then DLQ, never silently dropped): both the
+  producer and the consumer retry a bounded number of times
+  (`AUDIT_PUBLISH_RETRIES`/`AUDIT_SINK_RETRIES`) before routing to a DLQ
+  subject; a message is acked off the primary subject only once the DLQ
+  publish itself is broker-confirmed, otherwise it is left unacked for
+  JetStream to redeliver. "Replay" is the DLQ subject itself: it is an
+  ordinary durable JetStream subject on the same stream, so an operator (or
+  a future tooling script) can independently pull-consume it — exactly what
+  the crash-recovery script's DLQ-readback step does.
+- **INV-AUD-4** (idempotent writes): the producer uses the audit event id as
+  the JetStream `Nats-Msg-Id` (broker-side publish dedup); the consumer uses
+  the event id as the Elasticsearch document `_id` and a digest of the
+  batch's event ids as the S3 object key, so redelivery overwrites rather
+  than duplicates. The DLQ publish on both sides deliberately uses a
+  *different* dedup id (`dlq:<event_id>`) — see Limitations for why reusing
+  the primary id there is actually a bug, not a feature.
+
+## Limitations (carried into the #39 evidence record)
+
+- No dedicated Prometheus counter for audit sink failures/DLQ routing yet;
+  failures are structured JSON logs (`services/auditor/main.py`) at
+  WARNING/ERROR/CRITICAL. Wiring these into the existing
+  `services/api-gateway/src/tools/metrics.py`-style exporter is reasonable
+  follow-up work, not required by this issue's contract.
+- No automated DLQ replay tool (a script that re-publishes DLQ events back
+  onto the primary subject after an operator fixes the underlying sink
+  outage) exists yet; the DLQ subject is independently readable today, but
+  replay is a manual `nats` CLI / script operation.
 
 ## Out of scope
 WORM/object-lock retention tier and long-term archival policy (Track B / ops).

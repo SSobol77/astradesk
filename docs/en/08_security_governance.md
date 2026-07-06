@@ -326,6 +326,8 @@ block_patterns:
 
 - **Tamper-evidence**: store hashes in immutable log or append-only object storage.
 
+- **Durable sink (ISSUE 019/039, implemented)**: the concrete `AuditWriter` behind this event stream is selected by `AUDIT_MODE`. The default `jsonl` mode writes an append-only JSON-Lines file (required on deployed tiers, fail-closed at startup otherwise). The explicit `jetstream` opt-in durably publishes to NATS JetStream: a side-effecting tool call is not reported successful until JetStream acknowledges the event, and the standalone Auditor service — a JetStream durable pull consumer — acks each batch only after Elasticsearch and S3 both durably persist it, with bounded retry, DLQ routing on exhaustion, and idempotent sink keys so redelivery never duplicates a record. Crash-recovery (kill mid-processing → zero loss on restart) is proven against a real NATS JetStream container in `audit/evidence/39_jetstream_durable_audit.md`.
+
 <br>
 
 ```mermaid
