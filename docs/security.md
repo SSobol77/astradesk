@@ -184,7 +184,8 @@ def scrub(d: dict) -> dict:
 ## 7) Audyt i zgodność
 
 - **Audyt**: trwały zapis do Postgres (`audits`) i publikacja do NATS.  
-- **Archiwizacja**: `auditor` zapisuje JSON‑Lines do S3 **(WORM - Object Lock)**.  
+- **Audyt narzędzi side-effect (ISSUE 019/039)**: `AUDIT_MODE=jsonl` (domyślny) zapisuje trwały plik JSON-Lines; `AUDIT_MODE=jetstream` (jawny opt-in, tryb produkcyjny) publikuje na trwały strumień NATS JetStream — wywołanie narzędzia z efektem ubocznym kończy się sukcesem dopiero po potwierdzeniu trwałego zapisu przez broker (ack-after-durable-write), a przy niedostępności/braku potwierdzenia (po ograniczonej liczbie prób i próbie zapisu do DLQ) kończy się odmową (fail-closed) na każdej warstwie. DLQ nie zamienia nieudanego zapisu głównego w sukces po stronie producenta. Szczegóły i dowód odzyskiwania po awarii: `audit/evidence/39_jetstream_durable_audit.md`.  
+- **Archiwizacja**: `auditor` zapisuje JSON‑Lines do S3 **(WORM - Object Lock)**. W trybie `jetstream` `auditor` jest trwałym konsumentem JetStream typu pull i potwierdza (ack) każdą wiadomość dopiero po udanym zapisie do S3 **i** Elasticsearch; awaria zapisu po ograniczonej liczbie prób kieruje zdarzenie do tematu DLQ, a oryginalna wiadomość jest potwierdzana dopiero gdy publikacja do DLQ zostanie potwierdzona przez broker.  
 - **Analiza**: Elasticsearch/Kibana lub OpenSearch.  
 - **Retencja**: polityki retencji/ILM; dostęp kontrolowany przez IAM/role.
 

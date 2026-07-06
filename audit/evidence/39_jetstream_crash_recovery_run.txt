@@ -1,0 +1,17 @@
+=== JetStream durable-audit crash-recovery evidence (ISSUE 039) ===
+NATS image: nats@sha256:b3f2bd84176ae7bd0afa9c48a00f06d7d0818ff4aaee898e4172e0b8340e5816
+Stream=ASTRADESK_AUDIT_CRASHTEST subject=astradesk.audit.crashtest dlq=astradesk.audit.crashtest.dlq durable=astradesk-auditor-crashtest
+[1] NATS JetStream container is ready.
+[2] Published 3 audit events via JetStreamAuditWriter: ['crash-evt-0', 'crash-evt-1', 'crash-evt-2']
+[3] Consumer #1 fetched ['crash-evt-0', 'crash-evt-1', 'crash-evt-2'] and deliberately did NOT ack (simulated crash).
+[4] Waited past AUDIT_ACK_WAIT_SEC=3s for JetStream redelivery eligibility.
+[5] Consumer #2 (fresh instance, same durable name) was redelivered: ['crash-evt-0', 'crash-evt-1', 'crash-evt-2']
+[6] Consumer #2 persisted the batch (fake sinks) and acked after durable write.
+[7] Consumer #3 fetch after ack returned 0 messages (expected 0).
+[8] Published one more event (crash-dlq-0) to exercise the DLQ path.
+[9] Consumer #4 exhausted sink retries and routed the batch to the DLQ subject.
+[10] Independently read back from the DLQ subject: ['crash-dlq-0']
+=== RESULT: PASS ===
+Crash-before-ack batch was redelivered unmodified to a fresh consumer instance.
+No duplicate redelivery occurred after a clean ack.
+Sink-retry exhaustion durably routed the event to the DLQ subject instead of dropping it.

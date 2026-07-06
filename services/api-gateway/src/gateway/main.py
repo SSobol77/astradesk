@@ -28,7 +28,7 @@ from __future__ import annotations
 import logging
 import os
 import uuid
-from collections.abc import AsyncGenerator, Iterable
+from collections.abc import AsyncGenerator, Callable, Iterable
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -38,6 +38,8 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 load_dotenv(os.path.join(project_root, '.env'))
 
 import httpx
+import nats
+import nats.js.errors
 from agents.base import BaseAgent
 from agents.billing import BillingAgent
 from agents.ops import OpsAgent
@@ -48,7 +50,7 @@ from fastapi.responses import StreamingResponse
 from model_gateway.llm_planner import LLMPlanner
 from model_gateway.router import provider_router
 from opa_client.opa import OpaClient
-from runtime.audit import AuditWriter, FileAuditWriter, InMemoryAuditWriter
+from runtime.audit import AuditWriter, FileAuditWriter, InMemoryAuditWriter, JetStreamAuditWriter
 from runtime.authz import SideEffect, enforce_registration_invariants
 from runtime.memory import Memory
 from runtime.models import AgentRequest, AgentResponse
@@ -104,20 +106,110 @@ class AuditConfigError(RuntimeError):
 # than importing that module's private constant for an unrelated concern.
 _AUDIT_DEPLOYED_TIERS = frozenset({'production', 'prod', 'staging', 'stage'})
 
+# Defaults for AUDIT_MODE=jetstream (ISSUE 039). AUDIT_NATS_URL falls back to
+# the shared NATS_URL (already used by the auditor consumer and runtime.memory)
+# when unset, so a single broker address configures the whole event bus unless
+# the audit stream is deliberately split onto a different NATS deployment.
+_DEFAULT_AUDIT_JETSTREAM_STREAM = 'ASTRADESK_AUDIT'
+_DEFAULT_AUDIT_JETSTREAM_SUBJECT = 'astradesk.audit'
+_DEFAULT_AUDIT_JETSTREAM_DLQ_SUBJECT = 'astradesk.audit.dlq'
+_DEFAULT_AUDIT_PUBLISH_TIMEOUT_MS = 2000
+_DEFAULT_AUDIT_PUBLISH_RETRIES = 2
+_DEFAULT_AUDIT_CONNECT_TIMEOUT_SEC = 5.0
 
-def _resolve_audit_writer() -> AuditWriter:
-    """Select the durable audit sink for side-effecting tools (ISSUE 019).
 
-    ``AUDIT_LOG_PATH`` set: always used — an append-only JSON-Lines file,
-    regardless of tier. Unset: allowed only outside a deployed tier.
-    ``ENVIRONMENT`` defaults to ``'production'`` when unset, the same
-    fail-closed default used by
+async def _ensure_audit_stream(js: Any, *, stream: str, subject: str, dlq_subject: str) -> None:
+    """Idempotently ensure the JetStream stream backing the audit subjects exists.
+
+    Checks first rather than always calling ``add_stream`` so an
+    already-provisioned stream with operator-tuned settings (retention,
+    replicas, etc.) is never silently reconfigured by application startup.
+    """
+    try:
+        await js.stream_info(stream)
+    except nats.js.errors.NotFoundError:
+        await js.add_stream(name=stream, subjects=[subject, dlq_subject])
+
+
+async def _build_jetstream_audit_writer(
+    *, connect: Callable[..., Any] | None = None
+) -> JetStreamAuditWriter:
+    """Connect to NATS JetStream and return a ready, durable writer (ISSUE 039).
+
+    ``connect`` is injectable so tests can supply a fake without a real NATS
+    server; production code resolves the real ``nats.connect`` when omitted.
+    Resolved lazily inside the function body (not as a default parameter
+    value) so monkeypatching ``gateway_main.nats.connect`` in a test takes
+    effect even when the caller does not pass ``connect=`` explicitly — a
+    default bound at function-definition time would capture the original
+    function object and silently ignore such patching. Fails closed (raises
+    :class:`AuditConfigError`) on any connection or stream-setup failure,
+    unconditionally — ``AUDIT_MODE=jetstream`` is an explicit opt-in
+    (``INV-LOCAL-MODE-EXPLICIT`` counterpart: the *strong* mode, not a
+    convenience), so it must never silently degrade to a weaker writer, on
+    any tier. The live connection is stashed on ``app_state`` for orderly
+    shutdown; the error message never includes the broker URL's credentials
+    (NATS URLs in this codebase carry no embedded auth) or any event payload.
+    """
+    connect = connect or nats.connect
+    nats_url = os.getenv('AUDIT_NATS_URL', '').strip() or os.getenv('NATS_URL', 'nats://nats:4222')
+    stream = os.getenv('AUDIT_JETSTREAM_STREAM', _DEFAULT_AUDIT_JETSTREAM_STREAM).strip()
+    subject = os.getenv('AUDIT_JETSTREAM_SUBJECT', _DEFAULT_AUDIT_JETSTREAM_SUBJECT).strip()
+    dlq_subject = os.getenv(
+        'AUDIT_JETSTREAM_DLQ_SUBJECT', _DEFAULT_AUDIT_JETSTREAM_DLQ_SUBJECT
+    ).strip()
+    try:
+        timeout_ms = int(
+            os.getenv('AUDIT_PUBLISH_TIMEOUT_MS', str(_DEFAULT_AUDIT_PUBLISH_TIMEOUT_MS))
+        )
+        retries = int(os.getenv('AUDIT_PUBLISH_RETRIES', str(_DEFAULT_AUDIT_PUBLISH_RETRIES)))
+    except ValueError as exc:
+        raise AuditConfigError(
+            'AUDIT_PUBLISH_TIMEOUT_MS/AUDIT_PUBLISH_RETRIES must be integers.'
+        ) from exc
+
+    try:
+        nc = await connect(nats_url, connect_timeout=_DEFAULT_AUDIT_CONNECT_TIMEOUT_SEC)
+        js = nc.jetstream()
+        await _ensure_audit_stream(js, stream=stream, subject=subject, dlq_subject=dlq_subject)
+    except Exception as exc:
+        raise AuditConfigError(
+            'AUDIT_MODE=jetstream but could not connect to NATS/JetStream or '
+            f"prepare stream '{stream}': {type(exc).__name__}. Refusing to start "
+            'without a durable audit sink for write/execute tools.'
+        ) from exc
+
+    app_state['audit_nats_connection'] = nc
+    return JetStreamAuditWriter(
+        js,
+        subject=subject,
+        dlq_subject=dlq_subject,
+        publish_timeout=timeout_ms / 1000.0,
+        publish_retries=retries,
+    )
+
+
+async def _resolve_audit_writer() -> AuditWriter:
+    """Select the durable audit sink for side-effecting tools (ISSUE 019/039).
+
+    ``AUDIT_MODE=jetstream``: explicit, strong mode — connects to NATS
+    JetStream and durably publishes every audit event, failing startup
+    closed (any tier) if the broker or stream cannot be prepared. Any other
+    value (including unset, the default) preserves the original ISSUE 019
+    behavior unchanged: ``AUDIT_LOG_PATH`` set is always used — an
+    append-only JSON-Lines file, regardless of tier; unset is allowed only
+    outside a deployed tier. ``ENVIRONMENT`` defaults to ``'production'``
+    when unset, the same fail-closed default used by
     :func:`astradesk_core.utils.oidc.build_verifier_from_env`, so a deployed
     environment can never silently start with a non-durable sink for
     ``write``/``execute`` tools — it aborts startup instead
-    (``INV-AUDIT-5``/``INV-FAIL-CLOSED``). The error message names only the
-    tier and the missing variable, never a secret.
+    (``INV-AUDIT-5``/``INV-FAIL-CLOSED``). Error messages name only the tier
+    or the missing variable, never a secret.
     """
+    audit_mode = os.getenv('AUDIT_MODE', '').strip().lower()
+    if audit_mode == 'jetstream':
+        return await _build_jetstream_audit_writer()
+
     audit_log_path = os.getenv('AUDIT_LOG_PATH', '').strip()
     if audit_log_path:
         return FileAuditWriter(audit_log_path)
@@ -146,7 +238,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Fail-closed before any external resource is touched (ISSUE 019): a
     # deployed tier without a durable audit sink must never start, mirroring
     # how the OIDC verifier above already aborts before DB/Redis are touched.
-    audit_writer = _resolve_audit_writer()
+    audit_writer = await _resolve_audit_writer()
     # Fail-closed before any external resource is touched (ISSUE 028): a
     # deployed tier without valid policy (OPA) configuration must never
     # start, mirroring the audit sink and OIDC verifier checks above.
@@ -248,6 +340,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await orchestrator.pg_pool.close()
         await orchestrator.redis.close()
         await provider_router.shutdown()
+
+    if 'audit_nats_connection' in app_state:
+        await app_state['audit_nats_connection'].close()
+        logger.info('Audit JetStream connection closed.')
 
     if 'admin_api_client' in app_state:
         await app_state['admin_api_client'].aclose()

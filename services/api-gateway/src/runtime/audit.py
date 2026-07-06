@@ -44,10 +44,20 @@ Target invariants (ISSUE 019)
 - ``INV-AUDIT-7``: events are deterministic for tests — ``event_id``/clock are
   injectable via :class:`ToolRegistry`'s constructor parameters.
 
+:class:`JetStreamAuditWriter` (ISSUE 039) additionally targets the
+JetStream-specific invariants in
+``docs/roadmap/issues/ISSUES_019_durable_audit.md`` (``INV-AUD-1``..
+``INV-AUD-5``, a distinct numbering scheme from ``INV-AUDIT-*`` above, from
+the same source document): ack-after-durable-write, a durable consumer,
+bounded-retry-then-DLQ, idempotent writes, and a producer that never blocks
+on downstream sink persistence. The producer-side half (this module) and the
+consumer-side half (:mod:`services.auditor.main`) are documented together
+where each invariant is actually enforced.
+
 Durability strategy
 --------------------
 :class:`AuditWriter` is a minimal structural protocol (``async def
-write(event)``). Two concrete implementations are provided:
+write(event)``). Three concrete implementations are provided:
 
 - :class:`InMemoryAuditWriter` — deterministic, dependency-free; the default
   writer so existing callers/tests keep working unchanged, and useful for
@@ -55,20 +65,26 @@ write(event)``). Two concrete implementations are provided:
 - :class:`FileAuditWriter` — append-only JSON-Lines sink that survives process
   restarts on the same host; the safe local/production durable mode requested
   by the issue when no external broker is configured.
-
-A NATS-backed writer is intentionally **not** provided here. The only NATS
-publisher currently wired into this codebase
-(:mod:`astradesk_core.utils.events`) is an in-memory test stub (a dummy client
-that discards every publish), not a real broker connection — wrapping it in an
-``AuditWriter`` would produce exactly the misleading, silently-lossy artifact
-this issue exists to remove. Real NATS/JetStream durability for the audit
-pipeline is the scope of the auditor-service rescope tracked in
-``docs/roadmap/issues/ISSUES_019_durable_audit.md`` and is out of scope here.
+- :class:`JetStreamAuditWriter` — publishes each event to a NATS JetStream
+  stream and awaits the broker's own publish acknowledgement (confirmation
+  the event is durably stored in the stream) before returning (ISSUE 039).
+  This is the producer-side half of ack-after-durable-write; the choke
+  point above already fails the side effect closed if ``write()`` raises,
+  so this writer only has to raise correctly on failure. The *consumer*-side
+  half (a durable JetStream pull consumer that acks to the broker only
+  after its own sink write succeeds, with retry/DLQ/idempotency) is
+  :mod:`services.auditor.main`, tracked by the same issue and
+  ``docs/roadmap/issues/ISSUES_019_durable_audit.md``. Real NATS/JetStream
+  connection setup (``nats.connect()``, ``add_stream``) deliberately lives
+  outside this class, in ``gateway.main``'s startup wiring, so
+  :class:`JetStreamAuditWriter` itself stays a pure, dependency-free unit
+  under test — it only needs an already-connected JetStream publisher.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import uuid
 from collections.abc import Callable, Mapping
@@ -88,6 +104,9 @@ __all__ = [
     'AuditWriteError',
     'AuditWriter',
     'ClockFn',
+    'JetStreamAuditWriter',
+    'JetStreamPublishError',
+    'JetStreamPublisher',
     'EventIdFn',
     'FileAuditWriter',
     'InMemoryAuditWriter',
@@ -228,8 +247,6 @@ class FileAuditWriter:
         self._lock = asyncio.Lock()
 
     async def write(self, event: AuditEvent) -> None:
-        import json
-
         line = json.dumps(
             event.to_dict(), ensure_ascii=False, separators=(',', ':'), sort_keys=True
         )
@@ -239,6 +256,151 @@ class FileAuditWriter:
     def _append_line(self, line: str) -> None:
         with self._path.open('a', encoding='utf-8') as fh:
             fh.write(line + '\n')
+
+
+@runtime_checkable
+class JetStreamPublisher(Protocol):
+    """Structural contract for an already-connected JetStream publish client.
+
+    Matches ``nats.js.client.JetStreamContext.publish``'s call shape closely
+    enough that a real ``nc.jetstream()`` object satisfies this Protocol
+    directly, while tests can inject a deterministic fake with no NATS
+    connection at all. Deliberately excludes connection setup (``connect``,
+    ``add_stream``) — that lives in the async factory that constructs
+    :class:`JetStreamAuditWriter`, not in the writer itself.
+    """
+
+    async def publish(
+        self,
+        subject: str,
+        payload: bytes = b'',
+        timeout: float | None = None,
+        stream: str | None = None,
+        headers: dict[Any, Any] | None = None,
+    ) -> Any:
+        """Publish and return once the broker acks durable storage; raise otherwise."""
+        ...
+
+
+class JetStreamPublishError(RuntimeError):
+    """Raised when neither the primary subject nor the DLQ could be confirmed.
+
+    Carries whether a DLQ publish was attempted and whether it succeeded, for
+    logging/metrics — never the event payload itself (``INV-AUDIT-3``).
+    """
+
+    code = 'JETSTREAM_PUBLISH_FAILED'
+
+    def __init__(self, subject: str, *, dlq_attempted: bool, dlq_succeeded: bool | None) -> None:
+        self.subject = subject
+        self.dlq_attempted = dlq_attempted
+        self.dlq_succeeded = dlq_succeeded
+        if not dlq_attempted:
+            dlq_detail = 'not attempted'
+        else:
+            dlq_detail = 'succeeded' if dlq_succeeded else 'failed'
+        super().__init__(
+            f"{self.code}: could not durably publish to '{subject}' (dlq: {dlq_detail})"
+        )
+
+
+def _encode_audit_event(event: AuditEvent) -> bytes:
+    """Serialize an already-redacted :class:`AuditEvent` for JetStream publish."""
+    return json.dumps(
+        event.to_dict(), ensure_ascii=False, separators=(',', ':'), sort_keys=True
+    ).encode('utf-8')
+
+
+class JetStreamAuditWriter:
+    """Durable, JetStream-backed :class:`AuditWriter` (ISSUE 039).
+
+    ``write()`` publishes the event to ``subject`` and awaits the broker's
+    own publish acknowledgement — confirmation the event is now durably
+    stored in the JetStream stream itself, independent of whether any
+    consumer (e.g. :mod:`services.auditor.main`) has processed it yet. This
+    is the producer-side half of ack-after-durable-write (``INV-AUD-1``):
+    ``ToolRegistry``'s existing choke point already fails the side effect
+    closed whenever ``write()`` raises (``INV-AUDIT-5``), so no change to
+    the choke point itself is needed — this class only has to raise
+    correctly on failure.
+
+    Bounded, not indefinite: each publish attempt is wrapped in
+    ``asyncio.wait_for(..., timeout=publish_timeout)``, retried up to
+    ``publish_retries`` additional times. If every primary attempt fails,
+    one best-effort publish to ``dlq_subject`` is attempted so the event is
+    not silently discarded outright — but per the acceptance contract's
+    default fail-closed behavior for side-effect success paths, a
+    successful DLQ write does **not** change the outcome: ``write()``
+    always raises :class:`JetStreamPublishError` when the primary publish
+    could not be confirmed, regardless of whether the DLQ fallback
+    succeeded. The DLQ exists so an operator can inspect/replay the event
+    later, not to unlock the side effect that was waiting on this call.
+    """
+
+    def __init__(
+        self,
+        js: JetStreamPublisher,
+        *,
+        subject: str,
+        dlq_subject: str,
+        publish_timeout: float = 2.0,
+        publish_retries: int = 2,
+    ) -> None:
+        self._js = js
+        self._subject = subject
+        self._dlq_subject = dlq_subject
+        self._publish_timeout = publish_timeout
+        self._publish_retries = max(0, publish_retries)
+
+    async def write(self, event: AuditEvent) -> None:
+        payload = _encode_audit_event(event)
+        headers = {'Nats-Msg-Id': event.event_id}
+
+        last_exc: BaseException | None = None
+        for attempt in range(self._publish_retries + 1):
+            try:
+                await asyncio.wait_for(
+                    self._js.publish(self._subject, payload, headers=headers),
+                    timeout=self._publish_timeout,
+                )
+                return
+            except Exception as exc:  # broker error, timeout, or connection loss
+                last_exc = exc
+                logger.warning(
+                    "JetStream publish attempt %d/%d failed for subject '%s': %s",
+                    attempt + 1,
+                    self._publish_retries + 1,
+                    self._subject,
+                    type(exc).__name__,
+                )
+
+        dlq_succeeded: bool | None = None
+        # A distinct dedup id is required here: JetStream's `Nats-Msg-Id`
+        # deduplication window is scoped to the whole stream, and the
+        # primary subject and the DLQ subject share one stream. If the
+        # primary publish above actually landed despite the client-side
+        # timeout/error (e.g. an ack that was lost in transit), reusing the
+        # bare event id would make the broker silently drop this DLQ
+        # publish as a duplicate — the exact silent-loss failure mode the
+        # DLQ exists to prevent.
+        dlq_headers = {'Nats-Msg-Id': f'dlq:{event.event_id}'}
+        try:
+            await asyncio.wait_for(
+                self._js.publish(self._dlq_subject, payload, headers=dlq_headers),
+                timeout=self._publish_timeout,
+            )
+            dlq_succeeded = True
+        except Exception as dlq_exc:
+            dlq_succeeded = False
+            logger.error(
+                "JetStream DLQ publish also failed for subject '%s': %s",
+                self._dlq_subject,
+                type(dlq_exc).__name__,
+            )
+
+        raise JetStreamPublishError(
+            self._subject, dlq_attempted=True, dlq_succeeded=dlq_succeeded
+        ) from last_exc
 
 
 EventIdFn = Callable[[], str]

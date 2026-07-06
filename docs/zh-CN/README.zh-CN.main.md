@@ -750,7 +750,7 @@ logs-grafana:
 * **认证**：带 JWKS 的 OIDC/JWT。
 * **RBAC**：基于 claim 的每工具权限控制。
 * **mTLS**：通过 Istio 启用 STRICT 模式。
-* **审计**：写入 Postgres + 通过 NATS 发布。
+* **审计**：写入 Postgres + 通过 NATS 发布。`AUDIT_MODE=jetstream`（ISSUE 039）可选启用基于 NATS JetStream 的持久化审计接收端：仅在事件被代理确认持久化后才视为写入成功，并提供有限重试与 DLQ（死信队列）——详见 `audit/evidence/39_jetstream_durable_audit.md`。
 * **策略**：工具中的允许列表、代理中的重试机制。
 
 <br>

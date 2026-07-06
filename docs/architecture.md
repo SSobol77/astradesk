@@ -181,7 +181,13 @@ documents(
 
 ### NATS — kanały
 - `astradesk.audit` — zdarzenia audytu (publisher: gateway, subscriber: auditor)
-- (opcjonalnie) JetStream do trwałej kolejki i re-play
+- Domyślny sink audytu to plik JSON-Lines (`AUDIT_MODE=jsonl`). Tryb
+  `AUDIT_MODE=jetstream` (ISSUE 019/039, jawny opt-in) publikuje na trwały
+  strumień JetStream zamiast tematu core NATS: Gateway blokuje sukces
+  narzędzia na potwierdzeniu trwałego zapisu przez broker, a `auditor`
+  konsumuje jako trwały pull consumer, z ograniczonymi ponowieniami i DLQ
+  (`astradesk.audit.dlq`) przy wyczerpaniu prób zapisu do magazynu — patrz
+  `audit/evidence/39_jetstream_durable_audit.md`.
 
 <br>
 
@@ -205,7 +211,7 @@ documents(
 - **Retry/Backoff**: według wyjątków Model Gateway (`ProviderOverloaded.suggested_sleep`, `ProviderServerError.should_retry`).
 - **Circuit Breakers**: na poziomie mesh (Envoy) dla wywołań do providerów LLM.
 - **Idempotencja**: narzędzia z efektami ubocznymi (np. `create_ticket`) powinny wspierać idempotency key (np. `X-Idempotency-Key`).
-- **S3/ES**: `auditor` zapisuje *best-effort*; w razie przerwy — JetStream (NATS) chroni utratę danych (opcjonalnie).
+- **S3/ES**: domyślnie (`AUDIT_MODE=jsonl`) audyt trafia do lokalnego pliku JSON-Lines. W trybie `AUDIT_MODE=jetstream` `auditor` konsumuje z trwałego JetStream i potwierdza (ack) partię dopiero po udanym zapisie do S3 **i** Elasticsearch, z ograniczonymi ponowieniami i przekierowaniem do DLQ przy wyczerpaniu prób — zdarzenie nigdy nie ginie po cichu (`audit/evidence/39_jetstream_durable_audit.md`).
 
 ---
 
@@ -247,6 +253,7 @@ documents(
 | `OIDC_JWKS_URL`      | JWKS endpoint                                  | `https://idp.example.com/realms/main/protocol/openid-connect/certs` |
 | `API_VERSION`        | Wersja API (nagłówki/eksport)                  | `1.0.0`                                                 |
 | `LOG_LEVEL`          | Poziom logowania                               | `INFO`, `DEBUG`                                         |
+| `AUDIT_MODE`         | Sink audytu side-effect: `jsonl` (domyślny) lub `jetstream` (trwały, ISSUE 019/039) — pełna konfiguracja: `operations.md` §10 | `jsonl` |
 
 <br>
 
@@ -268,6 +275,15 @@ documents(
                                    (archiwum)       (zapytania,          (np. na podejrzane akcje)
                                                      dashboardy)
 ```
+
+Ten diagram opisuje domyślny tryb (`AUDIT_MODE=jsonl`, temat core NATS,
+zapis best-effort). W trybie `AUDIT_MODE=jetstream` (ISSUE 019/039) "NATS
+Bus" powyżej to trwały strumień JetStream: Gateway otrzymuje potwierdzenie
+brokera przed zwróceniem sukcesu narzędzia, a `Auditor` jest trwałym pull
+consumerem, który potwierdza (ack) partię dopiero po zapisie do S3 **i**
+Elasticsearch, z DLQ przy wyczerpaniu ponowień. Pełny opis i dowód
+odzyskiwania po awarii: `audit/evidence/39_jetstream_durable_audit.md`,
+`audit/evidence/39_jetstream_crash_recovery_run.txt`.
 
 <br>
 
