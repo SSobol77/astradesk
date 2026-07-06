@@ -20,13 +20,27 @@ import { usePathname } from 'next/navigation';
 import { useMemo } from 'react';
 import Button from '@/components/primitives/Button';
 import { getBreadcrumbs, getQuickCreateLinks } from '@/lib/guards';
+import { useAuth } from '@/hooks/useAuth';
 import { useCommandPalette } from '@/components/search/CommandPalette';
+
+function initialsFor(name: string | null): string {
+  if (!name) {
+    return 'A';
+  }
+  const parts = name.trim().split(/\s+/).slice(0, 2);
+  return parts.map((part) => part.charAt(0).toUpperCase()).join('') || 'A';
+}
 
 export default function Topbar() {
   const pathname = usePathname();
   const breadcrumbs = useMemo(() => getBreadcrumbs(pathname), [pathname]);
   const quickCreates = useMemo(() => getQuickCreateLinks(), []);
   const { open: openCommandPalette, openQuickActions } = useCommandPalette();
+  const { status, displayName, logout } = useAuth();
+
+  const handleSignOut = () => {
+    void logout();
+  };
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 px-6 py-4 backdrop-blur">
@@ -71,9 +85,9 @@ export default function Topbar() {
           <details className="relative">
             <summary className="flex cursor-pointer items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700">
               <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-white">
-                JD
+                {initialsFor(displayName)}
               </span>
-              <span>Admin</span>
+              <span>{displayName ?? (status === 'simulated' ? 'Simulation' : 'Admin')}</span>
             </summary>
             <ul className="absolute right-0 mt-2 min-w-[10rem] rounded-xl border border-slate-200 bg-white p-2 text-sm shadow-xl">
               <li>
@@ -82,9 +96,14 @@ export default function Topbar() {
                 </Link>
               </li>
               <li>
-                <Link href="#sign-out" className="block rounded-lg px-3 py-2 text-slate-600 hover:bg-slate-100">
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  disabled={status === 'simulated'}
+                  className="block w-full rounded-lg px-3 py-2 text-left text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
                   Sign out
-                </Link>
+                </button>
               </li>
             </ul>
           </details>

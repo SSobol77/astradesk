@@ -14,6 +14,7 @@
 // See the LICENSE file in the project root for the full license text.
 
 import { apiFetch } from '@/lib/api';
+import { getAccessToken } from '@/lib/auth/tokenStore';
 import { apiBaseUrl, apiToken } from '@/lib/env';
 import type {
   Agent,
@@ -284,8 +285,13 @@ export const openApiClient = {
       if (params.status) {
         url.searchParams.set('status', params.status);
       }
-      if (apiToken) {
-        url.searchParams.set('token', apiToken);
+      // EventSource cannot set an Authorization header, so the token travels
+      // as a query param instead (ISSUE 021: prefer the per-user OIDC access
+      // token; apiToken is the legacy server-side token, always empty here
+      // since this branch only runs in the browser).
+      const streamToken = getAccessToken() ?? (apiToken || null);
+      if (streamToken) {
+        url.searchParams.set('token', streamToken);
       }
 
       const eventSource = new EventSource(url.toString(), { withCredentials: false });

@@ -14,8 +14,25 @@
 // See the LICENSE file in the project root for the full license text.
 
 import { apiBaseUrl, apiToken } from '@/lib/env';
+import { getAccessToken } from '@/lib/auth/tokenStore';
 import { resolveSimulationResponse, isSimulationModeEnabled } from '@/lib/simulation';
 import type { ProblemDetail } from '@/api/types';
+
+/**
+ * Resolves the bearer token for an outgoing Admin API request (ISSUE 021).
+ *
+ * `getAccessToken()` is the per-user, browser-side OIDC session token and
+ * takes precedence when present. `apiToken` is the legacy server-side
+ * `ASTRADESK_API_TOKEN` used by Server Component SSR data-loading (it is
+ * always empty in the browser bundle, since it is not `NEXT_PUBLIC_`-
+ * prefixed). If neither is available, this returns `null` and no
+ * `Authorization` header is sent — callers must never substitute a
+ * placeholder, so an unauthenticated caller gets the backend's real 401
+ * instead of silently proceeding as privileged.
+ */
+function resolveBearerToken(): string | null {
+  return getAccessToken() ?? (apiToken || null);
+}
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD';
 
@@ -62,11 +79,13 @@ export async function apiFetch<TResponse, TBody = unknown>({
     }
   }
 
+  const bearerToken = resolveBearerToken();
+
   const init: RequestInit & { next?: { revalidate?: number } } = {
     method,
     headers: {
       'Content-Type': 'application/json',
-      ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
+      ...(bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {}),
       ...headers,
     },
     body: body ? JSON.stringify(body) : undefined,

@@ -14,6 +14,7 @@
 // See the LICENSE file in the project root for the full license text.
 
 import type { ReactNode } from 'react';
+import RequireAuth from '@/components/auth/RequireAuth';
 import Footer from '@/components/layout/Footer';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
@@ -27,20 +28,22 @@ export default function ShellLayout({
   children: ReactNode;
 }) {
   return (
-    <ToastProvider>
-      <CommandPaletteProvider>
-        <div className="flex min-h-screen bg-slate-100">
-          <Sidebar />
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <Topbar />
-            <main className="flex-1 overflow-y-auto p-6" aria-label="Main content">
-              {children}
-            </main>
-            <Footer />
+    <RequireAuth>
+      <ToastProvider>
+        <CommandPaletteProvider>
+          <div className="flex min-h-screen bg-slate-100">
+            <Sidebar />
+            <div className="flex flex-1 flex-col overflow-hidden">
+              <Topbar />
+              <main className="flex-1 overflow-y-auto p-6" aria-label="Main content">
+                {children}
+              </main>
+              <Footer />
+            </div>
+            <ToastViewport />
           </div>
-          <ToastViewport />
-        </div>
-      </CommandPaletteProvider>
-    </ToastProvider>
+        </CommandPaletteProvider>
+      </ToastProvider>
+    </RequireAuth>
   );
 }

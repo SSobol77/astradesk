@@ -419,7 +419,7 @@ Full list in `.env.example`.
 - On a deployed tier (`ENVIRONMENT` ∈ `production`/`prod`/`staging`/`stage`; defaults to `production` when unset) missing `OIDC_ISSUER`/`OIDC_AUDIENCE`/`OIDC_JWKS_URL` aborts startup (`AuthConfigError`) — no fallback to a weaker verifier.
 - `AUTH_MODE=local-dev` (symmetric HS256, keyed by `ASTRADESK_DEV_JWT_SECRET`) is the only local/dev/test/CI convenience; it is a named, non-default mode and is refused at startup on a deployed tier.
 - Verified claims are normalized into a `Principal` (`subject`, `roles`, `scopes`, `claims`) before reaching RBAC (ISSUE 016) — the choke point never inspects raw IdP-specific claim shapes.
-- For Admin Portal: use Auth0 or a similar front-channel flow.
+- **Admin Portal front-channel OIDC (ISSUE 021)**: `services/admin-portal` implements its own browser-side sign-in using a dependency-free Authorization Code + PKCE flow against any OIDC-compliant provider (Auth0, Keycloak, Okta, ...), configured via `NEXT_PUBLIC_OIDC_ISSUER`/`NEXT_PUBLIC_OIDC_CLIENT_ID`/`NEXT_PUBLIC_OIDC_AUDIENCE`/`NEXT_PUBLIC_OIDC_REDIRECT_URI`. Every page under the protected shell requires a session (or `NEXT_PUBLIC_SIMULATION_MODE=true` for a backend-less demo); an unconfigured deployment fails closed to `/login` rather than serving the console unauthenticated. The signed-in user's access token is attached as `Authorization: Bearer <token>` to client-side Admin API calls. See `services/admin-portal/README.md`'s "Authentication" section for setup and `services/admin-portal/lib/auth/` for the implementation.
 
 ### RBAC Policies
 
