@@ -18,8 +18,8 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: astradesk-{{ $service }}
-  namespace: {{ .Release.Namespace }}
+  name: astradesk-{{ $service | kebabcase }}
+  namespace: {{ $.Release.Namespace }}
   labels:
     app: astradesk-{{ $service }}
 spec:

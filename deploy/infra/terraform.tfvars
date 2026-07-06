@@ -13,11 +13,11 @@
 # AstraDesk is licensed under the GNU General Public License version 2 only.
 # See the LICENSE file in the project root for the full license text.
 
-region = "eu-central-1"
-project = "astradesk"
-db_name_postgres = "astradesk"
+region               = "eu-central-1"
+project              = "astradesk"
+db_name_postgres     = "astradesk"
 db_username_postgres = "astradesk"
 db_password_postgres = "astrapass"
-db_name_mysql = "tickets"
-db_username_mysql = "tickets"
-db_password_mysql = "tickets"
+db_name_mysql        = "tickets"
+db_username_mysql    = "tickets"
+db_password_mysql    = "tickets"

@@ -40,17 +40,9 @@ spec:
         prefix: /ticket
     route:
     - destination:
-        host: astradesk-ticketAdapter
+        host: astradesk-ticket-adapter
         port:
           number: 8080
-  - match:
-    - uri:
-        prefix: /
-    route:
-    - destination:
-        host: astradesk-admin
-        port:
-          number: 3000
   - match:
     - uri:
         prefix: /auditor
@@ -59,3 +51,15 @@ spec:
         host: astradesk-auditor
         port:
           number: 8080
+  # /auditor above must stay ordered before this catch-all /: Istio evaluates
+  # HTTP match rules in list order and takes the first match, so a catch-all
+  # placed earlier would shadow every more specific prefix listed after it
+  # (confirmed by `istioctl validate`'s "not used" warning before this fix).
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: astradesk-admin
+        port:
+          number: 3000

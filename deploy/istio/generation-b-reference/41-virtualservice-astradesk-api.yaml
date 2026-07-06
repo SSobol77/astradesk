@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # Project: AstraDesk
-# File: deploy/istio/41-virtualservice-astradesk-api.yaml
+# File: deploy/istio/generation-b-reference/41-virtualservice-astradesk-api.yaml
 # Website: https://www.astradesk.dev
 # Repository: https://github.com/SSobol77/astradesk
 #

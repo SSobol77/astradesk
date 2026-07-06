@@ -19,9 +19,9 @@ See the LICENSE file in the project root for the full license text.
 ## Overview
 
 The `deploy/openshift/` directory contains OpenShift templates for deploying the AstraDesk project in a production-ready environment. These templates define `DeploymentConfig`, `Service`, and `Route` resources for core services (`api`, `ticket-adapter`, `admin-portal`, `auditor`) and domain packs (`domain-support`). The configurations:
-- Enable Istio sidecar injection for mTLS (`deploy/istio/10-peer-authentication.yaml`).
-- Integrate with cert-manager for TLS/mTLS (`deploy/istio/certs/`).
-- Support polyglot stack (Python 3.13+, Java 25+, Node.js 22, Postgres 18+).
+- Enable Istio sidecar injection for mTLS (`deploy/istio/peerauthentication.yaml`).
+- Integrate with cert-manager for TLS/mTLS (`deploy/istio/certmanager.yaml`).
+- Support polyglot stack (Python 3.13+, Java 21, Node.js 22, Postgres 18+).
 - Use Admin API (`/secrets`) for certificate and token storage.
 
 ## Directory Contents
@@ -189,9 +189,9 @@ endif
 - Logs: Published to NATS and stored in Postgres (`services/auditor`).
 
 ## Security
-- mTLS: Enforced by `deploy/istio/10-peer-authentication.yaml`.
-- TLS: Secured by `Route` (edge termination) and `deploy/istio/50-cert-manager-certificate.yaml`.
-- RBAC: Controlled via `deploy/istio/30-authorizationpolicy-namespace.yaml`.
+- mTLS: Enforced by `deploy/istio/peerauthentication.yaml` (namespace-wide STRICT, no selector).
+- TLS: Secured by `Route` (edge termination) and `deploy/istio/certmanager.yaml`.
+- RBAC: the canonical Istio generation has no `AuthorizationPolicy` today — mesh-level authorization rests on mTLS identity alone. A namespace-scoped `AuthorizationPolicy` exists in `deploy/istio/generation-b-reference/30-authorizationpolicy-namespace.yaml` but is not applied by any tracked pipeline; porting it forward is tracked as a follow-up, not part of issue #43 (see `audit/evidence/43_deployability_verification.md`). Application-level RBAC is enforced separately via `src/runtime/auth.py` and Kubernetes RBAC.
 
 ## License
 GPL-2.0-only (see SPDX in files).

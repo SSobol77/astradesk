@@ -18,7 +18,7 @@ See the LICENSE file in the project root for the full license text.
 
 ## Overview
 
-The `deploy/chart/` directory contains the Helm chart for deploying the AstraDesk application to Kubernetes. It manages the deployment of polyglot services (`api`, `ticket-adapter`, `admin-portal`, `auditor`) with autoscaling (HPA, 60% CPU), Istio mTLS (STRICT), and HTTPS via cert-manager. The chart integrates with `deploy/istio/`, `infra/` (Terraform), and Admin API (`/secrets`) for a production-ready setup.
+The `deploy/chart/` directory contains the Helm chart for deploying the AstraDesk application to Kubernetes. It manages the deployment of polyglot services (`api`, `ticket-adapter`, `admin-portal`, `auditor`) with autoscaling (HPA, 60% CPU), Istio mTLS (STRICT), and HTTPS via cert-manager. The chart integrates with `deploy/istio/`, `deploy/infra/` (Terraform), and Admin API (`/secrets`) for a production-ready setup.
 
 <br>
 
@@ -120,7 +120,7 @@ Tests mTLS STRICT and HTTPS connectivity by executing `curl` via Istio proxy to 
 
 ## Prerequisites
 
-- **Kubernetes**: EKS cluster (configured via `infra/main.tf`).
+- **Kubernetes**: EKS cluster (configured via `deploy/infra/main.tf`).
 
 - **Helm**: Version 3.15.3 or higher.
 
@@ -216,7 +216,7 @@ Tests mTLS STRICT and HTTPS connectivity by executing `curl` via Istio proxy to 
 
 - **Jenkinsfile**: Automates deployment (`Deploy to Kubernetes` stage) and Istio configuration (`Apply Istio Configs`, `Test Istio mTLS`).
 
-- **Terraform**: Provides RDS endpoints (`rds_postgres_endpoint`, `rds_mysql_endpoint`) in `infra/`.
+- **Terraform**: Provides RDS endpoints (`rds_postgres_endpoint`, `rds_mysql_endpoint`) in `deploy/infra/`.
 
 - **Istio**: Configures mTLS STRICT and HTTPS via `deploy/istio/` (`gateway.yaml`, `virtualservice.yaml`, `peerauthentication.yaml`, `certmanager.yaml`).
 

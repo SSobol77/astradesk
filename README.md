@@ -486,7 +486,7 @@ oc process -f deploy/openshift/astradesk-template.yaml -p TAG=0.3.0 | oc apply -
 1. Initialize:
 
    ```sh
-   cd infra
+   cd deploy/infra
    terraform init
    terraform apply -var="region=us-east-1" -var="project=astradesk"
    ```
@@ -501,8 +501,8 @@ oc process -f deploy/openshift/astradesk-template.yaml -p TAG=0.3.0 | oc apply -
 
 ### mTLS and Istio Service Mesh
 
-1. Create namespace: `kubectl apply -f deploy/istio/00-namespace.yaml`.
-2. Enable mTLS: `kubectl apply -f deploy/istio/10-peer-authentication.yaml` (and the rest in deploy/istio/).
+1. Namespace: `astradesk-prod` is created by Helm (`--create-namespace`), not a separate manifest — see `deploy/chart/deploy_chart_README.md`.
+2. Enable mTLS: `kubectl apply -f deploy/istio/` (applies `peerauthentication.yaml`, `gateway.yaml`, `virtualservice.yaml`, `certmanager.yaml` — the canonical, `astradesk-prod` generation; see `audit/evidence/43_deployability_verification.md` for the superseded second generation kept for reference under `deploy/istio/generation-b-reference/`).
 3. Gateway: HTTPS on port 443 with cert-manager.
 
 ## CI/CD

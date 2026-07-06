@@ -152,6 +152,8 @@ def check_node_baseline(files: list[str], failures: Failure) -> None:
         if 'node_modules/' in rel_path:
             continue
         full_path = REPO_ROOT / rel_path
+        if not full_path.is_file():
+            continue
         text = full_path.read_text(errors='ignore')
         if FORBIDDEN_NODE_VERSION_RE.search(text):
             failures.add(rel_path, 'declares a Node baseline other than 22')

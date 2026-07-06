@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # Project: AstraDesk
-# File: deploy/chart/requirements.yaml
+# File: deploy/istio/generation-b-reference/certs/letsencrypt-prod-clusterissuer.yaml
 # Website: https://www.astradesk.dev
 # Repository: https://github.com/SSobol77/astradesk
 #
@@ -13,10 +13,17 @@
 # AstraDesk is licensed under the GNU General Public License version 2 only.
 # See the LICENSE file in the project root for the full license text.
 
-dependencies:
-  - name: istio
-    version: "1.18.0"
-    repository: "https://istio-release.storage.googleapis.com/charts"
-  - name: cert-manager
-    version: "1.15.3"
-    repository: "https://charts.jetstack.io"
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: your-email@example.com  # Change to your email
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+      - http01:
+          ingress:
+            class: istio

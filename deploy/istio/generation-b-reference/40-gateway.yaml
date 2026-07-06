@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # Project: AstraDesk
-# File: deploy/istio/40-gateway.yaml
+# File: deploy/istio/generation-b-reference/40-gateway.yaml
 # Website: https://www.astradesk.dev
 # Repository: https://github.com/SSobol77/astradesk
 #

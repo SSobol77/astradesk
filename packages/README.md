@@ -299,9 +299,9 @@ make helm-deploy  # helm upgrade
 --install astradesk deploy/chart
 ```
 
-**Istio:** Routes for /domain-packs in deploy/istio/41-virtualservice-astradesk-api.yaml.
+**Istio:** Routes for /domain-packs in deploy/istio/virtualservice.yaml (the canonical, `astradesk-prod` generation — see `audit/evidence/43_deployability_verification.md` for the two-generation history).
 
-**Terraform:** S3 storage for flows/reports in infra/main.tf.
+**Terraform:** S3 storage for flows/reports in deploy/infra/main.tf.
 
 <br>
 

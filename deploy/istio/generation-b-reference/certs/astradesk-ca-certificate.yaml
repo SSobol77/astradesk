@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # Project: AstraDesk
-# File: deploy/istio/certs/astradesk-ca-certificate.yaml
+# File: deploy/istio/generation-b-reference/certs/astradesk-ca-certificate.yaml
 # Website: https://www.astradesk.dev
 # Repository: https://github.com/SSobol77/astradesk
 #

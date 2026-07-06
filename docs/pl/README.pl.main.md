@@ -368,7 +368,7 @@ Webowy Portal Administracyjny, dostępny pod adresem `http://localhost:3000`, za
 **Zainicjuj:**
 
    ```sh
-   cd infra
+   cd deploy/infra
    terraform init
    terraform apply -var="region=us-east-1" -var="project=astradesk"
    ```
@@ -387,8 +387,8 @@ Webowy Portal Administracyjny, dostępny pod adresem `http://localhost:3000`, za
 
 ### mTLS i siatka usług Istio
 
-1. Utwórz namespace: `kubectl apply -f deploy/istio/00-namespace.yaml`.
-2. Włącz mTLS: `kubectl apply -f deploy/istio/10-peer-authentication.yaml` (i resztę plików z `deploy/istio/`).
+1. Namespace: `astradesk-prod` jest tworzony przez Helm (`--create-namespace`), nie osobnym manifestem.
+2. Włącz mTLS: `kubectl apply -f deploy/istio/` (stosuje `peerauthentication.yaml`, `gateway.yaml`, `virtualservice.yaml`, `certmanager.yaml` — kanoniczną generację `astradesk-prod`; zob. `audit/evidence/43_deployability_verification.md`).
 3. Gateway: HTTPS na port 443 z cert-manager.
 
 <br>

@@ -18,17 +18,17 @@ See the LICENSE file in the project root for the full license text.
 
 ## Overview
 
-The `infra/` directory contains Terraform configurations for deploying the AstraDesk infrastructure on AWS. It provisions a VPC, EKS cluster, RDS instances (Postgres and MySQL), and an S3 bucket for artifacts. The setup is production-ready, integrating with:
-- **Istio**: mTLS and Gateway (`deploy/istio/`).
-- **cert-manager**: TLS certificates (`deploy/istio/certs/`).
+The `deploy/infra/` directory contains Terraform configurations for deploying the AstraDesk infrastructure on AWS. It provisions a VPC, EKS cluster, RDS instances (Postgres and MySQL), and an S3 bucket for artifacts. The setup is production-ready, integrating with:
+- **Istio**: mTLS and Gateway (`deploy/istio/`, the canonical `astradesk-prod` generation).
+- **cert-manager**: TLS certificates (`deploy/istio/certmanager.yaml`).
 - **Admin API**: `/secrets` for AWS credentials (OpenAPI 3.1.0).
-- **Polyglot Stack**: Python 3.13+ (API), Java 25+ (ticket-adapter), Node.js 22 (admin-portal), Postgres 18+.
+- **Polyglot Stack**: Python 3.13+ (API), Java 21 (ticket-adapter), Node.js 22 (admin-portal), Postgres 18+.
 - **CI/CD**: Jenkinsfile (`terraform plan/apply`), Makefile (`terraform-init`, `terraform-apply`).
 
 ## Directory Structure
 
 ```sh
-infra/
+deploy/infra/
 ├── main.tf              # Main Terraform file with backend and module calls
 ├── variables.tf         # Project variables
 ├── outputs.tf           # Project outputs
@@ -154,7 +154,7 @@ istioctl analyze -n astradesk-prod
 
 - **Admin API**: AWS credentials stored in `/secrets` (e.g., `domain-support/tools/asana_adapter.py` for S3 uploads).
 - **Istio**: EKS integrates with `deploy/istio/` (mTLS, Gateway).
-- **cert-manager**: RDS/S3 use security groups for mTLS (`deploy/istio/certs/`).
+- **cert-manager**: RDS/S3 use security groups for mTLS (`deploy/istio/certmanager.yaml`).
 - **Polyglot**:
   - RDS Postgres: Python core (`src/gateway/main.py`).
   - RDS MySQL: Java ticket-adapter (`services/ticket-adapter-java`).
@@ -168,7 +168,7 @@ istioctl analyze -n astradesk-prod
 
 ## Security
 
-- **mTLS**: Enforced by `deploy/istio/10-peer-authentication.yaml`.
+- **mTLS**: Enforced by `deploy/istio/peerauthentication.yaml`.
 - **TLS**: RDS/S3 with security groups from VPC module.
 - **Secrets**: AWS credentials in `/secrets` via Admin API.
 - **RBAC**: EKS IAM roles for pods.
@@ -179,7 +179,7 @@ istioctl analyze -n astradesk-prod
   - Check logs: `terraform plan -debug`.
   - Verify AWS credentials: `aws sts get-caller-identity`.
 - **Module Issues**:
-  - Validate: `terraform validate -chdir=infra/modules/vpc`.
+  - Validate: `terraform -chdir=deploy/infra/modules/vpc validate`.
   - Fix: Update module versions (e.g., `version = "~> 5.0"` for vpc).
 
 ## Contributing

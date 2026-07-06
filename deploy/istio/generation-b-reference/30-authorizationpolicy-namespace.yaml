@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # Project: AstraDesk
-# File: deploy/istio/30-authorizationpolicy-namespace.yaml
+# File: deploy/istio/generation-b-reference/30-authorizationpolicy-namespace.yaml
 # Website: https://www.astradesk.dev
 # Repository: https://github.com/SSobol77/astradesk
 #
@@ -22,15 +22,15 @@ spec:
   selector:
     matchLabels:
       app: astradesk  # Applies to workloads with label app=astradesk (e.g., astradesk-api)
+  # Neither rule below sets `to`: Istio rejects an empty `to.operation` as
+  # invalid (`istioctl validate` / the validating webhook both reject it).
+  # Omitting `to` entirely is the correct way to express "no operation
+  # restriction" for an allowed source.
   rules:
     - from:
         - source:
             namespaces: ["astradesk"]  # Allows traffic from within astradesk namespace
-      to:
-        - operation: {}  # All operations from internal services
     - from:
         - source:
             principals:
               - "cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account"  # Istio IngressGateway SA
-      to:
-        - operation: {}  # All operations from IngressGateway

@@ -28,13 +28,13 @@ The `deploy/istio/` directory contains Istio configurations for the AstraDesk pr
 
 - TLS certificate management with cert-manager.
 
-- Integration with Helm charts (`deploy/chart/`), Admin API (`/secrets`), Terraform (`infra/`), and configuration management (Ansible/Puppet/Salt).
+- Integration with Helm charts (`deploy/chart/`), Admin API (`/secrets`), Terraform (`deploy/infra/`), and configuration management (Ansible/Puppet/Salt).
 
 This directory supports the polyglot stack:
 
 - **Python 3.13+**: `api` (FastAPI), `auditor`.
 
-- **Java 25**: `ticket-adapter`.
+- **Java 21**: `ticket-adapter`.
 
 - **Node.js 22**: `admin-portal`.
 
@@ -46,31 +46,36 @@ This directory supports the polyglot stack:
 
 ```sh
 deploy/istio/
-├── 00-namespace.yaml           # Defines astradesk-prod namespace with Istio injection
 ├── peerauthentication.yaml     # Enforces mTLS STRICT for all services
 ├── gateway.yaml                # Configures HTTPS Gateway on port 443
 ├── virtualservice.yaml         # Routes external traffic to services
 ├── certmanager.yaml            # Manages TLS certificates via cert-manager
-├── certs/                      # ClusterIssuers and CA certificates
-│   ├── letsencrypt-prod-clusterissuer.yaml  # Let's Encrypt ClusterIssuer
-│   ├── astradesk-ca-clusterissuer.yaml     # Internal CA for mTLS
-│   ├── astradesk-ca-certificate.yaml       # Root CA certificate
-│   ├── README.md                           # Certificate setup documentation
-├── README.markdown             # This file
+├── deploy_istio_README.md      # This file
+├── readme.md                   # Short apply-order note (this generation)
+└── generation-b-reference/     # NOT applied by any tracked pipeline — see below
 
 ```
 
-### 00-namespace.yaml
+**`astradesk-prod` is not created by any file in this directory.** Both
+tracked CI/CD pipelines (`Jenkinsfile`, `.gitlab-ci.yml`) create it via
+`helm upgrade --install ... --namespace astradesk-prod --create-namespace`
+before applying these Istio manifests; sidecar injection for its pods comes
+from the Helm chart's own per-pod `sidecar.istio.io/inject: "true"`
+annotation (`deploy/chart/templates/deployment.yaml`), not from a
+namespace-level label.
 
-- **Purpose**: Defines the `astradesk-prod` namespace with Istio sidecar injection.
+### `generation-b-reference/` — reference only, not applied
 
-- **Functionality**:
-  - Creates namespace with `istio-injection: enabled`.
-  - Labels namespace with `app: astradesk` for monitoring and grouping.
-
-- **Usage**: Ensures services (`api`, `ticket-adapter`, `admin`, `auditor`) run with Envoy sidecars for mTLS and traffic management.
-
-- **Dependencies**: Required for all Istio configurations.
+`deploy/istio/generation-b-reference/` holds a second, independent
+generation of Istio manifests (namespace `astradesk`, adds an
+`AuthorizationPolicy` and a `DestinationRule` this directory's generation
+does not have) that used to sit at this same flat directory level. It is
+**not** referenced by either tracked pipeline and currently routes only the
+API service (no route for `ticket-adapter`, `admin`, or `auditor`). See
+`generation-b-reference/README.md` and
+`audit/evidence/43_deployability_verification.md` ("Istio dual-generation
+inventory") for the full comparison and why this directory's generation was
+chosen as canonical.
 
 ### peerauthentication.yaml
 
@@ -144,7 +149,7 @@ deploy/istio/
 
 ### Prerequisites
 
-- **Kubernetes**: EKS cluster (configured via `infra/main.tf`).
+- **Kubernetes**: EKS cluster (configured via `deploy/infra/main.tf`).
 
 - **Istio**: Version 1.18+ (`istioctl install --set profile=demo -y`).
 
