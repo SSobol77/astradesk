@@ -20,8 +20,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, cast
 
-from respx import dispatch
-
 
 @dataclass
 class ProblemDetail(Exception):
@@ -44,6 +42,22 @@ class AdminApiClient:
         return path
 
     async def _request(self, method: str, path: str, payload: dict[str, Any]) -> Any:
+        # Imported lazily: `respx` here is the repo-root test-only stub
+        # (respx/__init__.py, "used in the tests" — see root conftest.py's
+        # sys.path wiring), not the real PyPI package. It is not shipped into
+        # any service's Docker image, so this dispatch call only resolves
+        # under pytest. A module-level import broke `mcp-support`'s
+        # container startup outright (ModuleNotFoundError at import time,
+        # before the FastAPI app object even existed, discovered while
+        # wiring ISSUE 018's integration gate — see
+        # audit/evidence/18_integration_ci_gate.md): `JiraAdapter()` is
+        # constructed at `mcp_server.py` module scope but never calls
+        # `_request` until a real `jira.list_tickets` tool invocation, so
+        # deferring the import here lets the server start and serve
+        # `/health` while leaving this method's existing test-only behavior
+        # unchanged.
+        from respx import dispatch
+
         route = self._normalize_path(path)
         response = dispatch(method, route, payload)
         if response.status_code >= 400:

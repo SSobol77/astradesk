@@ -20,14 +20,67 @@ Integration Tests for AstraDesk Gateway ↔ Agent ↔ MCP Flows
 This module provides comprehensive integration testing for the complete
 agent execution pipeline, including Gateway API, agent orchestration,
 tool execution, and MCP server interactions.
+
+ISSUE 018 wiring notes
+-----------------------
+- All tests here carry the ``integration`` marker (registered in the root
+  ``pyproject.toml``) and are run explicitly via
+  ``uv run pytest -q -m integration tests/integration_tests.py`` — never
+  picked up by a bare ``pytest -q`` glob, both because pytest's default
+  ``python_files`` pattern (``test_*.py``/``*_test.py``) does not match this
+  file's ``*_tests.py`` name, and (belt-and-suspenders) because of the
+  explicit marker. See ``audit/evidence/18_integration_ci_gate.md``.
+- ``integration_suite`` now enters ``TestClient``'s context (``with
+  suite.client:``) so ``gateway.main.lifespan`` actually runs. Previously it
+  did not: a bare ``TestClient(app)`` with no ``with``/context-manager use
+  never starts FastAPI's lifespan, so ``app_state`` (orchestrator, DB pool,
+  policy enforcer, ...) stayed empty for the whole test session and
+  ``/v1/run`` could never genuinely exercise the agent → tool → RAG path —
+  it could only ever hit whatever early error a missing ``app_state`` entry
+  produced. This was the actual reason these tests could not test what
+  ISSUE 018 asks for, independent of which services were running.
+- Auth tokens are minted as real local-dev JWTs (`_mint_local_dev_token`)
+  instead of arbitrary strings like ``'test-token'``: the Admin/Gateway auth
+  dependency requires an actual signed JWT (HS256 in ``AUTH_MODE=local-dev``,
+  ISSUE 009) even outside production, so a bare string was always rejected
+  before reaching any agent/tool/RAG code, regardless of which services were
+  running.
+- ``test_mcp_server_connectivity`` is no longer ``xfail``. Three real,
+  pre-existing blockers were found and fixed while wiring this gate (see
+  ``audit/evidence/18_integration_ci_gate.md`` for full detail):
+  (1) the 4 domain packs' ``pyproject.toml`` files did not declare
+  `fastapi`/`uvicorn` even though every `mcp_server.py` imports them
+  directly, so none of the images could start
+  (`ModuleNotFoundError: No module named 'fastapi'`) — fixed by adding both
+  as runtime dependencies; (2) all 4 `mcp-*` services in
+  `docker-compose.dev.yml` bind-mounted the whole container `/app`,
+  shadowing the image's own `.venv`/`core` — fixed by mounting at each
+  package's own path instead; (3) `domain_support/clients/api.py` imported
+  the repo-root test-only `respx` stub at module scope, so `mcp-support`'s
+  import chain (`mcp_server.py` -> `jira_adapter.py` -> `clients/api.py`)
+  crashed on `ModuleNotFoundError: No module named 'respx'` before the
+  FastAPI app object even existed — fixed by deferring that import to
+  inside `AdminApiClient._request`, where it is only needed once a real
+  `jira.list_tickets` call is made, not at server startup.
+- One more pre-existing, discovered-not-fixed defect worth flagging for a
+  follow-up (tolerated today by this suite's lenient
+  ``result.passed or result.error_message`` assertions, so it does not
+  block this gate): the LLM planner path fails with
+  `'OpaClient' object has no attribute 'check_policy'` before falling back
+  to the keyword planner (may simply reflect no real OPA/LLM configured in
+  this environment, but is recorded here for visibility). See
+  ``audit/evidence/18_integration_ci_gate.md`` for full detail.
 """
 
 import asyncio
 import logging
+import os
 import time
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
+import jwt
 import pytest
 from fastapi.testclient import TestClient
 
@@ -35,9 +88,50 @@ from fastapi.testclient import TestClient
 from gateway.main import app
 from runtime.models import AgentName, AgentRequest
 
-from tests.test_harness import TestResult, TestScenario
+# Bare (not `tests.test_harness`): the root `conftest.py` registers a
+# synthetic `tests` namespace package (pointing only at the domain-*
+# packages' own `tests/` dirs) so `packages/domain-*/tests/*.py` can share
+# fixtures without colliding with this top-level `tests/` directory. Since
+# `tests/` has no `__init__.py`, pytest itself already imports this very
+# module as a bare top-level module with `tests/` prepended to `sys.path`,
+# so `test_harness` (bare) resolves the same file `tests.test_harness`
+# would have, without fighting that synthetic package.
+from test_harness import TestResult, TestScenario
 
 logger = logging.getLogger(__name__)
+
+pytestmark = pytest.mark.integration
+
+
+def _mint_local_dev_token(roles: list[str], *, subject: str = 'integration-test-user') -> str:
+    """Mint a real HS256 JWT accepted by ``AUTH_MODE=local-dev`` (ISSUE 009).
+
+    Matches ``astradesk_core.utils.oidc.LocalDevVerifier`` exactly: same
+    secret/audience/issuer env vars and defaults, ``sub``/``exp``/``iat``
+    required, ``roles`` space-or-list encoded. A plain string like
+    ``'test-token'`` is never a valid JWT and is rejected before the
+    orchestrator/agent/tool/RAG path is ever reached, regardless of which
+    backing services are running — this is why earlier revisions of this
+    suite could "pass" without ever exercising the real flow.
+    """
+    secret = os.getenv('ASTRADESK_DEV_JWT_SECRET', '')
+    if not secret:
+        pytest.skip(
+            'ASTRADESK_DEV_JWT_SECRET is not set: AUTH_MODE=local-dev cannot mint a '
+            'verifiable token, so the integration gate cannot exercise a real request.'
+        )
+    audience = os.getenv('OIDC_AUDIENCE', 'astradesk-local')
+    issuer = os.getenv('OIDC_ISSUER', 'astradesk-local')
+    now = datetime.now(UTC)
+    payload = {
+        'sub': subject,
+        'iat': now,
+        'exp': now + timedelta(minutes=5),
+        'aud': audience,
+        'iss': issuer,
+        'roles': roles,
+    }
+    return jwt.encode(payload, secret, algorithm='HS256')
 
 
 class IntegrationTestSuite:
@@ -64,9 +158,14 @@ class IntegrationTestSuite:
         start_time = time.time()
 
         try:
-            # Create agent request
+            # Create agent request. `scenario.agent_type` is a plain `str`
+            # (TestScenario, tests/test_harness.py) — construct the real
+            # `AgentName` enum member from it, matching the same pattern
+            # already used by `tests/red_team_tests.py`'s
+            # `AgentName(agent_type)`, rather than widening `AgentRequest`
+            # or `AgentName` to accept `str`.
             request_data = AgentRequest(
-                agent=scenario.agent_type,
+                agent=AgentName(scenario.agent_type),
                 input=scenario.input_query,
                 meta={'test_scenario': scenario.name},
             )
@@ -191,9 +290,10 @@ class IntegrationTestSuite:
 
     async def test_authentication_flow(self) -> bool:
         """Test authentication and authorization"""
-        # Test with valid token
+        # Test with a real (local-dev signed) token.
         try:
-            headers = {'Authorization': 'Bearer valid-test-token'}
+            token = _mint_local_dev_token(['it.support', 'sre'])
+            headers = {'Authorization': f'Bearer {token}'}
             response = self.client.post(
                 '/v1/run',
                 json=AgentRequest(agent=AgentName.SUPPORT, input='test query').model_dump(),
@@ -207,7 +307,7 @@ class IntegrationTestSuite:
     async def test_rate_limiting(self) -> bool:
         """Test rate limiting functionality"""
         # Make multiple rapid requests
-        headers = {'Authorization': 'Bearer test-token'}
+        headers = {'Authorization': f'Bearer {_mint_local_dev_token(["it.support", "sre"])}'}
 
         for i in range(10):
             response = self.client.post(
@@ -252,7 +352,7 @@ class IntegrationTestSuite:
             ),
         ]
 
-        auth_token = 'test-integration-token'  # Would be a real JWT in production
+        auth_token = _mint_local_dev_token(['it.support', 'sre'])
 
         for scenario in test_scenarios:
             result = await self.test_full_agent_flow(scenario, auth_token)
@@ -264,10 +364,18 @@ class IntegrationTestSuite:
 # Pytest fixtures and test functions
 @pytest.fixture
 async def integration_suite():
-    """Fixture for integration test suite"""
+    """Fixture for integration test suite.
+
+    Enters ``TestClient``'s context so ``gateway.main.lifespan`` actually
+    runs for the duration of the test (see module docstring): without this,
+    ``app_state`` (orchestrator, DB pool, policy enforcer, ...) is never
+    populated and ``/v1/run`` cannot exercise the real agent → tool → RAG
+    path no matter which backing services are running.
+    """
     suite = IntegrationTestSuite()
-    await suite.setup_mcp_servers()
-    return suite
+    with suite.client:
+        await suite.setup_mcp_servers()
+        yield suite
 
 
 @pytest.mark.asyncio
@@ -297,7 +405,9 @@ async def test_full_agent_flow_support(integration_suite):
         performance_requirements={'max_execution_time': 10.0},
     )
 
-    result = await integration_suite.test_full_agent_flow(scenario, 'test-token')
+    result = await integration_suite.test_full_agent_flow(
+        scenario, _mint_local_dev_token(['it.support', 'sre'])
+    )
     assert result.passed or result.error_message  # Either passes or has expected error
 
 
@@ -314,7 +424,9 @@ async def test_full_agent_flow_ops(integration_suite):
         performance_requirements={'max_execution_time': 10.0},
     )
 
-    result = await integration_suite.test_full_agent_flow(scenario, 'test-token')
+    result = await integration_suite.test_full_agent_flow(
+        scenario, _mint_local_dev_token(['it.support', 'sre'])
+    )
     assert result.passed or result.error_message  # Either passes or has expected error
 
 

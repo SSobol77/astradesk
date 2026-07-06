@@ -258,7 +258,7 @@ class BaseAgent(ABC):
                 # Check graph limits and cycles
                 if len(intent_graph.nodes) > MAX_GRAPH_NODES:
                     raise RuntimeError('Graph size exceeded max nodes')
-                if nx.has_cycles(intent_graph):  # type: ignore[attr-defined]
+                if not nx.is_directed_acyclic_graph(intent_graph):
                     raise RuntimeError('Cycle detected in Intent Graph')
 
                 step = intent_graph.nodes[node]['step']

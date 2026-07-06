@@ -310,7 +310,7 @@ class SupportAgent(BaseAgent):
 
                 if len(intent_graph.nodes) > MAX_GRAPH_NODES:
                     raise RuntimeError('Graph size exceeded max nodes')
-                if nx.has_cycles(intent_graph):
+                if not nx.is_directed_acyclic_graph(intent_graph):
                     raise RuntimeError('Cycle detected in Intent Graph')
 
                 step = intent_graph.nodes[node]['step']
