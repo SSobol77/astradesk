@@ -238,7 +238,7 @@ Przykładowy szkic workflow: patrz [`operations.md`](./operations.md#12-cicd-git
 
 - `401 invalid token` - sprawdź OIDC/JWKS URL, zegar systemowy, `aud/iss`.
 - `503 service warming up` - brak połączeń do DB/Redis; zobacz logi startowe.
-- brak zapisów audytu - NATS/Auditor/S3/ES, uprawnienia IAM, JetStream (lag).
+- brak zapisów audytu - sprawdź `AUDIT_MODE` (`jsonl`/`jetstream`), NATS/Auditor/S3/ES, uprawnienia IAM, lag JetStream i temat DLQ; szczegóły: `operations.md` §10, `audit/evidence/39_jetstream_durable_audit.md`.
 - 429/5xx u providera - backoff wg `ProviderOverloaded/ProviderServerError`, fallback do RAG-only.
 
 <br>

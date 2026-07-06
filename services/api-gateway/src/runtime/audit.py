@@ -271,7 +271,12 @@ class JetStreamPublisher(Protocol):
     """
 
     async def publish(
-        self, subject: str, payload: bytes, *, headers: Mapping[str, str] | None = None
+        self,
+        subject: str,
+        payload: bytes = b'',
+        timeout: float | None = None,
+        stream: str | None = None,
+        headers: dict[Any, Any] | None = None,
     ) -> Any:
         """Publish and return once the broker acks durable storage; raise otherwise."""
         ...

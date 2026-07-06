@@ -32,6 +32,7 @@ import asyncio
 import json
 import time
 from datetime import UTC, datetime
+from typing import Any
 
 import pytest
 from astradesk_core.redaction import PLACEHOLDER_SECRET, PLACEHOLDER_TOKEN
@@ -72,7 +73,12 @@ class _FakeJetStreamPublisher:
         self._dlq_outcome = dlq_outcome
 
     async def publish(
-        self, subject: str, payload: bytes, *, headers: dict[str, str] | None = None
+        self,
+        subject: str,
+        payload: bytes = b'',
+        timeout: float | None = None,
+        stream: str | None = None,
+        headers: dict[Any, Any] | None = None,
     ) -> None:
         self.calls.append((subject, payload, dict(headers or {})))
         if subject == _DLQ_SUBJECT:

@@ -51,9 +51,11 @@ Kompletny przewodnik uruchomieniowy i operacyjny dla zespołów Dev, DevOps oraz
 | `OIDC_JWKS_URL`      | JWKS endpoint                               | `https://idp.example.com/realms/main/protocol/openid-connect/certs`         |
 | `API_VERSION`        | Wersja API                                  | `1.0.0`                                                                     |
 | `LOG_LEVEL`          | Poziom logów                                | `INFO` / `DEBUG`                                                            |
-| `S3_AUDIT_BUCKET`    | Nazwa bucketa dla audytów                   | `astradesk-audit-dev`                                                       |
+| `AUDIT_MODE`         | Sink audytu side-effect (ISSUE 019/039): `jsonl` (domyślny, plik JSON-Lines) lub `jetstream` (trwały NATS JetStream) | `jsonl` |
+| `AUDIT_LOG_PATH`     | Ścieżka pliku JSON-Lines, wymagana na warstwach wdrożeniowych gdy `AUDIT_MODE=jsonl` | `/var/log/astradesk/audit.jsonl` |
+| `S3_BUCKET`          | Bucket S3, do którego usługa `auditor` zapisuje partie zdarzeń audytu | `astradesk-audit-dev`                                                       |
 | `ES_URL`             | URL Elasticsearch                            | `http://elasticsearch:9200`                                                 |
-| `ES_INDEX_AUDIT`     | Indeks audytu                               | `astradesk-audit`                                                           |
+| `ES_INDEX`           | Indeks audytu                               | `astradesk-audit`                                                           |
 | `MODEL_PROVIDER`     | Dostawca LLM                                | `bedrock` / `openai` / `vllm`                                               |
 | `OPENAI_API_KEY`     | Klucz do OpenAI (jeśli wybrano `openai`)    | `***`                                                                       |
 | `BEDROCK_REGION`     | Region AWS Bedrock                          | `eu-central-1`                                                              |
@@ -282,17 +284,64 @@ spec:
 
 ## 10) NATS Auditor - subskrybent audytu
 
-- Subskrypcja tematu: `astradesk.audit`.
-- Zapis do:
-  - **S3** (JSON Lines, dzienne pliki `s3://<bucket>/audits/yyyy/mm/dd/part-*.jsonl`),
-  - **Elasticsearch** (`index`: `astradesk-audit`).
-- Tryb **best-effort**: nie blokuje API; rekomendowany **JetStream** w prod.
+Sink audytu side-effect (`write`/`execute`) wybiera zmienna `AUDIT_MODE`
+ustawiana na `api-gateway` (ISSUE 019/039):
 
-Przykładowa konfiguracja (ENV):
+- **`AUDIT_MODE=jsonl` (domyślny)**: append-only plik JSON-Lines
+  (`AUDIT_LOG_PATH`). Wymagany na warstwach wdrożeniowych
+  (`ENVIRONMENT` ∈ `production`/`prod`/`staging`/`stage`) - start usługi
+  przerywa się (`AuditConfigError`), jeśli ścieżka nie jest ustawiona. Poza
+  warstwami wdrożeniowymi dopuszczalny jest nietrwały writer in-proces (z
+  ostrzeżeniem w logu).
+- **`AUDIT_MODE=jetstream` (jawny opt-in, tryb trwały produkcyjny)**: zdarzenie
+  audytu jest publikowane do trwałego strumienia NATS JetStream; wywołanie
+  narzędzia z efektem ubocznym kończy się sukcesem **dopiero po**
+  potwierdzeniu trwałego zapisu przez broker (ack-after-durable-write). Brak
+  potwierdzenia (broker niedostępny, timeout) po ograniczonej liczbie prób
+  (`AUDIT_PUBLISH_RETRIES`) i próbie zapisu do DLQ kończy wywołanie
+  narzędzia odmową (fail-closed) — na każdej warstwie, nie tylko produkcyjnej.
+
+Usługa `auditor` (`services/auditor`) konsumuje z JetStream jako **trwały
+konsument typu pull** (`AckPolicy.EXPLICIT`) i potwierdza (ack) partię
+zdarzeń dopiero **po** trwałym zapisie do obu magazynów:
+
+- **Elasticsearch** (`ES_INDEX`, dokument `_id` = `event_id` - idempotentny
+  zapis przy redelivery),
+- **S3** (`S3_BUCKET`, klucz obiektu = skrót SHA-256 posortowanych
+  `event_id` w partii - idempotentny zapis przy redelivery).
+
+Awaria zapisu do magazynu po ograniczonej liczbie prób
+(`AUDIT_SINK_RETRIES`) kieruje partię do tematu DLQ
+(`AUDIT_JETSTREAM_DLQ_SUBJECT`); oryginalna wiadomość jest potwierdzana
+(ack) **dopiero gdy** publikacja do DLQ zostanie potwierdzona przez broker -
+w przeciwnym razie pozostaje niepotwierdzona i JetStream dostarczy ją
+ponownie (żadne zaakceptowane zdarzenie nie ginie po cichu).
+
+Dowód odzyskiwania po awarii (crash-recovery, na prawdziwym kontenerze NATS
+JetStream) oraz pełny opis implementacji:
+`audit/evidence/39_jetstream_durable_audit.md` i
+`audit/evidence/39_jetstream_crash_recovery_run.txt`.
+
+Przykładowa konfiguracja (ENV), tryb `jetstream` (pełna lista w `.env.example`):
 ```env
-S3_AUDIT_BUCKET=astradesk-audit-dev
+AUDIT_MODE=jetstream
+AUDIT_NATS_URL=nats://nats:4222
+AUDIT_JETSTREAM_STREAM=ASTRADESK_AUDIT
+AUDIT_JETSTREAM_SUBJECT=astradesk.audit
+AUDIT_JETSTREAM_DLQ_SUBJECT=astradesk.audit.dlq
+AUDIT_PUBLISH_TIMEOUT_MS=2000
+AUDIT_PUBLISH_RETRIES=2
+
+# services/auditor (konsument) — AUDIT_JETSTREAM_* muszą być zgodne z powyższymi
+AUDIT_JETSTREAM_DURABLE_CONSUMER=astradesk-auditor
+AUDIT_FETCH_BATCH_SIZE=100
+AUDIT_FETCH_TIMEOUT_SEC=5
+AUDIT_SINK_RETRIES=3
+AUDIT_SINK_RETRY_BACKOFF_SEC=1
+AUDIT_ACK_WAIT_SEC=30
+S3_BUCKET=astradesk-audit-dev
 ES_URL=http://elasticsearch:9200
-ES_INDEX_AUDIT=astradesk-audit
+ES_INDEX=astradesk-audit
 NATS_URL=nats://nats:4222
 ```
 
@@ -382,8 +431,10 @@ jobs:
 - W razie potrzeby - rozbij workload na mniejsze okna czasowe.
 
 ### 14.3 Problemy z audytem
-- Brak zdarzeń w ES/S3 -> sprawdź subskrypcję NATS, JetStream (lag), uprawnienia S3/ES.
-- Auditor powinien logować liczbę zapisów i błędów (metryka error rate).
+- Narzędzie z efektem ubocznym odmawia wykonania z `AuditConfigError`/`AuditWriteError` -> sprawdź `AUDIT_MODE`; w trybie `jsonl` brak `AUDIT_LOG_PATH` na warstwie wdrożeniowej przerywa start, w trybie `jetstream` niedostępność brokera NATS powoduje fail-closed (to zamierzone zachowanie, nie błąd).
+- Brak zdarzeń w ES/S3 (tryb `jetstream`) -> sprawdź konsumenta `astradesk-auditor` (durable pull consumer), lag JetStream, uprawnienia S3/ES oraz temat DLQ (`AUDIT_JETSTREAM_DLQ_SUBJECT`) pod kątem zdarzeń, które wyczerpały ponowienia zapisu do magazynu.
+- Auditor loguje strukturalnie (JSON) liczbę zapisów i błędów na poziomie WARNING/ERROR/CRITICAL; brak dedykowanej metryki Prometheus dla błędów sinka/DLQ jest znaną luką (`docs/roadmap/issues/ISSUES_019_durable_audit.md`, sekcja „Limitations”).
+- Pełny opis trybów i dowód odzyskiwania po awarii: `audit/evidence/39_jetstream_durable_audit.md`.
 
 ### 14.4 Baza danych
 - Spadek wydajności -> analiza planów zapytań, indeksy (pgvector `ivfflat`); zwiększ `lists`/`probes` w zależności od potrzeb.

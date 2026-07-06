@@ -105,8 +105,9 @@ import json
 import logging
 import os
 import signal
+from collections.abc import Sequence
 from types import FrameType
-from typing import Any
+from typing import Any, Protocol
 
 import aioboto3
 import httpx
@@ -114,7 +115,6 @@ import nats
 import nats.errors
 import nats.js.errors
 from nats.aio.client import Client as NATSClient
-from nats.aio.msg import Msg
 from nats.js.api import AckPolicy, ConsumerConfig
 from nats.js.client import JetStreamContext
 from pythonjsonlogger import jsonlogger
@@ -154,6 +154,21 @@ def _batch_s3_key(batch: list[dict[str, Any]]) -> str:
     ids = sorted(str(doc.get('event_id', '')) for doc in batch)
     digest = hashlib.sha256('|'.join(ids).encode('utf-8')).hexdigest()
     return f'audit/{digest}.ndjson'
+
+
+class JetStreamMessage(Protocol):
+    """Structural contract for a fetched JetStream message.
+
+    Matches only what `Auditor` actually reads/calls (`data`, `ack()`) so a
+    deterministic test fake satisfies it without needing a real
+    `nats.aio.msg.Msg` instance.
+    """
+
+    data: bytes
+
+    async def ack(self) -> None:
+        """Acknowledge durable processing of this message."""
+        ...
 
 
 class Auditor:
@@ -349,7 +364,7 @@ class Auditor:
                 await asyncio.sleep(SINK_RETRY_BACKOFF_SEC)
         return False
 
-    async def _publish_to_dlq(self, msg: Msg, event_id: str | None) -> bool:
+    async def _publish_to_dlq(self, msg: JetStreamMessage, event_id: str | None) -> bool:
         """Publish a raw message payload to the DLQ subject, bounded by a timeout.
 
         The dedup id is prefixed (``dlq:<event_id>``) rather than reused
@@ -378,7 +393,7 @@ class Auditor:
             logger.error('DLQ publish failed: %s', type(exc).__name__)
             return False
 
-    async def _handle_poison_message(self, msg: Msg) -> None:
+    async def _handle_poison_message(self, msg: JetStreamMessage) -> None:
         """Route a non-JSON message to the DLQ; ack only once DLQ-confirmed.
 
         Retrying an undecodable payload can never succeed, so it goes
@@ -391,9 +406,11 @@ class Auditor:
         else:
             logger.critical('Poison message DLQ publish failed; leaving unacked for redelivery.')
 
-    async def _decode_batch(self, msgs: list[Msg]) -> list[tuple[Msg, dict[str, Any]]]:
+    async def _decode_batch(
+        self, msgs: Sequence[JetStreamMessage]
+    ) -> list[tuple[JetStreamMessage, dict[str, Any]]]:
         """Split a fetched batch into decodable events, routing poison ones to the DLQ."""
-        decodable: list[tuple[Msg, dict[str, Any]]] = []
+        decodable: list[tuple[JetStreamMessage, dict[str, Any]]] = []
         for msg in msgs:
             try:
                 event = json.loads(msg.data)
@@ -403,7 +420,9 @@ class Auditor:
             decodable.append((msg, event))
         return decodable
 
-    async def _route_batch_to_dlq(self, decodable: list[tuple[Msg, dict[str, Any]]]) -> None:
+    async def _route_batch_to_dlq(
+        self, decodable: list[tuple[JetStreamMessage, dict[str, Any]]]
+    ) -> None:
         """Route a batch that exhausted sink retries to the DLQ.
 
         Acks the batch only if every message was durably confirmed by the
@@ -428,7 +447,7 @@ class Auditor:
                 'leaving batch unacked for JetStream redelivery.'
             )
 
-    async def _process_batch(self, msgs: list[Msg]) -> None:
+    async def _process_batch(self, msgs: Sequence[JetStreamMessage]) -> None:
         """Decode, persist, and ack (or DLQ) a fetched batch of messages.
 
         Decodable messages are persisted as one batch; on success they are

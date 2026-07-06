@@ -31,6 +31,7 @@ import time
 
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
+from watchdog.observers.api import BaseObserver
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +85,7 @@ class HotReloadServer:
             '.pytest_cache',
         ]
         self.process: subprocess.Popen | None = None
-        self.observer: Observer | None = None
+        self.observer: BaseObserver | None = None
         self.running = False
 
     async def start(self):
