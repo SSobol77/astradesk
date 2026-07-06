@@ -21,6 +21,17 @@ See the LICENSE file in the project root for the full license text.
 **Source of truth**: `audit-report.md` Rev 2, `roadmap.md` §2 Phase 1–2
 **Design stance**: contract-first, evidence-driven, fail-closed. Every task states invariants, interfaces, failure modes, and the artifact that proves it done.
 
+> **Status update (2026-07-06, issue #65)**: the 8-issue Safety Core scope
+> defined in this file (§5 Issue index: rescoped #9/#16/#19/#28,
+> NEW-1/NEW-2/NEW-4/NEW-SEC — closed as #37/#38/#39/#28/#40/#41/#42 and the
+> admin-proxy-auth PR) is **fully closed**. The broader `v0.3.1` milestone
+> is **not** complete: issue #43 (Helm/Terraform/Istio live deployability,
+> consolidated from the roadmap's separate Phase 2 deployability item and
+> added to this milestone after this file was written) remains open,
+> blocked on live AWS/Kubernetes checks — see
+> `audit/evidence/43_deployability_verification.md`. Do not read this
+> update as closing `v0.3.1`.
+
 ---
 
 ## 0. Engineering philosophy — best patterns, immunized against their childhood diseases

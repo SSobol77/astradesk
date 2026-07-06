@@ -1039,6 +1039,40 @@ testing, comment out `claims: dict[str, Any] = Depends(auth_guard),` in the `run
 - Run: `make test` (Python), `make test-java`, `make test-admin`.
 - Coverage: Unit (pytest, JUnit, Vitest), integration (API flow).
 
+### Integration test gate (issue #18)
+
+`tests/integration_tests.py` drives the full Gateway → Agent → Tool → RAG
+flow (in-process FastAPI `app` via `TestClient`, real local-dev JWTs) plus
+HTTP connectivity checks against the 4 domain-pack MCP servers. It is
+wired as an explicit, required, always-run job
+(`integration-tests` in `.github/workflows/ci.yml`) — not part of the
+default `pytest -q` unit gate.
+
+Required backing services (`docker-compose.dev.yml`):
+
+```bash
+docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180 \
+  postgres redis nats mcp-support mcp-ops mcp-finance mcp-supply
+```
+
+Exact gate command:
+
+```bash
+DATABASE_URL=postgresql://astradesk:astradesk@localhost:5432/astradesk \
+REDIS_URL=redis://localhost:6379/0 \
+NATS_URL=nats://localhost:4222 \
+AUTH_MODE=local-dev \
+ASTRADESK_DEV_JWT_SECRET=integration-test-secret \
+ENVIRONMENT=ci \
+uv run pytest -q -m integration tests/integration_tests.py
+```
+
+Expected result: **`5 passed`** — no `xfail`, no `skip`, no optional/
+best-effort MCP server path (all 4 must become healthy or the CI step
+itself fails). See `audit/evidence/18_integration_ci_gate.md` for the
+root-cause history and `audit/evidence/v0.3.0_final_validation.md` for the
+latest reproduction.
+
 ### Coverage reports
 
 Each stack emits a machine-readable coverage report that CI uploads as an artifact:

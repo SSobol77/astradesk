@@ -20,6 +20,18 @@ See the LICENSE file in the project root for the full license text.
 **Inputs**: `audit-report.md` Rev 2 (tree `2d59d75`), live tracker (28 issues / 7 milestones)
 **Source of truth**: every roadmap item traces to an audit finding or a tracked issue. No aspirational item is included without evidence. Effort is expressed as relative horizons and **evidence-backed gates**, not invented dates.
 
+> **Status update (2026-07-06, issue #65)**: milestone `v0.3.0 — AWS-Ready
+> Deployment` is now **fully closed** (#17, #18, #19, #20, #21) — see
+> `audit/evidence/v0.3.0_final_validation.md`. Milestone
+> `v0.3.1 — Commercial Workhorse Hardening` has closed 7 of its 8 issues
+> (#28, #37, #38, #39, #40, #41, #42); **#43 remains open**, blocked on
+> live AWS/Kubernetes checks that require a provisioned cluster/account
+> (see `audit/evidence/43_deployability_verification.md`) — `v0.3.1` and
+> the Track A "Commercial Workhorse v1" gate below are **not** complete.
+> The rest of this document is preserved as written at the 2026-06-28
+> planning snapshot; items below referring to #18/#21/#39 as open work
+> reflect that snapshot, not current status.
+
 ---
 
 ## 0. How to read this roadmap
@@ -81,7 +93,7 @@ This is the heart of the workhorse. All items are audit Criticals/Highs.
 2. **Reproducible images.** Rebuild all Python images from `pyproject.toml`/`uv.lock` on **Python 3.13**, non-root `USER`, drop the missing-`requirements.txt` copies. *(§3.1, §3.3, §7; NEW-2)*
 3. **One baseline, pinned.** Align dev/prod DB+cache (pgvector image for dev), pin patches/digests; verify the pgvector migration on an empty volume. *(§6)*
 4. **Deployment verified, partially — all offline checks done and the canonical Istio architecture decision applied; only cluster-gated checks remain.** `helm lint`/`helm template`, `istioctl validate`, and `terraform validate` (root + all 5 modules: `vpc`, `eks`, `rds-postgres`, `rds-mysql`, `s3`) now all pass (four real bugs found and fixed: two Helm template/naming bugs, one Istio schema bug, one Istio routing-order bug; plus the `eks` module's incompatibility with the current `hashicorp/aws` provider line resolved via a `required_providers` version constraint — see `audit/evidence/43_deployability_verification.md`). The maintainer chose **Generation A** (`astradesk-prod`, routes all four services, matches both tracked pipelines) as canonical over Generation B (`astradesk`, API-only routing, not referenced by any executable pipeline step); Generation B is relocated to `deploy/istio/generation-b-reference/` (kept for reference, not applied by `kubectl apply -f deploy/istio/`), and stale top-level `infra/` Terraform paths in `Jenkinsfile`/`.gitlab-ci.yml`/referencing docs are fixed to `deploy/infra/`. Porting Generation B's `AuthorizationPolicy`/certificate strategy forward is explicitly deferred to a separate future issue, not part of #43. `helm install`, `terraform plan`/`apply`, `istioctl analyze` against a live mesh, and the negative-connectivity test still require a provisioned cluster/AWS account and were not performed. *(issue #43, consolidating #5/#12/#15/#17 → in progress, not closed)*
-5. **Executable integration gate.** Repair `tests/integration_tests.py` collection, mark every test, run Compose-backed `pytest -m integration` as a protected gate. *(§3.2, issue #18 → RESCOPE)*
+5. **Executable integration gate — done.** `tests/integration_tests.py` collects and runs correctly; every test carries the `integration` marker; `.github/workflows/ci.yml`'s `integration-tests` job runs the Compose-backed `uv run pytest -q -m integration tests/integration_tests.py` as a required, always-run gate (Postgres/Redis/NATS plus all 4 domain-pack MCP servers, no `|| true`) and reports **`5 passed`**, zero xfail/skip. *(§3.2, issue #18 → RESOLVED, see `audit/evidence/18_integration_ci_gate.md`)*
 
 ### Phase 3 — Trustworthy Docs & Honest Artifacts ("developer can rely on it") → `v0.4.0`
 
@@ -96,7 +108,7 @@ This is the heart of the workhorse. All items are audit Criticals/Highs.
 
 AstraDesk is client-deployable when **all** of the following produce reproducible evidence:
 
-- [ ] `main` and `develop` CI green; integration gate executable and passing.
+- [ ] `main` and `develop` CI green; integration gate executable and passing. **Integration gate: done** — `uv run pytest -q -m integration tests/integration_tests.py` runs in CI against real Compose services and reports `5 passed`, zero xfail (issue #18, `audit/evidence/18_integration_ci_gate.md`). Box stays unchecked pending a confirmed green `main`/`develop` CI run beyond this local reproduction.
 - [ ] No secret in any tracked file; secret-scan gate active.
 - [ ] OIDC enforced at active ingress; HS256 fallback disabled outside local mode.
 - [ ] Every `write`/`execute` tool denies without role on **both** planning paths (negative tests prove it).
@@ -149,6 +161,8 @@ To keep the partner conversation credible:
 3. **RESCOPE in place** (comment + relabel, do not reopen): #9, #16, #18, #19, #28 carry residual workhorse debt into `v0.3.0`/`v0.3.1`; #14, #5, #12, #15, #17 carry deployability/verification debt.
 4. **KEEP**: #21 (OIDC portal) and #23 (E2E) move into the Track A scope they belong to; #24/#25/#26/#27 stay in Track B milestones.
 5. All execution (issue/milestone creation, closing, labelling) is performed by a human; this roadmap is the plan, not the mutation.
+
+**Execution status (2026-07-06)**: items 1–4 above have been carried out. Milestone `v0.3.1` exists; issues 9, 16, 28, and 19 were rescoped and closed as issues 37, 38, 28, and 39 respectively; issues 18 and 21 (item 4, "KEEP") are closed under `v0.3.0`. Of item 3's deployability debt (issues 14, 5, 12, 15, 17), only issue 43 remains open. Issue 23 (Portal E2E) remains open under `v0.4.0`, out of scope for this update.
 
 ---
 
